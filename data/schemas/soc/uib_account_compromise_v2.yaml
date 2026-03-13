@@ -1,0 +1,1009 @@
+# UIB – v2.0
+# PLAYBOOK CSIRT: KOMPROMITACE ÚČTU
+# Zpracováno dle CSIRT Playbook Kompromitace účtu v1.2 / SM/25/0100/P5
+
+template_id: uib-account-compromise-v2
+name: 'Kompromitace účtu'
+version: '2.0'
+category: Identity
+status: active
+description: >
+  Workbook pro řešení incidentů typu kompromitace přihlašovacích údajů – neobvyklé nebo rizikové přihlášení,
+  account takeover, zneužití účtu k rozesílání spamu, neoprávněná změna hesla nebo MFA, podezřelá aktivita
+  v M365 nebo jiných identitních systémech, token replay a session hijack.
+  L1 ITS provádí pouze příjem UIB/IIB, evidenci v TIS a okamžité předání Koordinátorovi CSIRT (L2).
+  Zpracováno dle CSIRT Playbook Kompromitace účtu v1.2 a SM/25/0100/P5.
+mitre_tactic: Initial Access
+mitre_technique: T1078 – Valid Accounts
+mitre_subtechnique: T1078.004
+data_sources:
+  - AAD / Azure AD sign-in logy a risk events
+  - M365 Defender (identity protection)
+  - Exchange / M365 audit logy (mailbox, forwarding rules)
+  - Active Directory Event Log (4624, 4625, 4648, 4768, 4769)
+  - VPN / Remote access logy
+  - SIEM
+
+sections:
+
+  - id: header
+    type: header
+    title: Hlavička
+    fields:
+      - key: case_title
+        label: Stručný popis události
+        hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
+        placeholder: 'Kompromitace účtu – přihlášení z neznámé IP (RU) · uživatel: novak@firma.cz · MFA změněno bez vědomí uživatele'
+      - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
+      - key: incident_coordinator
+        label: Koordinátor incidentu (CSIRT – L2)
+        hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
+
+  - id: classification
+    type: form
+    title: Klasifikace
+    fields:
+      - {key: mitre_tactic, label: MITRE Tactic, type: text, editable: false, auto_value: meta.mitre_tactic}
+      - {key: mitre_technique, label: MITRE Technique, type: text, editable: false, auto_value: meta.mitre_technique}
+      - key: mitre_subtechnique
+        label: MITRE Sub-technique / Typ kompromitace
+        type: select
+        editable: true
+        value: null
+        options:
+          - T1078.002 – Domain Accounts (kompromitace doménového účtu)
+          - T1078.004 – Cloud Accounts (kompromitace M365 / AAD účtu)
+          - T1110.003 – Password Spraying (útok na více účtů slabým heslem)
+          - T1110.004 – Credential Stuffing (zneužití uniklých přihlašovacích údajů)
+          - T1539 – Steal Web Session Cookie (token / session hijack)
+          - T1621 – Multi-Factor Authentication Request Generation (MFA fatigue)
+          - T1556 – Modify Authentication Process (změna MFA bez vědomí uživatele)
+          - Kombinace / nelze určit
+        hint: >
+          Vyplň po Posouzení, až je znám způsob útoku.
+          Privilegovaný účet nebo účet s přístupem k regulované službě → ihned eskaluj na P1/P2.
+      - key: data_sources
+        label: Doporučené zdroje dat pro investigaci
+        type: textarea
+        editable: false
+        auto_value: meta.data_sources
+
+  - id: contacts
+    type: table
+    title: Kontaktní matice
+    description: >
+      Kontakty pro investigaci a eskalaci. Vyplň dle aktuální struktury organizace.
+      L1 ITS předává Koordinátorovi CSIRT (L2) telefonicky nebo e-mailem.
+      L1 nesmí resetovat hesla, MFA ani blokovat účty – veškeré technické kroky provádí
+      administrátoři výhradně na pokyn Koordinátora CSIRT.
+    columns:
+      - {key: system_role,     label: "Systém / role",   type: text, editable: false}
+      - {key: name,            label: "Jméno",           type: text, editable: true}
+      - {key: email,           label: "E-mail",          type: text, editable: true}
+      - {key: phone,           label: "Telefon",         type: text, editable: true}
+      - {key: when_to_contact, label: "Kdy kontaktovat", type: text, editable: false}
+    allow_append: true
+    rows:
+      - system_role: L1 ITS (Service Desk H24)
+        name: ITS Service Desk
+        email: its@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Příjem UIB/IIB, evidence v TIS, okamžité předání Koordinátoru CSIRT
+      - system_role: Koordinátor incidentu CSIRT (L2)
+        name: Koordinátor CSIRT
+        email: csirt@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Přebírá řízení od L1 – okamžité předání po zaevidování UIB/IIB v TIS
+      - system_role: CSIRT analytici
+        name: CSIRT – analytický tým
+        email: csirt@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Technické ověření, analýza aktivity účtu, IOC/IOA – aktivace Koordinátorem
+      - system_role: Správce identity / IAM (AAD)
+        name: Administrátor IAM
+        email: iam@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: >
+          Reset hesla, reset MFA, revokace tokenů a sessions, uzamčení účtu,
+          kontrola skupin a rolí – výhradně na pokyn Koordinátora CSIRT
+      - system_role: Správce Exchange / M365
+        name: Administrátor M365
+        email: m365admin@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: >
+          Audit mailboxu, kontrola forwarding rules (včetně hidden rules),
+          OAuth aplikace, delegace, audit odeslaných zpráv
+      - system_role: Správce AD (on-premise)
+        name: Administrátor AD
+        email: ad@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: >
+          AD audit logů (Event 4624/4625/4648), kontrola skupin a oprávnění,
+          rotace klíčů a certifikátů při privilegovaném účtu
+      - system_role: Správce VPN / Remote Access
+        name: Správce VPN
+        email: vpn@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: VPN logy, odpojení aktivní VPN session, kontrola certifikátů
+      - system_role: CISO
+        name: CISO
+        email: ciso@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Závažnost Vysoká / Kritická · privilegovaný účet · dopad na regulovanou službu
+      - system_role: ISO
+        name: ISO
+        email: iso@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Závažnost Kritická / dle interní politiky
+      - system_role: DPO
+        name: DPO
+        email: dpo@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Při podezření na exfiltraci nebo neoprávněný přístup k osobním údajům (GDPR)
+      - system_role: CERT / NÚKIB
+        name: NÚKIB
+        email: podatelna@nukib.cz
+        phone: +420 222 362 888
+        when_to_contact: Dle regulatorní povinnosti (NIS2 – KBI při dopadu na regulovanou službu)
+
+  - id: incident_context
+    title: 'Detekce a hlášení (L1 ITS)'
+    type: section_group
+    subsections:
+      - id: detection_report
+        type: form
+        title: Hlášení a detekce
+        note: "L1 ITS – záznam dle SM/25/0100/P5"
+        fields:
+          - key: source_type
+            label: Zdroj detekce
+            type: select
+            editable: true
+            value: null
+            options:
+              - Hlášení zaměstnancem / osobou
+              - Automatizovaná detekce
+            hint: Vyberte zdroj detekce a vyplňte odpovídající pole.
+          # --- Person-reported fields ---
+          - key: reported_at
+            label: Datum a čas nahlášení (UIB/IIB)
+            type: datetime
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: reporter_name
+            label: Jméno oznamovatele
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            placeholder: 'Jan Novák'
+          - key: reporter_department
+            label: Oddělení / organizační jednotka
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: reporter_contact
+            label: Kontakt (e-mail / telefon)
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: affected_user
+            label: Postižený uživatel nebo útvarový mailbox
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: description_by_reporter
+            label: Popis události slovy oznamovatele
+            type: textarea
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            placeholder: >
+              Uživatel hlásí, že dostal notifikaci o přihlášení z neznámého zařízení a heslo mu bylo změněno.
+              Přišlo mu velké množství MFA žádostí o potvrzení, které neinicializoval.
+          # --- Auto-detection fields ---
+          - key: alert_timestamp
+            label: Datum a čas alertu
+            type: datetime
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+          - key: detection_tool
+            label: Detekční nástroj / zdroj alertu
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+            placeholder: 'AAD Identity Protection – alert Impossible Travel · Risk level: High'
+          - key: alert_id
+            label: ID alertu / Identifikace pravidla
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+          - key: affected_asset_auto
+            label: Postižený účet (UPN)
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+          - key: alert_description
+            label: Popis alertu
+            type: textarea
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+
+      - id: affected_assets
+        type: table
+        title: Dotčená aktiva
+        always_expanded: true
+        hint: >
+          Pokud je kompromitovaný účet součástí regulované služby nebo má administrátorská oprávnění
+          → ihned informuj CISO.<br><br>
+          Do pole Poznámky uveď klíčová zjištění (IP útočníka, geolokace, typ aktivity, stav účtu).
+        columns:
+          - {key: asset_name,        label: "Název aktiva / účtu", type: text,   editable: true}
+          - {key: fqdn,              label: "UPN / FQDN",          type: text,   editable: true}
+          - {key: asset_ip,          label: "IP / Netmask",        type: text,   editable: true}
+          - {key: asset_type,        label: "Typ aktiva",          type: select, editable: true, options: ["Uživatelský účet (AAD / M365)", "Doménový účet (AD)", "Administrátorský účet", "Servisní účet", "Mailbox", "Endpoint", "Informační systém"]}
+          - {key: regulated_service, label: "Regulovaná služba",   type: select, editable: true, options: ["Ne", "Ano"]}
+          - {key: notes,             label: "Poznámky",            type: text,   editable: true}
+        allow_append: true
+        allow_delete: true
+        rows: []
+
+  - id: l2_assessment
+    title: 'Prvotní posouzení koordinátora (CSIRT – L2)'
+    type: section_group
+    subsections:
+      - id: l2_initial_assessment
+        title: Prvotní posouzení Koordinátora CSIRT (L2)
+        type: form
+        note: Vyplní Koordinátor CSIRT ihned po převzetí od L1 – před zahájením Posouzení, třídění a rozhodování
+        fields:
+          - key: account_type
+            label: Typ kompromitovaného účtu
+            type: select
+            editable: true
+            value: null
+            options:
+              - Běžný uživatel (bez zvýšených oprávnění)
+              - Administrátor / privilegovaný účet
+              - Servisní účet
+              - Účet s přístupem k regulované službě
+              - Nelze určit
+            hint: >
+              Administrátor nebo účet s přístupem k regulované službě → ihned eskaluj na P1/P2,
+              aktivuj CISO a zahaj rotaci všech klíčů a certifikátů.
+          - key: session_active
+            label: Je účet / session stále aktivní (kompromitace probíhá)?
+            type: select
+            editable: true
+            value: null
+            options:
+              - Ano – aktivní session potvrzena
+              - Pravděpodobně – nelze okamžitě ověřit
+              - Ne – aktivita ukončena
+            hint: >
+              Pokud session aktivní → okamžitá stabilizace je prioritou:
+              reset hesla, MFA a revokace tokenů (provádí Správce IAM na pokyn Koordinátora CSIRT).
+          - key: l2_initial_priority
+            label: Předběžná priorita (L2)
+            type: select
+            editable: true
+            value: null
+            options:
+              - P1 – Kritická (privilegovaný účet / reg. služba / potvrzená exfiltrace)
+              - P2 – Vysoká (admin účet / podezření na exfiltraci / kompromitace probíhá)
+              - P3 – Střední (běžný uživatel, neobvyklé přihlášení, aktivita zastavena)
+              - P4 – Nízká (preventivní šetření, žádný dopad potvrzen)
+            hint: Předběžná priorita se může upřesnit v průběhu Posouzení.
+
+  - id: triage_investigation
+    title: Posouzení, třídění a rozhodování
+    type: checklist
+    description: >
+      Cílem je validovat kompromitaci, určit typ účtu a závažnost, posoudit KBU/KBI a aktivovat potřebné role.
+      Koordinátor CSIRT (L2) přebírá řízení od L1 ITS.
+      Klasifikace se může v průběhu měnit – finální klasifikace se zaznamenává v bloku Klasifikace a uzavření.
+    step_groups:
+      - id: validate_alert
+        title: Validace alertu a KBU/KBI posouzení (Koordinátor CSIRT – L2)
+        steps:
+          - action: >
+              Validuj alert: ověř čas, lokaci a IP přihlášení, stav MFA, charakter aktivity –
+              porovnej s obvyklým chováním uživatele (baseline)
+            example: 'Přihlášení z IP 185.xxx.xxx.xxx (RU) ve 03:14 · uživatel je v CZ · MFA: obcházeno · Impossible Travel potvrzen'
+          - action: >
+              Urči typ ohrožení dle kompromitovaného účtu:
+              běžný uživatel → P3/P4 ·
+              administrátor nebo účet s dopadem na regulovanou službu → P1/P2
+            example: 'Účet: karel.dvorak@firma.cz – běžný uživatel bez admin oprávnění · priorita P3 (upřesnit po analýze)'
+          - action: >
+              Posouď možnost KBU/KBI dle SM/25/0100/P5 –
+              KBI zejména u administrátorských účtů nebo účtů s přístupem k regulovaným službám
+            example: 'KBI: Ne – dotčený účet nemá přístup k regulované službě · sledovat při rozšíření scope'
+          - action: >
+              Aktivuj CSIRT analytiky a příslušné administrátory (Správce IAM, Správce M365)
+              dle rozsahu a závažnosti
+            example: 'CSIRT analytici aktivováni v 11:30 · Správce IAM a M365 kontaktováni'
+        hints:
+          - >
+            Typické indikátory kompromitace: impossible travel · přihlášení z IP s nízkou reputací nebo anonymizátoru ·
+            změna hesla/MFA bez vědomí uživatele · neznámá forwarding pravidla · MFA fatigue (opakované žádosti) ·
+            podezření na token replay / session hijack · uživatel hlásí neznámou aktivitu.
+
+  - id: response_technical
+    title: 'Odezva – technická opatření (CSIRT + TA/MA)'
+    type: checklist
+    description: >
+      Technická odezva dle playbooku. Koordinátor CSIRT řídí průběh a zadává pokyny administrátorům.
+    step_groups:
+      - id: immediate_stabilization
+        title: A) Okamžitá stabilizace (Správce IAM + Správce M365 – dle pokynů Koordinátora CSIRT)
+        steps:
+          - action: >
+              Nařiď reset hesla dotčeného uživatele s vynucenou změnou při dalším přihlášení –
+              provádí Správce IAM (TA/IAM) na pokyn Koordinátora CSIRT
+            example: 'Reset hesla proveden v 11:35 · vynucená změna při přihlášení aktivní'
+          - action: >
+              Nařiď reset MFA – odebrání stávajících MFA metod a nové přiřazení –
+              provádí Správce IAM na pokyn Koordinátora CSIRT
+            example: 'MFA reset proveden · uživatel informován o re-enrollmentu'
+          - action: >
+              Revokuj všechny aktivní sessions a tokeny (AAD, VPN, interní systémy) –
+              provádí Správce IAM (forced sign-out všech sessions)
+            example: 'Forced sign-out všech sessions v AAD proveden v 11:37 · VPN session ukončena'
+          - action: >
+              Pokud aktivita útočníka stále probíhá → dočasně uzamkni účet;
+              po stabilizaci a ověření odblokuj
+            example: 'Účet dočasně uzamčen do dokončení analýzy – odemčen v 14:20 po ověření čistoty'
+        hints:
+          - >
+            Stabilizaci VŽDY koordinuje Koordinátor CSIRT – L1 ITS nesmí resetovat hesla, MFA
+            ani blokovat účty bez výslovného pokynu Koordinátora CSIRT.
+          - >
+            Stabilizace může probíhat paralelně s analýzou – nečekej na dokončení celé analýzy,
+            pokud session útočníka stále aktivní.
+
+      - id: account_activity_analysis
+        title: B) Analýza aktivity účtu (CSIRT analytici)
+        steps:
+          - action: >
+              Analyzuj historii přihlášení v AAD sign-in logu: IP adresy, geolokace, zařízení,
+              user-agent, MFA stav, výsledek (success/fail), risk events
+            example: 'Sign-in log: 14 přihlášení z IP 185.xxx.xxx.xxx za 48 h · 3x MFA obcházeno · rizikové přihlášení High'
+          - action: >
+              Zkontroluj forwarding rules v mailboxu – včetně hidden rules a pravidel nastavených přes
+              PowerShell / Graph API (ne jen přes Outlook UI) – využij Správce M365
+            example: 'Nalezeno hidden auto-forward pravidlo: všechny příchozí e-maily → útočník@external[.]com · pravidlo odstraněno'
+          - action: >
+              Zkontroluj autorizované OAuth aplikace a delegace přístupu v AAD / M365 Admin Center
+            example: 'Neznámá OAuth aplikace s Mail.Read a Mail.Send oprávněními · odebrána'
+          - action: >
+              Analyzuj aktivity v mailboxu: odeslaná pošta, sdílené soubory (OneDrive / SharePoint),
+              přístupy k citlivým dokumentům v relevantním časovém okně
+            example: 'Odesláno 3 e-maily na externí adresy mezi 03:14 a 03:47 · obsah: exportované kontakty z adresáře'
+          - action: >
+              Zkontroluj Teams, SharePoint a OneDrive aktivity pro neobvyklé stahování nebo sdílení
+            example: 'OneDrive: stažen soubor HR_list.xlsx (2,1 MB) ve 03:22 · podezřelé'
+          - action: >
+              Posouď, zda nedošlo k laterálnímu pohybu: ověř AD event logy (4624, 4648)
+              pro přihlášení z dotčeného účtu na jiné systémy nebo zařízení
+            example: 'AD audit: žádné přihlášení z dotčeného účtu na jiné systémy v časovém okně'
+        hints:
+          - >
+            Hidden forwarding rules jsou nejčastěji přehlédnutým artefaktem –
+            vždy ověřuj přes Exchange PowerShell (Get-InboxRule) nebo Graph API, ne jen přes UI.
+          - >
+            Exfiltrace přes OAuth aplikace (mail.read + files.read) je tichá a nezanechává
+            přihlašovací události – vždy kontroluj autorizované aplikace.
+
+      - id: compromise_type_password
+        title: C1) Odcizené heslo (phishing, password spray, credential reuse)
+        note: Přeskoč pokud byl identifikován jiný typ kompromitace (token hijack, MFA fatigue)
+        steps:
+          - action: >
+              Ověř, zda uživatel otevřel phishingový e-mail nebo klikl na podvodný odkaz
+              v relevantním časovém okně před kompromitací – koreluj s phishing workbookem pokud relevantní
+            example: 'E-mail z dodavatel-platby[.]cz doručen 2 h před prvním podezřelým přihlášením – pravděpodobný vektor'
+          - action: >
+              Zkontroluj, zda stejné nebo podobné přihlašovací údaje nebyly zneužity na jiných systémech
+              (credential stuffing / password reuse) – ověř VPN logy, aplikační logy
+            example: 'VPN logy: 3 neúspěšné pokusy z RU IP ve stejném okně · žádné úspěšné přihlášení přes VPN'
+          - action: >
+              Posouď zavedení nebo zpřísnění Conditional Access (CA) politik:
+              blokace rizikových zemí, podmíněný přístup dle zařízení / compliance
+            example: 'Doporučení: CA politika blokující přihlášení z non-compliant zařízení předána Správci IAM'
+        classification_hints:
+          - >
+            Phishing + odcizené heslo + aktivní session → True Positive, High ·
+            Pouze alert bez potvrzené aktivity útočníka → zvaž Benign True Positive nebo False Positive
+
+      - id: compromise_type_token
+        title: C2) Token hijack / Session hijack
+        note: Přeskoč pokud nebyl identifikován token nebo session hijack
+        steps:
+          - action: >
+              Ověř token activity v AAD: neobvyklé token refresh patterny, dlouhé session lifetimes,
+              přístupy bez MFA ověření (Seamless SSO bypass)
+            example: 'Refresh token použit z jiné IP bez nového MFA ověření – session hijack potvrzen'
+          - action: >
+              Nařiď Hard logout všech sessions přes AAD (pokud ještě neprovedeno v části A) –
+              výslovně zahrnout refresh tokeny a persistent sessions
+            example: 'Hard logout všech sessions a tokenů proveden · refresh tokeny zneplatněny'
+          - action: >
+              Zkontroluj zařízení, ze kterého k útoku pravděpodobně došlo –
+              ověř přítomnost malwaru nebo session cookie stealeru (viz Malware workbook)
+            example: 'Zařízení uživatele zkontrolováno EDR – nalezen Infostealer · předáno do Malware workbooku'
+          - action: >
+              Doporuč zpřísnění CA politik: zkrácení session lifetime, risk-based Conditional Access,
+              Token Protection (preview) pro kritické aplikace
+            example: 'CA session lifetime snížen na 1 h · Token Protection aktivován pro Exchange a SharePoint'
+        hints:
+          - >
+            Token hijack obchází MFA – reset hesla bez revokace tokenů NESTAČÍ.
+            Revokace refresh tokenů je povinný krok.
+
+      - id: compromise_type_privileged
+        title: C3) Privilegovaný účet nebo účet s přístupem k regulované službě
+        note: Přeskoč pokud dotčený účet nemá administrátorská oprávnění ani přístup k regulované službě
+        steps:
+          - action: >
+              Okamžitě eskaluj na P1/P2 a informuj CISO –
+              privilegovaný účet nebo přístup k regulované službě mění závažnost incidentu
+            example: 'CISO informován v 11:45 · eskalace na P2 · MKB / ŘDTECH notifikován'
+          - action: >
+              Aktivuj L3/S1 dle SM/25/0100/P5 – incident přesahuje standardní L2 kompetence
+            example: 'L3 aktivován – ŘDTECH zapojen do řízení incidentu'
+          - action: >
+              Proveď rotaci všech klíčů, certifikátů a přístupů asociovaných s kompromitovaným
+              privilegovaným účtem – koordinuje Správce AD / IAM
+            example: 'Rotace service account hesel provedena · API klíče zneplatněny · certifikáty obnoveny'
+          - action: >
+              Zkontroluj skupiny, role a oprávnění kompromitovaného účtu –
+              ověř, zda útočník nepřiřadil nová oprávnění nebo nevytvořil nové administrátorské účty
+            example: 'Audit skupin: žádné nové přiřazení rolí · žádné nové admin účty vytvoření v okně útoku'
+          - action: >
+              Projdi všechny administrátorské akce provedené kompromitovaným účtem v časovém okně útoku –
+              proveď audit v AAD a AD audit logu
+            example: 'Audit admin akcí: žádné změny politik · žádná změna konfigurace v časovém okně útoku'
+        hints:
+          - >
+            Kompromitace privilegovaného účtu je vždy P1/P2 a zakládá posouzení KBI dle ZKB/NIS2.
+
+      - id: compromise_type_exfiltration
+        title: C4) Podezření na exfiltraci dat
+        note: Přeskoč pokud exfiltrace nebyla identifikována ani podezřívána
+        steps:
+          - action: >
+              Proveď audit přenosů dat: OneDrive / SharePoint download audit, objem odeslaných e-mailů,
+              přístupy k citlivým složkám v relevantním časovém okně
+            example: 'OneDrive audit: staženo 15 souborů (celkem 8,4 MB) · HR_list.xlsx, budget_2026.xlsx'
+          - action: >
+              Zkontroluj odeslanou poštu a externí příjemce e-mailů z dotčeného mailboxu
+            example: 'Odesláno 3 e-maily na útočník@external[.]com · přílohy: exportované kontakty'
+          - action: >
+              Informuj DPO při podezření na únik osobních údajů –
+              posouď povinnost hlášení ÚOOÚ dle GDPR (lhůta 72 h od zjištění)
+            example: 'DPO informován v 12:05 · posouzení: exportované kontakty obsahují osobní údaje zaměstnanců → GDPR relevantní'
+          - action: >
+              Zdokumentuj rozsah exfiltrace: typ dat, objem, cílové adresy – jako podklad pro DPO a případné hlášení
+            example: 'Exfiltrace: kontakty zaměstnanců (jména, e-maily) · 247 záznamů · cíl: útočník@external[.]com'
+        hints:
+          - >
+            Při exfiltraci osobních údajů platí 72hodinová lhůta pro hlášení ÚOOÚ –
+            DPO informuj okamžitě po zjištění, ne až po uzavření incidentu.
+
+      - id: scope_and_ioc
+        title: Rozsah a navázané účty / systémy
+        steps:
+          - action: >
+              Ověř, zda není zasaženo více účtů – koreluj v SIEM/AAD pro stejné zdrojové IP,
+              podobné vzory přihlášení nebo password spray / credential stuffing v časovém okně
+            example: 'AAD audit: 12 dalších neúspěšných přihlášení ze stejné IP na jiné účty · žádné úspěšné'
+          - action: >
+              Ověř, zda útočník nezískal přístup k dalším systémům nebo aplikacím přes SSO / federated identity
+            example: 'SSO audit: přístup k 2 interním aplikacím (Confluence, Jira) z dotčeného účtu v okně útoku'
+          - action: >
+              Sestav seznam IOC: IP adresy útočníka, user-agenty, ASN, zneužité OAuth aplikace –
+              ulož do záznamu v TIS a IKB
+            example: 'IOC: IP 185.xxx.xxx.xxx (AS xxxxx, RU) · UA: Mozilla/5.0 (atypický) · OAuth app: Mail-Exporter-v2'
+          - action: 'Sestav timeline od prvního indikátoru po aktuální stav a zaznamenej do TIS'
+            example: '03:14 první přihlášení · 03:22 stažení souborů · 11:15 alert · 11:35 reset hesla · 11:37 revokace sessions'
+
+      - id: evidence_collection
+        title: Zajištění důkazů – uložení do IKB
+        steps:
+          - action: >
+              Exportuj a ulož do IKB: AAD sign-in logy, risk events, audit logy (M365 Compliance Center),
+              Exchange mailbox audit, SharePoint / OneDrive audit
+            example: 'AAD sign-in logy uloženy do IKB: /AccountCompromise-2026-XXX/aad_logs/'
+          - action: >
+              Ulož screenshots nebo exporty relevantních alertů a detailů kompromitace
+            example: 'AAD Identity Protection alert exportován · uložen do IKB: /AccountCompromise-2026-XXX/alerts/'
+          - action: >
+              Zdokumentuj všechny provedené stabilizační kroky s časovými razítky v TIS
+            example: 'TIS záznam UIB-XXXXXX: reset hesla 11:35 · MFA reset 11:36 · revokace sessions 11:37'
+
+  - id: containment_remediation
+    type: table
+    title: Odezva – checklist
+    description: >
+      Zaznamenej u každé akce zodpovědnou roli a aktuální stav. Pokud akce není relevantní, napiš N/A.
+      Technické zásahy provádí administrátoři výhradně na pokyn Koordinátora CSIRT.
+      Stabilizace (A) může probíhat paralelně s analýzou (B) – nečekej na dokončení analýzy.
+    columns:
+      - {key: phase,            label: "Fáze",            type: text,   editable: false}
+      - {key: action,           label: "Akce",            type: text,   editable: false}
+      - {key: responsible_role, label: "Zodpovědná role", type: text,   editable: false}
+      - {key: cooperation,      label: "Součinnost",      type: text,   editable: false}
+      - {key: status,           label: "Stav",            type: select, editable: true, options: ["Provedeno", "Probíhá", "Čeká", "N/A", "Není nutné provést"]}
+    allow_append: false
+    rows:
+      - phase: A
+        action: Reset hesla dotčeného uživatele s vynucenou změnou při přihlášení
+        responsible_role: Správce identity / IAM
+        cooperation: Koordinátor CSIRT
+        status: null
+      - phase: A
+        action: Reset MFA – odebrání stávajících metod a re-enrollment uživatele
+        responsible_role: Správce identity / IAM
+        cooperation: Koordinátor CSIRT
+        status: null
+      - phase: A
+        action: Revokace všech aktivních sessions a refresh tokenů (AAD forced sign-out)
+        responsible_role: Správce identity / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: A
+        action: Dočasné uzamčení účtu (pokud aktivita útočníka stále probíhá)
+        responsible_role: Správce identity / IAM
+        cooperation: Koordinátor CSIRT
+        status: null
+      - phase: B
+        action: Audit sign-in logů, risk events a token aktivity v AAD
+        responsible_role: CSIRT analytici
+        cooperation: Správce identity / IAM
+        status: null
+      - phase: B
+        action: Kontrola a odstranění forwarding rules (včetně hidden rules) z mailboxu
+        responsible_role: Správce Exchange / M365
+        cooperation: CSIRT analytici
+        status: null
+      - phase: B
+        action: Odebrání neautorizovaných OAuth aplikací a delegací přístupu
+        responsible_role: Správce Exchange / M365
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Nastavení nebo zpřísnění Conditional Access politik (blokace rizikových zemí, session lifetime, Token Protection)
+        responsible_role: Správce identity / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Rotace klíčů, certifikátů a přístupů privilegovaného účtu
+        responsible_role: Správce AD / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Audit administrátorských akcí provedených v okně kompromitace
+        responsible_role: CSIRT analytici
+        cooperation: Správce AD / IAM
+        status: null
+      - phase: C
+        action: Informování DPO při exfiltraci nebo přístupu k osobním údajům
+        responsible_role: Koordinátor CSIRT
+        cooperation: DPO
+        status: null
+      - phase: '–'
+        action: Uložení důkazů (logy, audit, screenshots) do IKB
+        responsible_role: CSIRT analytici
+        cooperation: Správce Exchange / M365
+        status: null
+      - phase: '–'
+        action: Informování dotčeného uživatele – pokyny k novému heslu, MFA a hlídání aktivit
+        responsible_role: Koordinátor CSIRT
+        cooperation: '–'
+        status: null
+
+  - id: additional_actions
+    type: table
+    title: Odezva – dodatečné kroky
+    description: >
+      Prostor pro zaznamenání kroků nad rámec standardního checklistu.
+      Vyplní Koordinátor CSIRT nebo analytik dle potřeby.
+    columns:
+      - {key: action,      label: "Akce",       type: text,   editable: true}
+      - {key: cooperation, label: "Součinnost",  type: text,   editable: true}
+      - {key: status,      label: "Stav",        type: select, editable: true, options: ["Provedeno", "Probíhá", "Čeká", "N/A", "Není nutné provést"]}
+    allow_append: true
+    allow_delete: true
+    rows: []
+
+  - id: communication
+    type: table
+    title: Komunikace a notifikace
+    hints:
+      - 'SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.'
+      - 'Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.'
+      - 'Privilegovaný účet nebo reg. služba → ihned informuj CISO bez ohledu na Severity.'
+    columns:
+      - {key: recipient,            label: "Příjemce",           type: text, editable: false}
+      - {key: communication_method, label: "Způsob komunikace",  type: text, editable: false}
+      - {key: sla,                  label: "SLA pro notifikaci", type: text, editable: false}
+      - {key: note,                 label: "Poznámka / stav",    type: text, editable: true}
+    rows:
+      - recipient: Dotčený uživatel
+        communication_method: E-mail / telefon
+        sla: Do 30 min od stabilizace – instrukce k novému heslu a MFA
+        note: null
+      - recipient: Vlastník dotčeného aktiva
+        communication_method: E-mail / telefon
+        sla: Do 30 min od potvrzení incidentu
+        note: null
+      - recipient: CISO / Management
+        communication_method: E-mail / telefon
+        sla: 'Do 1 h (High / Critical) · ihned při privilegovaném účtu nebo reg. službě'
+        note: null
+      - recipient: Oznamovatel události
+        communication_method: E-mail / telefon
+        sla: Po uzavření incidentu
+        note: null
+      - recipient: DPO
+        communication_method: E-mail
+        sla: 'Ihned při podezření na exfiltraci osobních údajů (GDPR – lhůta 72 h pro ÚOOÚ)'
+        note: null
+      - recipient: CERT / NÚKIB
+        communication_method: Datová schránka
+        sla: 'Dle regulatorní povinnosti (NIS2 – KBI při privilegovaném účtu nebo reg. službě)'
+        note: null
+
+  - id: closure
+    type: section_group
+    title: Klasifikace a uzavření
+    description: >
+      Uzavření provádí Koordinátor CSIRT po ověření čistoty prostředí a dokončení Odezvy,
+      nebo ihned po Posouzení u False Positive. Koordinátor uzavírá záznam v TIS.
+    subsections:
+      - id: closure_base
+        type: form
+        title: Klasifikace a dopad
+        always_expanded: true
+        hint: >
+          Před uzavřením ověř: (1) žádné aktivní sessions útočníka, (2) žádná forwarding pravidla ani
+          OAuth aplikace útočníka, (3) žádné neoprávněné odesílání nebo sdílení, (4) MFA re-enrollment
+          dokončen, (5) důkazy uloženy v IKB, (6) DPO informován pokud relevantní.<br><br>
+          <b>Metodika klasifikace – Úroveň dopadu:</b><br>
+          <b>Nízká</b> – neobvyklé přihlášení bez potvrzené aktivity útočníka; žádný dopad na regulovanou službu.<br>
+          <b>Střední</b> – potvrzená kompromitace běžného uživatele; bez exfiltrace; bez dopadu na regulovanou službu.<br>
+          <b>Vysoká</b> – exfiltrace dat nebo privilegovaný účet; při zasažení reg. služby splňuje KBI dle ZKB.<br>
+          <b>Kritická</b> – kompromitace administrátora s rozsáhlým dopadem; zasažena regulovaná služba; vždy KBI.
+        fields:
+          - key: final_classification
+            label: Klasifikace výsledku
+            type: select
+            editable: true
+            value: null
+            options:
+              - True Positive
+              - False Positive
+              - Benign True Positive
+            hint: 'False Positive: alert se ukázal jako legitimitní aktivita. Benign True Positive: neobvyklé přihlášení bez potvrzené škody.'
+          - key: impact_level
+            label: Úroveň dopadu
+            type: select
+            editable: true
+            value: null
+            options:
+              - Nízká
+              - Střední
+              - Vysoká
+              - Kritická
+            option_hints:
+              Nízká: Neobvyklé přihlášení bez potvrzené aktivity útočníka. Žádný dopad na regulovanou službu.
+              Střední: Potvrzená kompromitace běžného uživatele bez exfiltrace a bez dopadu na regulovanou službu.
+              Vysoká: Exfiltrace dat nebo privilegovaný účet. Při zasažení reg. služby splňuje KBI dle ZKB.
+              Kritická: Kompromitace administrátora s rozsáhlým dopadem. Zasažena regulovaná služba. Vždy KBI.
+            hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
+          - key: nukib_notification_required
+            label: Povinnost hlášení NÚKIB
+            type: select
+            editable: true
+            value: null
+            options:
+              - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
+          - key: ucl_notification_required
+            label: Povinnost hlášení ÚCL
+            type: select
+            editable: true
+            value: null
+            options:
+              - Povinná – Regulovaná letecká služba + Vysoká/Kritická
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
+          - key: impact_primary_service
+            label: Dostupnost primárních služeb organizace
+            type: select
+            editable: true
+            value: null
+            options:
+              - Zcela nedostupné
+              - Částečně nedostupné / degradované
+              - Dostupné bez omezení
+              - Netýká se
+            hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
+          - key: impact_scope
+            label: Rozsah zasažených uživatelů / systémů
+            type: select
+            editable: true
+            value: null
+            options:
+              - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
+              - Významný (10–50 %)
+              - 'Omezený (< 10 %)'
+              - Individuální (1 uživatel / 1 systém)
+          - key: impact_duration
+            label: Doba výpadku / narušení (dostupnost)
+            type: select
+            editable: true
+            value: null
+            options:
+              - '> 4 hodiny'
+              - 1–4 hodiny
+              - 15 min – 1 hodina
+              - < 15 min
+              - Žádný výpadek / narušení
+          - key: impact_data
+            label: Dopad na data (důvěrnost / integrita)
+            type: select
+            editable: true
+            value: null
+            options:
+              - Exfiltrace dat potvrzena
+              - Neoprávněný přístup k datům potvrzen
+              - Integrita dat narušena
+              - Žádný dopad na data
+              - Nelze určit
+          - key: root_cause
+            label: Root Cause
+            type: textarea
+            editable: true
+            value: null
+            placeholder: >
+              Uživatel zadal přihlašovací údaje na phishingové stránce napodobující M365 login.
+              Útočník se přihlásil z RU IP, obešel MFA pomocí session cookie z Infostealer malwaru
+              a exportoval kontakty z mailboxu před detekcí.
+          - key: actions_taken
+            label: Popis přijatých opatření
+            type: textarea
+            editable: true
+            value: null
+            placeholder: >
+              Reset hesla a MFA · revokace všech sessions · forwarding rule odstraněno ·
+              OAuth aplikace odebrána · CA politika zpřísněna · DPO informován · logy uloženy do IKB
+          - key: recommendations
+            label: Doporučení pro zlepšení
+            type: textarea
+            editable: true
+            value: null
+            placeholder: >
+              Zavést Token Protection pro kritické aplikace (Exchange, SharePoint).
+              Zpřísnit CA politiku – blokace non-compliant zařízení.
+              Phishing-resistant MFA (FIDO2 / Windows Hello) pro administrátorské účty.
+              Školení uživatelů zaměřené na MFA fatigue a session hijack.
+          - key: related_service_requests
+            label: Související servisní požadavky
+            type: textarea
+            editable: true
+            value: null
+            hint: Čísla nebo odkazy na servisní požadavky (CA politiky, MFA konfigurace, IAM změny apod.)
+            placeholder: 'SR-2026-1180 – zpřísnění CA politiky · SR-2026-1181 – aktivace Token Protection'
+          - key: related_security_events
+            label: Navázané bezpečnostní události (UIB/IIB)
+            type: textarea
+            editable: true
+            value: null
+            hint: >
+              Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
+              (phishingový e-mail jako vektor, Malware na zařízení uživatele, BEC navazující na kompromitaci apod.)
+            placeholder: 'UIB-10032026-1045-XXXX – Phishing (vektor kompromitace) · UIB-10032026-1220-YYYY – Malware Infostealer na PC uživatele'
+          - key: reporter_notified
+            label: Oznamovatel informován
+            type: select
+            editable: true
+            value: null
+            options:
+              - Ano
+              - Ne
+          - key: closed_at
+            label: Datum uzavření
+            type: datetime
+            editable: true
+            value: null
+
+      - id: closure_specific
+        type: form
+        title: Specifika incidentu
+        always_expanded: true
+        fields:
+          - key: compromise_type_final
+            label: Typ kompromitace (finální)
+            type: select
+            editable: true
+            value: null
+            options:
+              - Odcizené heslo (phishing / password spray / credential reuse)
+              - Token hijack / Session hijack (T1539)
+              - MFA fatigue / MFA bypass (T1621)
+              - Privilegovaný účet / admin kompromitace
+              - Kombinace typů
+              - Nelze určit
+          - key: account_type_final
+            label: Typ kompromitovaného účtu (finální)
+            type: select
+            editable: true
+            value: null
+            options:
+              - Běžný uživatel (bez zvýšených oprávnění)
+              - Administrátor / privilegovaný účet
+              - Servisní účet
+              - Účet s přístupem k regulované službě
+          - key: exfiltration_confirmed
+            label: Exfiltrace dat
+            type: select
+            editable: true
+            value: null
+            options:
+              - Potvrzena – rozsah dokumentován
+              - Podezření – nelze vyloučit
+              - Vyloučena
+            hint: 'Při potvrzené nebo podezřelé exfiltraci osobních údajů → povinnost informovat DPO a posoudit hlášení ÚOOÚ.'
+
+  - id: raci
+    type: table
+    title: RACI matice
+    hint: "R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) · C = Consulted (poskytuje součinnost) · I = Informed (je informován) · (Vysoká/Kritická) = podmínka pro aktivaci role"
+    columns:
+      - {key: activity,    label: "Aktivita",    type: text, editable: false}
+      - {key: l1_its,      label: "L1 (ITS)",    type: text, editable: false}
+      - {key: koordinator, label: "Koordinátor", type: text, editable: false}
+      - {key: cirt,        label: "CIRT",        type: text, editable: false}
+      - {key: r_dtech,     label: "Ř-DTECH",     type: text, editable: false}
+      - {key: r_dplr,      label: "Ř-DPLR",      type: text, editable: false}
+      - {key: garant,      label: "Garant",      type: text, editable: false}
+      - {key: delegat,     label: "Delegát",     type: text, editable: false}
+      - {key: dpo,         label: "DPO",         type: text, editable: false}
+      - {key: nukib,       label: "NÚKIB",       type: text, editable: false}
+      - {key: ucl,         label: "ÚCL",         type: text, editable: false}
+    rows:
+      - activity: Příjem UIB/IIB a evidence v TIS
+        l1_its: R, A
+        koordinator: I
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Předání incidentu Koordinátorovi CSIRT (L2)
+        l1_its: R
+        koordinator: A
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Posouzení, třídění a rozhodování
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: C
+        delegat: C
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Okamžitá stabilizace – reset hesla, MFA, revokace sessions (A)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: '–'
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Analýza aktivity účtu a IOC (B)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: C
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Nápravná opatření – CA politiky, skupiny, klíče (C)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: A
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Notifikace dotčeného uživatele a oznamovatele
+        l1_its: '–'
+        koordinator: R, A
+        cirt: '–'
+        r_dtech: I
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Notifikace DPO (exfiltrace osobních údajů)
+        l1_its: '–'
+        koordinator: R
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        dpo: A, I
+        nukib: '–'
+        ucl: '–'
+      - activity: Eskalace na management (L3 / S1)
+        l1_its: '–'
+        koordinator: R
+        cirt: '–'
+        r_dtech: A
+        r_dplr: I
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Hlášení NÚKIB / ÚCL
+        l1_its: '–'
+        koordinator: R
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: I (Vysoká/Kritická)
+        ucl: I (Vysoká/Kritická)
+      - activity: Klasifikace a uzavření (TIS)
+        l1_its: '–'
+        koordinator: R, A
+        cirt: C
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
