@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+/* ── Print mode – screen (hide chrome) ────────────────────────────────── */
+body.print-mode nav.navbar,
+body.print-mode nav.sidebar,
+body.print-mode #record-toolbar-buttons,
+body.print-mode #lock-banner,
+body.print-mode #record-filepath-container { display: none !important; }
+
+body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
+
+/* ── @media print ─────────────────────────────────────────────────────── */
+@media print {
+    nav.navbar, nav.sidebar,
+    #print-toolbar, #record-toolbar-buttons,
+    #lock-banner, #record-filepath-container { display: none !important; }
+
+    main { flex: 0 0 100% !important; max-width: 100% !important;
+           padding: 0 !important; margin: 0 !important; }
+
+    .accordion-collapse { display: block !important; }
+    .accordion-button::after { display: none; }
+    .accordion-button { cursor: default; background: #f8f9fa !important;
+                        color: inherit !important; }
+
+    #sections-container input,
+    #sections-container select,
+    #sections-container textarea {
+        border: none !important;
+        background: transparent !important;
+        -webkit-appearance: none; appearance: none;
+        resize: none; padding: 0 !important;
+        font: inherit !important; color: inherit !important;
+        height: auto !important; min-height: 0 !important;
+    }
+    #sections-container select { pointer-events: none; }
+
+    .card { box-shadow: none !important; page-break-inside: avoid; }
+    .data-table { font-size: 8pt !important; }
+    .raci-legend { font-size: 7.5pt !important; }
+
+    @page { margin: 20mm 15mm; }
+}
+</style>
+{% endblock %}
+
+{% block title %}{{ record_id }} – {{ app_name }}{% endblock %}
+
+{% block sidebar %}
+<nav class="col-auto sidebar d-flex flex-column py-3 px-2" style="min-width: 220px; min-height: calc(100vh - 57px);">
+    <ul class="nav flex-column gap-1 mb-1">
+        <li class="nav-item">
+            <a href="/records/{{ collection_id }}" class="nav-link">
+                <i class="bi bi-arrow-left me-2"></i>
+                {% if collection %}{{ collection.name }}{% else %}{{ term.records | capitalize }}{% endif %}
+            </a>
+        </li>
+    </ul>
+    <div class="border-top mt-2 pt-2">
+        <div class="text-muted small px-2 mb-1 fw-semibold text-uppercase" style="font-size:0.7rem; letter-spacing:0.05em;">{{ term.nav_sections }}</div>
+        <ul class="nav flex-column gap-1" id="section-nav-list"></ul>
+    </div>
+    <div class="mt-auto">
+        <div class="text-muted small px-2 pb-1 border-top pt-3">
+            <i class="bi bi-info-circle me-1"></i>{{ app_name }}
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+
+{% if print_mode %}
+<div id="print-toolbar" class="d-flex align-items-center gap-2 mb-3 p-2 rounded"
+     style="background:#0d6efd;color:#fff;">
+    <span class="fw-bold flex-grow-1" id="print-tb-title">{{ record_id }}</span>
+    <button onclick="window.print()" class="btn btn-sm btn-light">
+        <i class="bi bi-printer me-1"></i>Print / Save PDF
+    </button>
+    <button onclick="window.close()" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);">
+        Close
+    </button>
+</div>
+{% endif %}
+
+<!-- Lock warning banner -->
+<div id="lock-banner" class="alert alert-warning d-flex align-items-center gap-2 d-none mb-3">
+    <i class="bi bi-lock-fill fs-5"></i>
+    <div>
+        <strong>Record is locked</strong> –
+        <span id="lock-banner-msg">editing is blocked.</span>
+    </div>
+    {% if user and user.role == 'system_admin' %}
+    <button class="btn btn-sm btn-warning ms-auto" onclick="forceUnlock()">
+        <i class="bi bi-unlock me-1"></i>Force unlock
+    </button>
+    {% endif %}
+</div>
+
+<!-- Record header -->
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold">{{ record_id }}</span>
+            <span class="badge" id="status-badge">Loading…</span>
+        </div>
+        <h5 class="fw-bold mb-1" id="record-title">Loading {{ term.record }}…</h5>
+        <small class="text-muted" id="record-meta"></small>
+        <div id="record-filepath-container" class="d-none mt-1 d-flex align-items-center gap-1">
+            <code class="text-muted small" id="record-filepath" style="font-size:0.78rem;"></code>
+            <button class="btn btn-link btn-sm p-0 text-muted" id="copy-path-btn" onclick="copyFilePath()" title="Copy path">
+                <i class="bi bi-clipboard" style="font-size:0.8rem;"></i>
+            </button>
+        </div>
+    </div>
+    <div id="record-toolbar-buttons" class="d-flex gap-2 align-items-center flex-wrap">
+        <div id="save-indicator" class="text-success small d-none">
+            <i class="bi bi-check-circle me-1"></i>Saved
+        </div>
+        <button class="btn btn-outline-success btn-sm" id="btn-takeover" onclick="takeover()" title="{{ term.take_over_btn }}">
+            <i class="bi bi-person-check me-1"></i>{{ term.take_over_btn }}
+        </button>
+        <div class="dropdown">
+            <button class="btn btn-outline-warning btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-arrow-repeat me-1"></i>Change status
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" id="status-dropdown-menu">
+                <li><span class="dropdown-item text-muted small">Loading…</span></li>
+            </ul>
+        </div>
+        <a href="/records/{{ collection_id }}/{{ record_id }}/print" target="_blank" class="btn btn-outline-secondary btn-sm" title="Print">
+            <i class="bi bi-printer me-1"></i>Print
+        </a>
+        <button class="btn btn-outline-primary btn-sm" id="btn-save" onclick="saveRecord()">
+            <span id="save-spinner" class="spinner-border spinner-border-sm me-1 d-none"></span>
+            <i class="bi bi-floppy me-1" id="save-icon"></i>Save
+        </button>
+        <button class="btn btn-primary btn-sm" id="btn-save-leave" onclick="saveAndLeave()">
+            <span id="save-leave-spinner" class="spinner-border spinner-border-sm me-1 d-none"></span>
+            <i class="bi bi-box-arrow-right me-1" id="save-leave-icon"></i>Save &amp; Exit
+        </button>
+    </div>
+</div>
+
+<!-- Error alert -->
+<div id="page-alert" class="alert alert-danger d-none"></div>
+
+<!-- Document sections -->
+<div id="sections-container">
+    <div class="text-center text-muted py-5">
+        <div class="spinner-border mb-3" role="status"></div>
+        <div>Loading document…</div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const COLLECTION_ID = '{{ collection_id }}';
+    const RECORD_ID = '{{ record_id }}';
+    const CURRENT_USER = '{{ user.username if user else "" }}';
+    const IS_ADMIN = {{ 'true' if user and user.role == 'system_admin' else 'false' }};
+    const PRINT_MODE = {{ 'true' if print_mode else 'false' }};
+
+    // Bootstrap color → badge class mapping
+    const BADGE_COLOR_MAP = {
+        secondary: 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+        primary:   'bg-primary-subtle text-primary border border-primary-subtle',
+        warning:   'bg-warning-subtle text-warning border border-warning-subtle',
+        success:   'bg-success-subtle text-success border border-success-subtle',
+        info:      'bg-info-subtle text-info border border-info-subtle',
+        danger:    'bg-danger-subtle text-danger border border-danger-subtle',
+        dark:      'bg-dark-subtle text-dark border border-dark-subtle',
+    };
+
+    // Bootstrap color → icon class for the dropdown
+    const ICON_COLOR_MAP = {
+        secondary: 'text-secondary', primary: 'text-primary', warning: 'text-warning',
+        success: 'text-success', info: 'text-info', danger: 'text-danger', dark: 'text-dark',
+    };
+
+    if (PRINT_MODE) document.body.classList.add('print-mode');
+
+    let recordDocument = null;
+    let lockAcquired = false;
+    let statusConfig = {};   // built dynamically from record's workflow_states
+
+    // ---------------------------------------------------------------------------
+    // Workflow state UI – built from record.data.workflow_states after load
+    // ---------------------------------------------------------------------------
+
+    function buildWorkflowUI(workflowStates) {
+        // Build statusConfig for badge rendering
+        workflowStates.forEach(state => {
+            statusConfig[state.id] = {
+                label: state.label,
+                cls: BADGE_COLOR_MAP[state.color] || BADGE_COLOR_MAP.secondary,
+            };
+        });
+
+        // Build status dropdown
+        const menu = document.getElementById('status-dropdown-menu');
+        menu.innerHTML = '';
+        workflowStates.forEach(state => {
+            const li = document.createElement('li');
+            const colorCls = ICON_COLOR_MAP[state.color] || 'text-secondary';
+            li.innerHTML = `<a class="dropdown-item" href="#" onclick="changeStatus('${state.id}'); return false;">
+                <i class="bi bi-circle me-2 ${colorCls}"></i>${state.label}
+            </a>`;
+            menu.appendChild(li);
+        });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Lock management
+    // ---------------------------------------------------------------------------
+
+    async function acquireLock() {
+        try {
+            const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/${RECORD_ID}/lock`, {method: 'POST'});
+            if (resp.ok) {
+                lockAcquired = true;
+                return true;
+            } else if (resp.status === 423) {
+                const err = await resp.json();
+                const detail = err.detail || {};
+                const lockedBy = detail.locked_by || '?';
+                showLockBanner(`Being edited by <strong>${lockedBy}</strong>. Form is read-only.`);
+                setReadOnly(true);
+                return false;
+            }
+        } catch (e) {
+            // Network error – allow editing without lock
+        }
+        return false;
+    }
+
+    async function releaseLock() {
+        if (!lockAcquired) return;
+        try {
+            await fetch(`/api/v1/records/${COLLECTION_ID}/${RECORD_ID}/lock`, {
+                method: 'DELETE',
+                credentials: 'include',
+                keepalive: true,
+            });
+        } catch (e) { /* ignore */ }
+        lockAcquired = false;
+    }
+
+    async function forceUnlock() {
+        await apiFetch(`/api/v1/records/${COLLECTION_ID}/${RECORD_ID}/lock`, {method: 'DELETE'});
+        hideLockBanner();
+        setReadOnly(false);
+    }
+
+    function showLockBanner(msg) {
+        document.getElementById('lock-banner-msg').innerHTML = msg;
+        document.getElementById('lock-banner').classList.remove('d-none');
+    }
+
+    function hideLockBanner() {
+        document.getElementById('lock-banner').classList.add('d-none');
+    }
+
+    function setReadOnly(readonly) {
+        document.getElementById('btn-save').disabled = readonly;
+        document.getElementById('btn-save-leave').disabled = readonly;
+        document.querySelectorAll('#sections-container input, #sections-container select, #sections-container textarea').forEach(el => {
+            el.disabled = readonly;
+        });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Record loading and rendering
+    // ---------------------------------------------------------------------------
+
+    function getRecordTitle(r) {
+        const headerSec = (r.data?.sections || []).find(
+            s => s.type === 'workbook_header' || s.type === 'playbook_header' || s.type === 'record_header'
+        );
+        const f = (headerSec?.fields || []).find(f => f.key === 'case_title' || f.key === 'title' || f.key === 'record_title');
+        return f?.value || null;
+    }
+
+    function renderRecordHeader(r) {
+        const st = statusConfig[r.status] || {label: r.status, cls: 'bg-secondary-subtle text-secondary'};
+        const badge = document.getElementById('status-badge');
+        badge.textContent = st.label;
+        badge.className = `badge ${st.cls}`;
+        const title = getRecordTitle(r);
+        document.getElementById('record-title').textContent = title || r.data.template_name || r.template_id;
+        document.getElementById('record-meta').innerHTML =
+            `<i class="bi bi-file-earmark-text me-1"></i>${r.data.template_name || r.template_id} &nbsp;·&nbsp; ` +
+            `<i class="bi bi-person me-1"></i>${r.created_by} &nbsp;·&nbsp; ` +
+            `<i class="bi bi-calendar me-1"></i>${new Date(r.created_at).toLocaleString()}`;
+    }
+
+    function buildSectionNav(sections) {
+        const list = document.getElementById('section-nav-list');
+        list.innerHTML = '';
+        sections.forEach(s => {
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            li.innerHTML = `<a href="#sec-${s.id}" class="nav-link py-1 small">${s.title}</a>`;
+            list.appendChild(li);
+        });
+    }
+
+    async function loadRecord() {
+        try {
+            const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/${RECORD_ID}`);
+            if (!resp.ok) {
+                showPageAlert('Record not found or access denied.');
+                return;
+            }
+            const r = await resp.json();
+            recordDocument = r;
+
+            // Build workflow UI from the record's embedded workflow states
+            const workflowStates = r.data?.workflow_states || [];
+            buildWorkflowUI(workflowStates);
+
+            renderRecordHeader(r);
+            UniForms.render(r.data.sections || [], document.getElementById('sections-container'));
+            buildSectionNav(r.data.sections || []);
+
+            if (PRINT_MODE) {
+                const title = getRecordTitle(r);
+                const tbTitle = document.getElementById('print-tb-title');
+                if (tbTitle) tbTitle.textContent = RECORD_ID + (title ? ' – ' + title : '');
+                setTimeout(() => {
+                    document.querySelectorAll('.accordion-collapse:not(.show)').forEach(el => {
+                        el.classList.add('show');
+                    });
+                    document.querySelectorAll(
+                        '#sections-container .form-text, #sections-container .alert-info, ' +
+                        '#sections-container .alert-warning, #sections-container .alert-secondary, ' +
+                        '#sections-container .hint-classification'
+                    ).forEach(el => el.remove());
+                    document.querySelectorAll('#sections-container [placeholder]').forEach(el => el.removeAttribute('placeholder'));
+                }, 150);
+            } else {
+                await acquireLock();
+            }
+        } catch (e) {
+            showPageAlert('Error loading record: ' + e.message);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Save / status
+    // ---------------------------------------------------------------------------
+
+    async function saveRecord() {
+        if (!recordDocument) return false;
+        const btn = document.getElementById('btn-save');
+        const spinner = document.getElementById('save-spinner');
+        const icon = document.getElementById('save-icon');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        icon.classList.add('d-none');
+
+        try {
+            const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/${RECORD_ID}`, {
+                method: 'PATCH',
+                body: JSON.stringify({data: recordDocument.data}),
+            });
+            if (resp.ok) {
+                const updated = await resp.json();
+                recordDocument.updated_at = updated.updated_at;
+                recordDocument.status = updated.status;
+                renderRecordHeader(recordDocument);
+                const ind = document.getElementById('save-indicator');
+                ind.classList.remove('d-none');
+                setTimeout(() => ind.classList.add('d-none'), 3000);
+                return true;
+            } else {
+                showPageAlert('Save failed.');
+                return false;
+            }
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+            icon.classList.remove('d-none');
+        }
+    }
+
+    async function saveAndLeave() {
+        const btn = document.getElementById('btn-save-leave');
+        const spinner = document.getElementById('save-leave-spinner');
+        const icon = document.getElementById('save-leave-icon');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        icon.classList.add('d-none');
+        try {
+            const ok = await saveRecord();
+            if (ok) {
+                await releaseLock();
+                window.location.href = `/records/${COLLECTION_ID}`;
+            }
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+            icon.classList.remove('d-none');
+        }
+    }
+
+    async function changeStatus(newStatus) {
+        if (!recordDocument) return;
+        const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/${RECORD_ID}`, {
+            method: 'PATCH',
+            body: JSON.stringify({status: newStatus, data: recordDocument.data}),
+        });
+        if (resp.ok) {
+            const updated = await resp.json();
+            recordDocument.status = updated.status;
+            recordDocument.updated_at = updated.updated_at;
+            renderRecordHeader(recordDocument);
+            const ind = document.getElementById('save-indicator');
+            ind.classList.remove('d-none');
+            setTimeout(() => ind.classList.add('d-none'), 3000);
+        }
+    }
+
+    function showPageAlert(msg) {
+        const el = document.getElementById('page-alert');
+        el.textContent = msg;
+        el.classList.remove('d-none');
+    }
+
+    async function loadFilePath() {
+        try {
+            const resp = await apiFetch('/api/v1/settings/');
+            if (resp.ok) {
+                const s = await resp.json();
+                const dir = (s.records_dir || 'data/records').replace(/\\/g, '/');
+                const path = dir + '/' + COLLECTION_ID + '/' + RECORD_ID + '.json';
+                document.getElementById('record-filepath').textContent = path;
+                document.getElementById('record-filepath-container').classList.remove('d-none');
+                document.getElementById('record-filepath-container').classList.add('d-flex');
+            }
+        } catch (e) {}
+    }
+
+    function copyFilePath() {
+        const path = document.getElementById('record-filepath').textContent;
+        navigator.clipboard.writeText(path).then(() => {
+            const btn = document.getElementById('copy-path-btn');
+            btn.innerHTML = '<i class="bi bi-clipboard-check text-success" style="font-size:0.8rem;"></i>';
+            setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard" style="font-size:0.8rem;"></i>'; }, 2000);
+        });
+    }
+
+    // Take Over – fills the coordinator field with the current user
+    async function takeover() {
+        if (!recordDocument) return;
+        const headerSec = recordDocument.data.sections.find(
+            s => s.type === 'workbook_header' || s.type === 'playbook_header' || s.type === 'record_header'
+        );
+        if (!headerSec) return;
+        // Convention: coordinator field has key 'coordinator' or 'incident_coordinator'
+        const field = (headerSec.fields || []).find(
+            f => f.key === 'coordinator' || f.key === 'incident_coordinator'
+        );
+        if (!field) return;
+        field.value = CURRENT_USER;
+        const input = document.querySelector(`[data-field-key="${field.key}"]`);
+        if (input) input.value = CURRENT_USER;
+        await saveRecord();
+    }
+
+    loadRecord();
+    if (!PRINT_MODE) loadFilePath();
+</script>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Collections – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-collection me-2 text-primary"></i>Collections
+        </h5>
+        <small class="text-muted">Manage collections – data sets with their own workflow, ID format and list columns.</small>
+    </div>
+    <a href="/admin/collections/new" class="btn btn-success btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>New collection
+    </a>
+</div>
+
+<div id="collections-alert" class="d-none mb-3"></div>
+
+<div class="card border shadow-sm">
+    <div class="card-body p-0">
+        <div id="collections-loading" class="text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading…
+        </div>
+        <div class="table-responsive d-none" id="collections-table-wrap">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">ID</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Workflow states</th>
+                        <th>List columns</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="collections-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ── Confirm delete modal ───────────────────────────────────────── #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2 border-danger">
+                <h6 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete collection</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small mb-1">Really delete collection <strong id="delete-name"></strong>?</p>
+                <p class="text-danger small mb-0">This only removes the collection definition. Existing records and templates are not deleted.</p>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" id="btn-confirm-delete">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allCollections = [];
+    let pendingDeleteId = null;
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+    async function loadCollections() {
+        const resp = await apiFetch('/api/v1/admin/collections/');
+        if (!resp.ok) return;
+        allCollections = await resp.json();
+        document.getElementById('collections-loading').classList.add('d-none');
+        document.getElementById('collections-table-wrap').classList.remove('d-none');
+        renderTable();
+    }
+
+    const STATE_COLOR_MAP = {
+        secondary: 'bg-secondary-subtle text-secondary border-secondary-subtle',
+        primary:   'bg-primary-subtle text-primary border-primary-subtle',
+        warning:   'bg-warning-subtle text-warning border-warning-subtle',
+        success:   'bg-success-subtle text-success border-success-subtle',
+        info:      'bg-info-subtle text-info border-info-subtle',
+        danger:    'bg-danger-subtle text-danger border-danger-subtle',
+        dark:      'bg-dark-subtle text-dark border-dark-subtle',
+    };
+
+    function renderTable() {
+        const tbody = document.getElementById('collections-tbody');
+        tbody.innerHTML = '';
+        allCollections.forEach(col => {
+            const stateBadges = (col.workflow?.states || []).map(s => {
+                const cls = STATE_COLOR_MAP[s.color] || STATE_COLOR_MAP.secondary;
+                return `<span class="badge border ${cls} me-1">${s.label}</span>`;
+            }).join('');
+            const colLabels = (col.list_columns || []).map(c =>
+                `<span class="badge bg-light text-secondary border me-1">${c.label}</span>`
+            ).join('');
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="ps-3 align-middle">
+                    <code class="fw-semibold">${col.id}</code>
+                </td>
+                <td class="align-middle fw-semibold">${col.name}</td>
+                <td class="align-middle small text-muted">${col.description || '–'}</td>
+                <td class="align-middle small">${stateBadges || '<span class="text-muted fst-italic">–</span>'}</td>
+                <td class="align-middle small">${colLabels || '<span class="text-muted fst-italic">–</span>'}</td>
+                <td class="align-middle text-end pe-3">
+                    <div class="d-flex gap-1 justify-content-end">
+                        <a href="/admin/collections/${col.id}/edit" class="btn btn-secondary btn-sm" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${col.id}', '${col.name}')" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function confirmDelete(id, name) {
+        pendingDeleteId = id;
+        document.getElementById('delete-name').textContent = name;
+        deleteModal.show();
+    }
+
+    document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+        if (!pendingDeleteId) return;
+        deleteModal.hide();
+        const resp = await apiFetch(`/api/v1/admin/collections/${pendingDeleteId}`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) {
+            pendingDeleteId = null;
+            await loadCollections();
+        } else {
+            const data = await resp.json().catch(() => ({}));
+            const alertEl = document.getElementById('collections-alert');
+            alertEl.className = 'alert alert-danger py-2 small';
+            alertEl.textContent = data.detail || 'Delete failed.';
+        }
+    });
+
+    loadCollections();
+</script>
+{% endblock %}

@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}{{ term.records | capitalize }}{% if collection %} – {{ collection.name }}{% endif %} – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-folder2-open me-2 text-primary"></i>{{ term.records | capitalize }}
+            {% if collection %}<span class="text-muted fw-normal">– {{ collection.name }}</span>{% endif %}
+        </h5>
+        <small class="text-muted">{{ term.records_subtitle }}</small>
+    </div>
+</div>
+
+<!-- Filter buttons – built dynamically from status config after records load -->
+<div class="d-flex gap-2 mb-3 flex-wrap" id="filter-bar">
+    <button class="btn btn-sm filter-btn active" data-filter="all">{{ term.filter_all }}</button>
+</div>
+
+<!-- Records table -->
+<div class="card border shadow-sm">
+    <div class="card-body p-0">
+        <div id="records-loading" class="text-center text-muted py-5">
+            <div class="spinner-border mb-3" role="status"></div>
+            <div>Loading {{ term.records }}…</div>
+        </div>
+        <div id="records-empty" class="text-center text-muted py-5 d-none">
+            <i class="bi bi-folder2 fs-1 mb-3 d-block opacity-50"></i>
+            <p class="mb-0">No {{ term.records }} found</p>
+        </div>
+        <div class="d-none" id="records-table-wrap">
+            <table class="table table-hover mb-0" id="records-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">{{ term.record_id_label }}</th>
+                        <th>{{ term.col_status }}</th>
+                        <th>{{ term.template | capitalize }}</th>
+                        {% for col in (collection.list_columns if collection else []) %}
+                        <th>{{ col.label }}</th>
+                        {% endfor %}
+                        <th>{{ term.col_lock }}</th>
+                        <th class="d-none">sort</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="records-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Delete {{ term.record }}?</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body small text-muted" id="deleteModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ term.btn_cancel }}</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirmDeleteBtn">{{ term.btn_delete }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="/static/vendor/datatables/css/dataTables.bootstrap5.min.css">
+<style>
+  #records-table_wrapper .dataTables_length,
+  #records-table_wrapper .dataTables_filter { padding: 0.6rem 1rem 0.25rem; }
+  #records-table_wrapper .dataTables_info,
+  #records-table_wrapper .dataTables_paginate { padding: 0.25rem 1rem 0.6rem; }
+  #records-table_wrapper > .row { --bs-gutter-x: 0; }
+</style>
+<script src="/static/vendor/jquery/jquery.min.js"></script>
+<script src="/static/vendor/datatables/js/jquery.dataTables.min.js"></script>
+<script src="/static/vendor/datatables/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    const COLLECTION_ID = '{{ collection_id }}';
+    const IS_ADMIN = {{ 'true' if user and user.role == 'system_admin' else 'false' }};
+
+    // Columns defined in the collection YAML (after the fixed record_id/status/template cols)
+    const LIST_COLUMNS = [
+        {% for col in (collection.list_columns if collection else []) %}
+        {key: {{ col.key | tojson }}, label: {{ col.label | tojson }}},
+        {% endfor %}
+    ];
+
+    // DataTables column indices depend on LIST_COLUMNS.length
+    // 0: record_id, 1: status, 2: template, 3..(3+N-1): dynamic, 3+N: lock, 3+N+1: sort(hidden), 3+N+2: actions
+    const N = LIST_COLUMNS.length;
+    const SORT_COL_IDX    = 3 + N + 1;
+    const ACTIONS_COL_IDX = 3 + N + 2;
+
+    // Color → badge class map (same as record_detail.html)
+    const BADGE_COLOR_MAP = {
+        secondary: 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+        primary:   'bg-primary-subtle text-primary border border-primary-subtle',
+        warning:   'bg-warning-subtle text-warning border border-warning-subtle',
+        success:   'bg-success-subtle text-success border border-success-subtle',
+        info:      'bg-info-subtle text-info border border-info-subtle',
+        danger:    'bg-danger-subtle text-danger border border-danger-subtle',
+        dark:      'bg-dark-subtle text-dark border border-dark-subtle',
+    };
+
+    // Built from the first record loaded (all records in a deployment share the same workflow)
+    let statusConfig = {};  // id → {label, cls, priority}
+    let allRecords = [];
+    let activeFilter = new URLSearchParams(location.search).get('filter') || 'all';
+    let dt = null;
+    let pendingDeleteId = null;
+
+    function buildStatusConfig(workflowStates) {
+        statusConfig = {};
+        workflowStates.forEach((state, idx) => {
+            statusConfig[state.id] = {
+                label: state.label,
+                cls: BADGE_COLOR_MAP[state.color] || BADGE_COLOR_MAP.secondary,
+                priority: idx,
+            };
+        });
+    }
+
+    function buildFilterBar(workflowStates) {
+        const bar = document.getElementById('filter-bar');
+        workflowStates.forEach(state => {
+            if (bar.querySelector(`[data-filter="${state.id}"]`)) return;
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-sm filter-btn';
+            btn.dataset.filter = state.id;
+            btn.textContent = state.label;
+            btn.addEventListener('click', () => setFilter(state.id));
+            bar.appendChild(btn);
+        });
+    }
+
+    // Generic field value extractor – searches all sections for a field with matching key
+    function getFieldValue(r, key) {
+        for (const section of (r.data?.sections || [])) {
+            const f = (section.fields || []).find(f => f.key === key);
+            if (f != null && f.value != null && f.value !== '') return String(f.value);
+        }
+        return null;
+    }
+
+    function buildTableRows(records) {
+        const tbody = document.getElementById('records-tbody');
+        tbody.innerHTML = '';
+
+        records.forEach(r => {
+            const st = statusConfig[r.status] || {label: r.status, cls: 'bg-secondary-subtle text-secondary', priority: 99};
+            const tr = document.createElement('tr');
+            const lockBadge = r.locked_by
+                ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-lock-fill me-1"></i>${r.locked_by}</span>`
+                : '<span class="text-muted small">–</span>';
+
+            const adminActions = IS_ADMIN ? `
+                ${r.locked_by ? `<button class="btn btn-warning btn-sm" onclick="unlockRecord('${r.record_id}')" title="Unlock"><i class="bi bi-unlock"></i></button>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="confirmDelete('${r.record_id}')" title="Delete"><i class="bi bi-trash"></i></button>
+            ` : '';
+
+            // Fixed columns
+            let html = `
+                <td class="ps-3 align-middle">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold">${r.record_id}</span>
+                </td>
+                <td class="align-middle"><span class="badge ${st.cls}">${st.label}</span></td>
+                <td class="align-middle small text-muted">${r.data?.template_name || r.template_id}</td>`;
+
+            // Dynamic columns from collection list_columns
+            LIST_COLUMNS.forEach(col => {
+                const val = getFieldValue(r, col.key);
+                html += `<td class="align-middle small">${val ? `<span>${val}</span>` : '<span class="text-muted fst-italic">–</span>'}</td>`;
+            });
+
+            // Lock + sort + actions
+            html += `
+                <td class="align-middle">${lockBadge}</td>
+                <td class="d-none">${st.priority ?? 99}</td>
+                <td class="align-middle text-end pe-3">
+                    <div class="d-flex gap-1 justify-content-end">
+                        ${adminActions}
+                        <a href="/records/${COLLECTION_ID}/${r.record_id}/print" target="_blank" class="btn btn-secondary btn-sm" title="${TERM.btn_print}">
+                            <i class="bi bi-printer me-1"></i>${TERM.btn_print}
+                        </a>
+                        <a href="/records/${COLLECTION_ID}/${r.record_id}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-arrow-right me-1"></i>${TERM.btn_open}
+                        </a>
+                    </div>
+                </td>`;
+
+            tr.innerHTML = html;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function applyFilter() {
+        if (!dt) return;
+        if (activeFilter === 'all') {
+            dt.column(1).search('').draw();
+        } else {
+            const label = statusConfig[activeFilter]?.label || activeFilter;
+            dt.column(1).search('^' + label + '$', true, false).draw();
+        }
+    }
+
+    function setFilter(filter) {
+        activeFilter = filter;
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        applyFilter();
+    }
+
+    function confirmDelete(recordId) {
+        pendingDeleteId = recordId;
+        document.getElementById('deleteModalBody').textContent =
+            `Delete ${recordId}? This action cannot be undone.`;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+        if (!pendingDeleteId) return;
+        bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+        const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/${pendingDeleteId}`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) {
+            allRecords = allRecords.filter(r => r.record_id !== pendingDeleteId);
+            pendingDeleteId = null;
+            if (dt) { dt.destroy(); dt = null; }
+            buildTableRows(allRecords);
+            initDataTable();
+            applyFilter();
+        }
+    });
+
+    async function unlockRecord(recordId) {
+        const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/${recordId}/lock`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) {
+            const r = allRecords.find(x => x.record_id === recordId);
+            if (r) r.locked_by = null;
+            if (dt) { dt.destroy(); dt = null; }
+            buildTableRows(allRecords);
+            initDataTable();
+            applyFilter();
+        }
+    }
+
+    function initDataTable() {
+        dt = $('#records-table').DataTable({
+            order: [[SORT_COL_IDX, 'asc'], [0, 'desc']],
+            columnDefs: [
+                {orderable: false, targets: [ACTIONS_COL_IDX]},
+                {visible: false, targets: [SORT_COL_IDX]},
+            ],
+            pageLength: 25,
+        });
+    }
+
+    async function loadRecords() {
+        try {
+            const resp = await apiFetch(`/api/v1/records/${COLLECTION_ID}/`);
+            if (!resp.ok) return;
+            allRecords = await resp.json();
+            document.getElementById('records-loading').classList.add('d-none');
+
+            if (allRecords.length === 0) {
+                document.getElementById('records-empty').classList.remove('d-none');
+                return;
+            }
+
+            // Build status config + filter bar from the first record's workflow_states
+            const firstWorkflow = allRecords[0]?.data?.workflow_states || [];
+            if (firstWorkflow.length > 0) {
+                buildStatusConfig(firstWorkflow);
+                buildFilterBar(firstWorkflow);
+            }
+
+            buildTableRows(allRecords);
+            document.getElementById('records-table-wrap').classList.remove('d-none');
+            initDataTable();
+
+            if (activeFilter !== 'all') setFilter(activeFilter);
+        } catch (e) {
+            document.getElementById('records-loading').innerHTML =
+                `<div class="text-danger py-4">Error loading records: ${e.message}</div>`;
+        }
+    }
+
+    document.querySelector('[data-filter="all"]').addEventListener('click', () => setFilter('all'));
+
+    if (activeFilter !== 'all') {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === activeFilter);
+        });
+    }
+
+    loadRecords();
+</script>
+{% endblock %}

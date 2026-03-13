@@ -1,0 +1,203 @@
+/* Forms4SOC – světlý styl, primární barva: modrá */
+
+:root {
+    --soc-primary:       #0d6efd;
+    --soc-primary-light: #eff6ff;
+    --soc-primary-muted: #cfe2ff;
+    --soc-border:        #dee2e6;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+/* App shell: navbar (flex-shrink:0) + app-shell (flex:1) */
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-shell {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.app-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Navbar */
+.navbar {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid var(--soc-border);
+}
+
+/* Sidebar */
+.sidebar {
+    background-color: #ffffff;
+    border-right: 1px solid var(--soc-border);
+    flex-shrink: 0;
+    overflow-y: auto;
+}
+
+.sidebar .nav-link {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.9rem;
+    color: #495057;
+    border-radius: 0.375rem;
+    transition: background-color 0.15s ease;
+}
+
+.sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    color: #212529;
+}
+
+.sidebar .nav-link.active {
+    background-color: var(--soc-primary-light);
+    color: var(--soc-primary);
+    font-weight: 500;
+}
+
+/* Karty šablon */
+.template-card {
+    background-color: #ffffff !important;
+    border: 1px solid var(--soc-border) !important;
+    transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.template-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    transform: translateY(-1px);
+}
+
+/* Sekce incidentu */
+.case-section {
+    background-color: #ffffff !important;
+    border: 1px solid var(--soc-border) !important;
+}
+
+.case-section .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--soc-border);
+}
+
+/* Accordion */
+.accordion-button {
+    background-color: #f8f9fa;
+    color: #212529;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--soc-primary-light);
+    color: var(--soc-primary);
+    box-shadow: none;
+}
+
+.accordion-button::after {
+    filter: none;
+}
+
+.accordion-item {
+    background-color: #ffffff;
+    border: 1px solid var(--soc-border);
+}
+
+/* Formulářové prvky */
+.form-control, .form-select {
+    background-color: #ffffff;
+    border-color: #ced4da;
+    color: #212529;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--soc-primary);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.1);
+}
+
+/* Tabulky */
+.table {
+    color: #212529;
+}
+
+.table thead th {
+    background-color: #f8f9fa;
+    border-color: var(--soc-border);
+    color: #6c757d;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.table td, .table th {
+    border-color: var(--soc-border);
+}
+
+/* Tabulkové inputy */
+.table .form-control,
+.table .form-select {
+    border: none;
+    background-color: transparent;
+    padding: 0.15rem 0.25rem;
+    font-size: 0.875rem;
+}
+
+.table .form-control:focus,
+.table .form-select:focus {
+    background-color: var(--soc-primary-light);
+    border: 1px solid var(--soc-primary) !important;
+    box-shadow: none;
+}
+
+/* Step checklist */
+.step-done label {
+    text-decoration: line-through;
+    color: #6c757d;
+}
+
+/* Klasifikační nápověda v checklistu (hints_style: classification) */
+.hint-classification {
+    background-color: #fff8e1;
+    border-left: 3px solid #f59e0b;
+    color: #78350f;
+    font-size: 0.82rem;
+}
+
+/* Badge – severity (ponechat výrazné barvy) */
+.severity-critical { background-color: #dc3545 !important; }
+.severity-high     { background-color: #fd7e14 !important; }
+.severity-medium   { background-color: #ffc107 !important; color: #212529 !important; }
+.severity-low      { background-color: #198754 !important; }
+
+/* Save indicator */
+#save-indicator { font-size: 0.85rem; }
+
+code {
+    color: #0d6efd;
+    font-size: 0.82em;
+}
+
+/* Filter buttons – pro seznam incidentů */
+.filter-btn {
+    border: 1px solid var(--soc-border);
+    background: #fff;
+    color: #495057;
+}
+
+.filter-btn.active {
+    background: var(--soc-primary);
+    border-color: var(--soc-primary);
+    color: #fff;
+}
+
+.filter-btn:hover:not(.active) {
+    background: #f8f9fa;
+}

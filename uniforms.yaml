@@ -1,0 +1,102 @@
+# UniForms deployment configuration – customize for your domain.
+# See uniforms.yaml.example for full documentation.
+
+app:
+  name: "UniForms"
+  subtitle: "Universal Forms Engine"
+
+terminology:
+  # Core entity names
+  record: "record"
+  records: "records"
+  record_id_label: "Record ID"
+  template: "template"
+  templates: "templates"
+
+  # Page subtitles
+  records_subtitle: "All records"
+  templates_subtitle: "Available templates"
+  dashboard_subtitle: "Overview"
+
+  # Action buttons
+  new_record_btn: "New Record"
+  coordinator_label: "Coordinator"
+  take_over_btn: "Take Over"
+
+  # Status labels
+  status_active: "Active"
+  status_draft: "Draft"
+  status_deprecated: "Deprecated"
+
+  # Sidebar navigation
+  nav_dashboard: "Dashboard"
+  nav_users: "Users"
+  nav_settings: "Settings"
+  nav_logout: "Log out"
+  nav_sections: "Sections"
+  nav_admin: "Admin"
+
+  # Common action buttons
+  btn_cancel: "Cancel"
+  btn_delete: "Delete"
+  btn_edit: "Edit"
+  btn_clone: "Clone"
+  btn_print: "Print"
+  btn_open: "Open"
+  btn_save: "Save"
+  btn_create: "Create"
+
+  # Table column headers
+  col_status: "Status"
+  col_title: "Title"
+  col_lock: "Lock"
+  col_username: "Username"
+  col_role: "Role"
+  col_created: "Created"
+
+  # Filter bar
+  filter_all: "All"
+
+  # User management
+  users_title: "User Management"
+  users_subtitle: "Create and manage application access"
+  new_user_btn: "New user"
+
+  # Settings page
+  settings_title: "Application Settings"
+
+  # Login page
+  login_title: "Login"
+  login_username_label: "USERNAME"
+  login_username_placeholder: "Enter your username"
+  login_password_label: "PASSWORD"
+  login_password_placeholder: "Enter your password"
+  login_btn: "Sign in"
+  login_error_credentials: "Invalid credentials"
+  login_error_failed: "Login failed"
+  login_error_connection: "Server connection error"
+
+id:
+  prefix: "REC"
+  format: "{prefix}-{YYYYMM}-{rand:04d}"
+
+workflow:
+  default_states:
+    - id: new
+      label: "New"
+      color: secondary
+    - id: open
+      label: "Open"
+      color: primary
+    - id: in_progress
+      label: "In Progress"
+      color: warning
+    - id: on_hold
+      label: "On Hold"
+      color: info
+    - id: closed
+      label: "Closed"
+      color: success
+  initial_state: new
+
+extensions: []

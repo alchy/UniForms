@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}{{ term.templates | capitalize }}{% if collection %} – {{ collection.name }}{% endif %} – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-file-earmark-text me-2 text-primary"></i>{{ term.templates | capitalize }}
+            {% if collection %}<span class="text-muted fw-normal">– {{ collection.name }}</span>{% endif %}
+        </h5>
+        <small class="text-muted">{{ term.templates_subtitle }}</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+            {{ templates | length }} {{ term.templates }}
+        </span>
+        {% if user and user.role == 'system_admin' %}
+        <a href="/templates/{{ collection_id }}/new" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>New {{ term.template }}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{# Delete confirmation modal #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete {{ term.template }}</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small mb-1">Really delete {{ term.template }} <strong id="delete-template-name"></strong>?</p>
+                <p class="text-danger small mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ term.btn_cancel }}</button>
+                <button type="button" class="btn btn-danger btn-sm" id="btn-confirm-delete">
+                    <i class="bi bi-trash me-1"></i>{{ term.btn_delete }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if templates %}
+<div class="row g-3">
+    {% for tmpl in templates %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card border shadow-sm h-100 template-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="card-title mb-0">{{ tmpl.name }}</h6>
+                    {% if tmpl.status == 'active' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">{{ term.status_active }}</span>
+                    {% elif tmpl.status == 'draft' %}
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ term.status_draft }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ term.status_deprecated }}</span>
+                    {% endif %}
+                </div>
+
+                {% if tmpl.description %}
+                <p class="card-text text-muted small mb-3">{{ tmpl.description }}</p>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-1 mb-3">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                        <i class="bi bi-tag me-1"></i>{{ tmpl.category }}
+                    </span>
+                    {% if tmpl.mitre_technique %}
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                        {{ tmpl.mitre_technique }}
+                    </span>
+                    {% endif %}
+                    {% if tmpl.mitre_tactic %}
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                        {{ tmpl.mitre_tactic }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="text-muted small mb-2">
+                    <i class="bi bi-file-code me-1"></i>
+                    <code>{{ tmpl.template_id }}</code>
+                    <span class="ms-2">v{{ tmpl.version }}</span>
+                </div>
+
+                {% if tmpl.data_sources %}
+                <div class="text-muted small">
+                    <i class="bi bi-database me-1"></i>
+                    {% for ds in tmpl.data_sources %}
+                    <span class="badge bg-light text-secondary border me-1">{{ ds }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-white border-top d-flex flex-column gap-2">
+                <button
+                    class="btn btn-success btn-sm w-100"
+                    onclick="startRecord('{{ tmpl.template_id }}', this)"
+                    {% if tmpl.status != 'active' %}disabled{% endif %}
+                >
+                    <span class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <i class="bi bi-plus-circle me-1"></i>New {{ term.record }}
+                </button>
+                {% if user and user.role == 'system_admin' %}
+                <div class="d-flex gap-1">
+                    <a href="/templates/{{ collection_id }}/{{ tmpl.template_id }}/edit"
+                       class="btn btn-secondary btn-sm flex-fill" title="{{ term.btn_edit }} {{ term.template }}">
+                        <i class="bi bi-pencil me-1"></i>{{ term.btn_edit }}
+                    </a>
+                    <a href="/templates/{{ collection_id }}/new?clone={{ tmpl.template_id }}"
+                       class="btn btn-secondary btn-sm flex-fill" title="{{ term.btn_clone }} {{ term.template }}">
+                        <i class="bi bi-copy me-1"></i>{{ term.btn_clone }}
+                    </a>
+                    <button class="btn btn-danger btn-sm"
+                            onclick="deleteTemplate('{{ tmpl.template_id }}', '{{ tmpl.name }}')"
+                            title="Delete {{ term.template }}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card border shadow-sm">
+    <div class="card-body text-center py-5 text-muted">
+        <i class="bi bi-folder2 fs-1 mb-3 d-block opacity-50"></i>
+        <p class="mb-1">No {{ term.templates }} found</p>
+        <small>Add YAML files to the {{ term.templates }} directory</small>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const COLLECTION_ID = '{{ collection_id }}';
+
+    async function startRecord(templateId, btn) {
+        const spinner = btn.querySelector('.spinner-border');
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const response = await apiFetch(`/api/v1/records/${COLLECTION_ID}/`, {
+                method: 'POST',
+                body: JSON.stringify({template_id: templateId}),
+            });
+            if (response.ok) {
+                const rec = await response.json();
+                window.location.href = `/records/${COLLECTION_ID}/${rec.record_id}`;
+            } else {
+                const data = await response.json();
+                alert(data.detail || 'Failed to create record');
+                btn.disabled = false;
+                spinner.classList.add('d-none');
+            }
+        } catch {
+            alert('Server connection error');
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+
+    let _deleteId = null;
+    const _deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+    function deleteTemplate(templateId, templateName) {
+        _deleteId = templateId;
+        document.getElementById('delete-template-name').textContent = templateName;
+        document.getElementById('btn-confirm-delete').onclick = doDeleteTemplate;
+        _deleteModal.show();
+    }
+
+    async function doDeleteTemplate() {
+        _deleteModal.hide();
+        try {
+            const resp = await apiFetch(`/api/v1/templates/${COLLECTION_ID}/${_deleteId}`, {method: 'DELETE'});
+            if (resp.ok || resp.status === 204) {
+                window.location.reload();
+            } else {
+                const data = await resp.json();
+                alert(data.detail || 'Error deleting template.');
+            }
+        } catch {
+            alert('Server connection error.');
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+id: autobazar
+name: Autobazar
+description: Evidence vozidel – příjem, inzerce a prodej.
+
+workflow:
+  initial_state: prijato
+  states:
+    - id: prijato
+      label: Přijato
+      color: secondary
+    - id: k_prodeji
+      label: K prodeji
+      color: primary
+    - id: rezervovano
+      label: Rezervováno
+      color: warning
+    - id: prodano
+      label: Prodáno
+      color: success
+    - id: stornováno
+      label: Stornováno
+      color: danger
+
+id_format:
+  prefix: ABZ
+  format: "{prefix}-{YYYYMM}-{rand:04d}"
+
+list_columns:
+  - key: obchodnik
+    label: Obchodník
+  - key: znacka
+    label: Značka / Model
+
+roles:
+  - id: collection_admin
+    label: Vedoucí
+  - id: collection_user
+    label: Obchodník

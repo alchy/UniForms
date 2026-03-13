@@ -1,0 +1,29 @@
+id: soc
+name: "Security Operations Center"
+version: "1.0"
+
+# JS renderer files loaded after core uniforms.js
+# Paths are relative to this extension's js/ directory
+js:
+  - classification.js
+  - raci_table.js
+
+# Section types registered by this extension
+section_types:
+  - classification
+  - raci_table
+
+# auto_value keys provided by this extension (accessible as meta.* in templates)
+auto_values:
+  - meta.mitre_tactic
+  - meta.mitre_technique
+  - meta.mitre_subtechnique
+  - meta.data_sources
+  # Legacy backwards-compat keys
+  - template_mitre_tactic
+  - template_mitre_technique
+  - template_mitre_subtechnique
+  - template_data_sources
+
+# Template directory (relative to this extension's path)
+templates_dir: templates

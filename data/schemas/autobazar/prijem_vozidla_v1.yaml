@@ -1,0 +1,116 @@
+template_id: prijem_vozidla_v1
+name: Příjem vozidla
+version: '1.0'
+category: Autobazar
+status: active
+description: Formulář pro příjem nového vozidla do nabídky.
+
+sections:
+  - id: header
+    title: Základní informace
+    type: header
+    fields:
+      - key: record_id
+        label: Číslo záznamu
+        auto: record_id
+      - key: template_name
+        label: Typ formuláře
+        auto: template_name
+      - key: obchodnik
+        label: Přijal
+        auto: current_user
+      - key: datum_prijmu
+        label: Datum příjmu
+        auto: now
+        editable: false
+
+  - id: vozidlo
+    title: Údaje o vozidle
+    type: fields
+    fields:
+      - key: znacka
+        label: Značka
+        placeholder: např. Škoda, Volkswagen, Ford…
+        required: true
+      - key: model
+        label: Model
+        placeholder: např. Octavia, Golf, Focus…
+        required: true
+      - key: rok_vyroby
+        label: Rok výroby
+        type: number
+      - key: karoserie
+        label: Karoserie
+        type: select
+        options:
+          - Sedan
+          - Kombi
+          - Hatchback
+          - SUV
+          - Kupé
+          - Kabrio
+          - Minivan
+          - Pick-up
+      - key: palivo
+        label: Palivo
+        type: select
+        options:
+          - Benzín
+          - Diesel
+          - Hybrid
+          - Elektro
+          - LPG
+          - CNG
+      - key: prevodovka
+        label: Převodovka
+        type: select
+        options:
+          - Manuální
+          - Automatická
+      - key: najezd_km
+        label: Nájezd (km)
+        type: number
+      - key: barva
+        label: Barva
+      - key: vin
+        label: VIN
+        placeholder: 17místný identifikátor
+
+  - id: cena
+    title: Ocenění
+    type: fields
+    fields:
+      - key: cena_vykupni_kc
+        label: Výkupní cena (Kč)
+        type: number
+      - key: cena_prodejni_kc
+        label: Prodejní cena (Kč)
+        type: number
+
+  - id: stav
+    title: Technický stav
+    type: fields
+    fields:
+      - key: stk_do
+        label: STK platná do
+        placeholder: MM/RRRR
+      - key: technicka_zavady
+        label: Technické závady / poznámky
+        type: textarea
+        placeholder: Popis stavu, viditelné vady…
+      - key: vybava
+        label: Výbava a příslušenství
+        type: textarea
+        placeholder: zimní kola, tažné zařízení, navigace…
+
+  - id: prodejce
+    title: Předchozí majitel
+    type: fields
+    fields:
+      - key: jmeno_prodejce
+        label: Jméno a příjmení
+      - key: telefon_prodejce
+        label: Telefon
+      - key: poznamka
+        label: Poznámka
+        type: textarea

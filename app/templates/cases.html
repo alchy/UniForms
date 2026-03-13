@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}Události informační bezpečnosti (UIB) – {{ app_name }}{% endblock %}
+
+{% block sidebar %}
+<nav class="col-auto sidebar d-flex flex-column py-3 px-2" style="min-width: 220px; min-height: calc(100vh - 57px);">
+    <ul class="nav flex-column gap-1">
+        <li class="nav-item">
+            <a href="/dashboard" class="nav-link">
+                <i class="bi bi-grid-1x2 me-2"></i>Dashboard
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/cases" class="nav-link active">
+                <i class="bi bi-folder2-open me-2"></i>Události informační bezpečnosti (UIB)
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/templates" class="nav-link">
+                <i class="bi bi-file-earmark-text me-2"></i>Šablony
+            </a>
+        </li>
+    </ul>
+    {% if user and user.role == 'system_admin' %}
+    <div class="mt-3 border-top pt-3">
+        <div class="text-muted small px-2 mb-2 fw-semibold text-uppercase" style="font-size:0.7rem; letter-spacing:0.05em;">Admin</div>
+        <ul class="nav flex-column gap-1">
+            <li class="nav-item">
+                <a href="/admin/users" class="nav-link">
+                    <i class="bi bi-people me-2"></i>Uživatelé
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/settings" class="nav-link">
+                    <i class="bi bi-gear me-2"></i>Nastavení
+                </a>
+            </li>
+        </ul>
+    </div>
+    {% endif %}
+    <div class="mt-auto">
+        <div class="text-muted small px-2 pb-1 border-top pt-3">
+            <i class="bi bi-info-circle me-1"></i>{{ app_version }}
+        </div>
+    </div>
+</nav>
+{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-folder2-open me-2 text-primary"></i>Události informační bezpečnosti (UIB)
+        </h5>
+        <small class="text-muted">Přehled všech UIB</small>
+    </div>
+</div>
+
+<!-- Filtry -->
+<div class="d-flex gap-2 mb-3 flex-wrap">
+    <button class="btn btn-sm filter-btn active" data-filter="all">Všechny</button>
+    <button class="btn btn-sm filter-btn" data-filter="new">
+        <i class="bi bi-plus-circle me-1"></i>Založeno
+    </button>
+    <button class="btn btn-sm filter-btn" data-filter="open">
+        <i class="bi bi-circle me-1"></i>Přiřazeno
+    </button>
+    <button class="btn btn-sm filter-btn" data-filter="in_progress">
+        <i class="bi bi-play-circle me-1"></i>V řešení
+    </button>
+    <button class="btn btn-sm filter-btn" data-filter="on_hold">
+        <i class="bi bi-pause-circle me-1"></i>Pozastaveno
+    </button>
+    <button class="btn btn-sm filter-btn" data-filter="closed">
+        <i class="bi bi-check-circle me-1"></i>Uzavřené
+    </button>
+</div>
+
+<!-- Tabulka incidentů -->
+<div class="card border shadow-sm">
+    <div class="card-body p-0">
+        <div id="cases-loading" class="text-center text-muted py-5">
+            <div class="spinner-border mb-3" role="status"></div>
+            <div>Načítám incidenty...</div>
+        </div>
+        <div id="cases-empty" class="text-center text-muted py-5 d-none">
+            <i class="bi bi-folder2 fs-1 mb-3 d-block opacity-50"></i>
+            <p class="mb-0">Žádné incidenty nenalezeny</p>
+        </div>
+        <div class="d-none" id="cases-table-wrap">
+            <table class="table table-hover mb-0" id="cases-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">ID</th>
+                        <th>Stav</th>
+                        <th>Šablona</th>
+                        <th>Popis události</th>
+                        <th>Koordinátor</th>
+                        <th>Zámek</th>
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="cases-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Smazat incident?</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body small text-muted" id="deleteModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirmDeleteBtn">Smazat</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- jQuery + DataTables -->
+<link rel="stylesheet" href="/static/vendor/datatables/css/dataTables.bootstrap5.min.css">
+<style>
+  #cases-table_wrapper .dataTables_length,
+  #cases-table_wrapper .dataTables_filter { padding: 0.6rem 1rem 0.25rem; }
+  #cases-table_wrapper .dataTables_info,
+  #cases-table_wrapper .dataTables_paginate { padding: 0.25rem 1rem 0.6rem; }
+  /* Neutralize Bootstrap row negative margins inside the card (no container padding to compensate) */
+  #cases-table_wrapper > .row { --bs-gutter-x: 0; }
+</style>
+<script src="/static/vendor/jquery/jquery.min.js"></script>
+<script src="/static/vendor/datatables/js/jquery.dataTables.min.js"></script>
+<script src="/static/vendor/datatables/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    const IS_ADMIN = {{ 'true' if user and user.role == 'system_admin' else 'false' }};
+
+    function getCaseTitle(c) {
+        const headerSec = (c.data?.sections || []).find(s => s.type === 'workbook_header' || s.type === 'playbook_header');
+        const f = (headerSec?.fields || []).find(f => f.key === 'case_title');
+        return f?.value || null;
+    }
+
+    function getCaseCoordinator(c) {
+        const headerSec = (c.data?.sections || []).find(s => s.type === 'workbook_header' || s.type === 'playbook_header');
+        const f = (headerSec?.fields || []).find(f => f.key === 'incident_coordinator');
+        return f?.value || null;
+    }
+
+    const STATUS_CONFIG = {
+        'new':         {label: 'Založeno',   cls: 'bg-secondary-subtle text-secondary border border-secondary-subtle', priority: 0},
+        'open':        {label: 'Přiřazeno',  cls: 'bg-primary-subtle text-primary border border-primary-subtle',       priority: 1},
+        'in_progress': {label: 'V řešení',   cls: 'bg-success-subtle text-success border border-success-subtle',       priority: 2},
+        'on_hold':     {label: 'Pozastaveno',cls: 'bg-warning-subtle text-warning border border-warning-subtle',       priority: 3},
+        'closed':      {label: 'Uzavřený',   cls: 'bg-dark-subtle text-dark border border-dark-subtle',                priority: 4},
+    };
+
+    let allCases = [];
+    let activeFilter = new URLSearchParams(location.search).get('filter') || 'all';
+    let dt = null;
+    let pendingDeleteId = null;
+
+    function buildTableRows(cases) {
+        const tbody = document.getElementById('cases-tbody');
+        tbody.innerHTML = '';
+
+        cases.forEach(c => {
+            const st = STATUS_CONFIG[c.status] || {label: c.status, cls: 'bg-secondary-subtle text-secondary'};
+            const tr = document.createElement('tr');
+            const title = getCaseTitle(c);
+            const coordinator = getCaseCoordinator(c);
+            const lockBadge = c.locked_by
+                ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-lock-fill me-1"></i>${c.locked_by}</span>`
+                : '<span class="text-muted small">–</span>';
+
+            const adminActions = IS_ADMIN ? `
+                ${c.locked_by ? `<button class="btn btn-warning btn-sm" onclick="unlockCase('${c.case_id}')" title="Odemknout"><i class="bi bi-unlock"></i></button>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="confirmDelete('${c.case_id}')" title="Smazat"><i class="bi bi-trash"></i></button>
+            ` : '';
+
+            tr.innerHTML = `
+                <td class="ps-3 align-middle">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold">${c.case_id}</span>
+                </td>
+                <td class="align-middle"><span class="badge ${st.cls}">${st.label}</span></td>
+                <td class="align-middle small text-muted">${c.data?.template_name || c.template_id}</td>
+                <td class="align-middle small">${title ? `<span>${title}</span>` : '<span class="text-muted fst-italic">nevyplněno</span>'}</td>
+                <td class="align-middle small text-muted">${coordinator || '<span class="text-muted fst-italic">–</span>'}</td>
+                <td class="align-middle">${lockBadge}</td>
+                <td class="d-none">${st.priority ?? 9}</td>
+                <td class="align-middle text-end pe-3">
+                    <div class="d-flex gap-1 justify-content-end">
+                        ${adminActions}
+                        <a href="/cases/${c.case_id}/print" target="_blank" class="btn btn-secondary btn-sm" title="Tisk">
+                            <i class="bi bi-printer me-1"></i>Tisk
+                        </a>
+                        <a href="/cases/${c.case_id}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-arrow-right me-1"></i>Otevřít
+                        </a>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function applyFilter() {
+        if (!dt) return;
+        if (activeFilter === 'all') {
+            dt.column(1).search('').draw();
+        } else {
+            const label = STATUS_CONFIG[activeFilter]?.label || activeFilter;
+            dt.column(1).search('^' + label + '$', true, false).draw();
+        }
+    }
+
+    function setFilter(filter) {
+        activeFilter = filter;
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        applyFilter();
+    }
+
+    function confirmDelete(caseId) {
+        pendingDeleteId = caseId;
+        document.getElementById('deleteModalBody').textContent = `Opravdu smazat incident ${caseId}? Tuto akci nelze vrátit.`;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+        if (!pendingDeleteId) return;
+        bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+        const resp = await apiFetch(`/api/v1/cases/${pendingDeleteId}`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) {
+            allCases = allCases.filter(c => c.case_id !== pendingDeleteId);
+            pendingDeleteId = null;
+            if (dt) { dt.destroy(); dt = null; }
+            buildTableRows(allCases);
+            initDataTable();
+            applyFilter();
+        }
+    });
+
+    async function unlockCase(caseId) {
+        const resp = await apiFetch(`/api/v1/cases/${caseId}/lock`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) {
+            const c = allCases.find(x => x.case_id === caseId);
+            if (c) c.locked_by = null;
+            if (dt) { dt.destroy(); dt = null; }
+            buildTableRows(allCases);
+            initDataTable();
+            applyFilter();
+        }
+    }
+
+    function initDataTable() {
+        dt = $('#cases-table').DataTable({
+            language: {
+                search: 'Hledat:',
+                lengthMenu: 'Zobrazit _MENU_ záznamů',
+                info: 'Zobrazeno _START_–_END_ z _TOTAL_ incidentů',
+                infoEmpty: 'Žádné incidenty',
+                infoFiltered: '(filtrováno z _MAX_ celkem)',
+                zeroRecords: 'Žádné incidenty nenalezeny',
+                paginate: {first: 'První', last: 'Poslední', next: 'Další', previous: 'Předchozí'},
+            },
+            order: [[6, 'asc'], [0, 'desc']],
+            columnDefs: [
+                {orderable: false, targets: [7]},
+                {visible: false, targets: [6]},
+            ],
+            pageLength: 25,
+        });
+    }
+
+    async function loadCases() {
+        try {
+            const resp = await apiFetch('/api/v1/cases/');
+            if (!resp.ok) return;
+            allCases = await resp.json();
+            document.getElementById('cases-loading').classList.add('d-none');
+
+            if (allCases.length === 0) {
+                document.getElementById('cases-empty').classList.remove('d-none');
+                return;
+            }
+
+            buildTableRows(allCases);
+            document.getElementById('cases-table-wrap').classList.remove('d-none');
+            initDataTable();
+
+            // Apply URL filter param
+            if (activeFilter !== 'all') {
+                setFilter(activeFilter);
+            }
+        } catch (e) {
+            document.getElementById('cases-loading').innerHTML =
+                `<div class="text-danger py-4">Chyba při načítání: ${e.message}</div>`;
+        }
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+    });
+
+    // Highlight active filter button from URL
+    if (activeFilter !== 'all') {
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === activeFilter);
+        });
+    }
+
+    loadCases();
+</script>
+{% endblock %}

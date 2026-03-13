@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-grid-1x2 me-2 text-primary"></i>{{ term.nav_dashboard }}
+        </h5>
+        <small class="text-muted">{{ term.dashboard_subtitle }}</small>
+    </div>
+</div>
+
+{% if collections %}
+<div class="row g-3">
+    {% for col in collections %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card border shadow-sm h-100 template-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="card-title mb-0">{{ col.name }}</h6>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                        <i class="bi bi-collection me-1"></i>{{ col.id }}
+                    </span>
+                </div>
+
+                {% if col.description %}
+                <p class="card-text text-muted small mb-3">{{ col.description }}</p>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-1">
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                        <i class="bi bi-diagram-2 me-1"></i>{{ col.workflow.states | length }} states
+                    </span>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                        <i class="bi bi-people me-1"></i>{{ col.roles | length }} roles
+                    </span>
+                </div>
+            </div>
+            <div class="card-footer bg-white border-top d-flex gap-1">
+                <a href="/records/{{ col.id }}" class="btn btn-primary btn-sm flex-fill">
+                    <i class="bi bi-folder2-open me-1"></i>{{ term.records | capitalize }}
+                </a>
+                <a href="/templates/{{ col.id }}" class="btn btn-outline-secondary btn-sm flex-fill">
+                    <i class="bi bi-file-earmark-text me-1"></i>{{ term.templates | capitalize }}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="card border shadow-sm">
+    <div class="card-body text-center py-5 text-muted">
+        <i class="bi bi-collection fs-1 mb-3 d-block opacity-50"></i>
+        <p class="mb-1">No collections found</p>
+        {% if user and user.role == 'system_admin' %}
+        <small>Add YAML files to the collections directory</small>
+        {% else %}
+        <small>You have not been assigned to any collections yet</small>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,172 @@
+# =============================================================================
+# UniForms – Deployment Configuration Example
+# =============================================================================
+# Copy this file to uniforms.yaml and customize for your domain.
+# uniforms.yaml is the only configuration file for a UniForms deployment.
+# Secrets (JWT keys, passwords) go in .env – never in this file.
+# =============================================================================
+
+app:
+  name: "UniForms"
+  subtitle: "Universal Forms Engine"
+
+# ---------------------------------------------------------------------------
+# Terminology – how the UI refers to entities in your domain.
+# Customize every label to match your language and domain conventions.
+# ---------------------------------------------------------------------------
+terminology:
+  # Core entity names
+  record: "record"           # singular: "ticket", "incident", "request", "case", "report"
+  records: "records"         # plural
+  record_id_label: "Record ID"
+  template: "template"       # "workbook", "playbook", "form", "checklist"
+  templates: "templates"
+
+  # Page subtitles (shown under page headings)
+  records_subtitle: "All records"
+  templates_subtitle: "Available templates"
+  dashboard_subtitle: "Overview"
+
+  # Action buttons
+  new_record_btn: "New Record"       # button label on templates list
+  coordinator_label: "Coordinator"   # field label for the responsible person
+  take_over_btn: "Take Over"         # button to assign a record to yourself
+
+  # Status labels (shown as badges on template cards)
+  status_active: "Active"
+  status_draft: "Draft"
+  status_deprecated: "Deprecated"
+
+  # Sidebar navigation labels
+  nav_dashboard: "Dashboard"
+  nav_users: "Users"
+  nav_settings: "Settings"
+
+# ---------------------------------------------------------------------------
+# Record ID generation.
+# Available tokens: {prefix}, {DDMMYYYY}, {YYYYMM}, {YYYY}, {MM}, {DD}, {HHMM}, {rand:04d}
+# ---------------------------------------------------------------------------
+id:
+  prefix: "REC"
+  format: "{prefix}-{YYYYMM}-{rand:04d}"   # REC-202603-0042
+
+# ---------------------------------------------------------------------------
+# Default workflow states – used when a template does not define its own workflow.
+# Per-template workflow is defined in the template YAML under the 'workflow' key.
+# color: Bootstrap contextual color – primary, secondary, success, danger, warning, info, dark
+# ---------------------------------------------------------------------------
+workflow:
+  default_states:
+    - id: new
+      label: "New"
+      color: secondary
+    - id: open
+      label: "Open"
+      color: primary
+    - id: in_progress
+      label: "In Progress"
+      color: warning
+    - id: on_hold
+      label: "On Hold"
+      color: info
+    - id: closed
+      label: "Closed"
+      color: success
+  initial_state: new
+
+# ---------------------------------------------------------------------------
+# Extensions – domain-specific section types, templates, and JS renderers.
+# Each extension is a directory containing an extension.yaml manifest.
+# ---------------------------------------------------------------------------
+extensions: []
+# extensions:
+#   - id: soc
+#     path: extensions/soc
+
+# =============================================================================
+# IT ServiceDesk example – uncomment and adapt:
+# =============================================================================
+#
+# app:
+#   name: "IT ServiceDesk"
+#   subtitle: "IT Ticket Management"
+#
+# terminology:
+#   record: "ticket"
+#   records: "tickets"
+#   record_id_label: "Ticket ID"
+#   template: "template"
+#   templates: "templates"
+#   records_subtitle: "All open tickets"
+#   templates_subtitle: "Available request types"
+#   dashboard_subtitle: "Ticket overview"
+#   new_record_btn: "New Ticket"
+#   coordinator_label: "Assigned To"
+#   take_over_btn: "Assign to Me"
+#   status_active: "Published"
+#   status_draft: "Draft"
+#   status_deprecated: "Retired"
+#   nav_dashboard: "Dashboard"
+#   nav_users: "Users"
+#   nav_settings: "Settings"
+#
+# id:
+#   prefix: "TKT"
+#   format: "{prefix}-{YYYYMM}-{rand:04d}"
+#
+# workflow:
+#   default_states:
+#     - id: new
+#       label: "New"
+#       color: secondary
+#     - id: assigned
+#       label: "Assigned"
+#       color: primary
+#     - id: in_progress
+#       label: "In Progress"
+#       color: warning
+#     - id: pending
+#       label: "Pending"
+#       color: info
+#     - id: resolved
+#       label: "Resolved"
+#       color: success
+#     - id: closed
+#       label: "Closed"
+#       color: dark
+#   initial_state: new
+
+# =============================================================================
+# SOC (Security Operations Center) example – enable soc extension:
+# =============================================================================
+#
+# app:
+#   name: "Forms4SOC"
+#   subtitle: "SOC Incident Management"
+#
+# terminology:
+#   record: "incident"
+#   records: "incidents"
+#   record_id_label: "Ticket ID"
+#   template: "workbook"
+#   templates: "workbooks"
+#   records_subtitle: "All security incidents"
+#   templates_subtitle: "Available SOC workbooks"
+#   dashboard_subtitle: "Incident overview"
+#   new_record_btn: "New Incident"
+#   coordinator_label: "Incident Coordinator"
+#   take_over_btn: "Take Over"
+#   status_active: "Active"
+#   status_draft: "Draft"
+#   status_deprecated: "Deprecated"
+#   nav_dashboard: "Dashboard"
+#   nav_users: "Users"
+#   nav_settings: "Settings"
+#
+# id:
+#   prefix: "UIB"
+#   format: "{prefix}-{DDMMYYYY}-{HHMM}-{rand:04d}"
+#
+# extensions:
+#   - id: soc
+#     path: extensions/soc

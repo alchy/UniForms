@@ -1,0 +1,82 @@
+template_id: prodej_zvirete_v1
+name: Prodejní karta zvířete
+version: '1.0'
+category: Zverimex
+status: active
+description: Karta pro evidenci prodeje zvířete zákazníkovi.
+
+sections:
+  - id: header
+    title: Základní informace
+    type: header
+    fields:
+      - key: record_id
+        label: Číslo záznamu
+        auto: record_id
+      - key: template_name
+        label: Typ formuláře
+        auto: template_name
+      - key: koordinator
+        label: Vyřizuje
+        auto: current_user
+      - key: datum_prodeje
+        label: Datum prodeje
+        auto: now
+        editable: false
+
+  - id: zvire
+    title: Prodávané zvíře
+    type: fields
+    fields:
+      - key: druh
+        label: Druh zvířete
+        type: select
+        options:
+          - Pes
+          - Kočka
+          - Králík
+          - Morče
+          - Papoušek
+          - Plaz
+          - Ryba
+          - Jiné
+      - key: plemeno
+        label: Plemeno / Druh
+      - key: jmeno
+        label: Jméno
+      - key: cena_kc
+        label: Prodejní cena (Kč)
+        type: number
+
+  - id: zakaznik
+    title: Zákazník
+    type: fields
+    fields:
+      - key: jmeno_zakaznika
+        label: Jméno a příjmení
+        required: true
+      - key: telefon
+        label: Telefon
+      - key: email
+        label: E-mail
+      - key: adresa
+        label: Adresa trvalého bydliště
+        type: textarea
+      - key: souhlas_gdpr
+        label: Souhlas se zpracováním osobních údajů
+        type: select
+        options:
+          - 'Ano'
+          - 'Ne'
+
+  - id: poznamky
+    title: Doplňující informace
+    type: fields
+    fields:
+      - key: pribalene_zbozi
+        label: Přibalené zboží / příslušenství
+        type: textarea
+        placeholder: klec, krmivo, vodítko…
+      - key: poznamka
+        label: Poznámka
+        type: textarea

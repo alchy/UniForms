@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+
+{% block title %}User Management – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-people me-2 text-primary"></i>{{ term.users_title }}
+        </h5>
+        <small class="text-muted">{{ term.users_subtitle }}</small>
+    </div>
+    <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
+        <i class="bi bi-plus me-1"></i>{{ term.new_user_btn }}
+    </button>
+</div>
+
+<div id="users-alert" class="d-none mb-3"></div>
+
+<!-- Users table -->
+<div class="card border shadow-sm">
+    <div class="card-body p-0">
+        <div id="users-loading" class="text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+        </div>
+        <div class="table-responsive d-none" id="users-table-wrap">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">{{ term.col_username }}</th>
+                        <th>{{ term.col_role }}</th>
+                        <th>{{ term.col_status }}</th>
+                        <th>Collections</th>
+                        <th>{{ term.col_created }}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ── Create user modal ───────────────────────────────────────────── #}
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">{{ term.new_user_btn }}</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="create-alert" class="d-none mb-3"></div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="new-username" placeholder="john.doe" autocomplete="off">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" id="new-password" autocomplete="new-password">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Global role</label>
+                        <select class="form-select" id="new-role">
+                            <option value="system_reader" selected>System Reader</option>
+                            <option value="system_admin">System Admin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="new-collections-wrap">
+                    <label class="form-label fw-semibold">Collection access</label>
+                    <div id="new-global-admin-note" class="d-none alert alert-info py-2 small mb-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Global admin has access to all collections — individual assignments are optional.
+                    </div>
+                    <table class="table table-sm table-bordered mb-0" id="new-roles-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Collection</th>
+                                <th style="width:160px;">Role</th>
+                            </tr>
+                        </thead>
+                        <tbody id="new-roles-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ term.btn_cancel }}</button>
+                <button type="button" class="btn btn-success btn-sm" onclick="createUser()">{{ term.btn_create }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Edit user modal ─────────────────────────────────────────────── #}
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Edit user: <span id="edit-username-label"></span></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="edit-alert" class="d-none mb-3"></div>
+                <input type="hidden" id="edit-username">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Global role</label>
+                        <select class="form-select" id="edit-role">
+                            <option value="system_reader">System Reader</option>
+                            <option value="system_admin">System Admin</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="edit-active">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">New password <span class="text-muted small fw-normal">(blank = unchanged)</span></label>
+                        <input type="password" class="form-control" id="edit-password" autocomplete="new-password">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Collection access</label>
+                    <div id="edit-global-admin-note" class="d-none alert alert-info py-2 small mb-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Global admin has access to all collections — individual assignments are optional.
+                    </div>
+                    <div id="edit-roles-loading" class="text-muted small py-2">
+                        <div class="spinner-border spinner-border-sm me-1"></div>Loading…
+                    </div>
+                    <table class="table table-sm table-bordered mb-0 d-none" id="edit-roles-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Collection</th>
+                                <th style="width:160px;">Role</th>
+                            </tr>
+                        </thead>
+                        <tbody id="edit-roles-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ term.btn_cancel }}</button>
+                <button type="button" class="btn btn-success btn-sm" onclick="saveUser()">{{ term.btn_save }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const CURRENT_USER = '{{ user.username if user else "" }}';
+
+    // Collections available in this instance (from server context)
+    const COLLECTIONS = [
+        {% for col in accessible_collections | default([]) %}
+        {id: {{ col.id | tojson }}, name: {{ col.name | tojson }}},
+        {% endfor %}
+    ];
+
+    let allUsers = [];
+
+    // ── Utilities ─────────────────────────────────────────────────────────
+
+    function buildRoleSelect(selectId, currentRole) {
+        const sel = document.createElement('select');
+        sel.className = 'form-select form-select-sm';
+        if (selectId) sel.id = selectId;
+        [['', '— no access —'], ['collection_user', 'Collection User'], ['collection_admin', 'Collection Admin']].forEach(([val, label]) => {
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = label;
+            if (val === (currentRole || '')) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        return sel;
+    }
+
+    function buildRolesTable(tbodyId, currentRoles) {
+        const tbody = document.getElementById(tbodyId);
+        tbody.innerHTML = '';
+        COLLECTIONS.forEach(col => {
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            tdName.className = 'align-middle small';
+            tdName.innerHTML = `<i class="bi bi-collection me-1 text-muted"></i><strong>${col.name}</strong> <code class="text-muted" style="font-size:0.75rem;">${col.id}</code>`;
+            const tdRole = document.createElement('td');
+            tdRole.appendChild(buildRoleSelect(`role-${tbodyId}-${col.id}`, currentRoles[col.id] || ''));
+            tr.appendChild(tdName);
+            tr.appendChild(tdRole);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function collectRoles(tbodyId) {
+        const roles = {};
+        COLLECTIONS.forEach(col => {
+            const sel = document.getElementById(`role-${tbodyId}-${col.id}`);
+            roles[col.id] = sel ? sel.value || null : null;
+        });
+        return roles;
+    }
+
+    function showAlert(elId, msg, type = 'danger') {
+        const el = document.getElementById(elId);
+        el.className = `alert alert-${type} py-2 small`;
+        el.textContent = msg;
+    }
+
+    function hideAlert(elId) {
+        document.getElementById(elId).className = 'd-none';
+    }
+
+    // ── Users table ───────────────────────────────────────────────────────
+
+    async function loadUsers() {
+        const resp = await apiFetch('/api/v1/users/');
+        if (!resp.ok) return;
+        allUsers = await resp.json();
+        document.getElementById('users-loading').classList.add('d-none');
+        document.getElementById('users-table-wrap').classList.remove('d-none');
+        renderUsers();
+    }
+
+    function renderUsers() {
+        const tbody = document.getElementById('users-tbody');
+        tbody.innerHTML = '';
+        allUsers.forEach(u => {
+            const isSelf = u.username === CURRENT_USER;
+            const tr = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            tdName.className = 'ps-3 align-middle fw-semibold';
+            tdName.textContent = u.username;
+            if (isSelf) {
+                const s = document.createElement('span');
+                s.className = 'text-muted small fw-normal';
+                s.textContent = ' (you)';
+                tdName.appendChild(s);
+            }
+            tr.appendChild(tdName);
+
+            const tdRole = document.createElement('td');
+            tdRole.className = 'align-middle';
+            tdRole.innerHTML = u.role === 'system_admin'
+                ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">System Admin</span>'
+                : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">System Reader</span>';
+            tr.appendChild(tdRole);
+
+            const tdActive = document.createElement('td');
+            tdActive.className = 'align-middle';
+            tdActive.innerHTML = u.is_active
+                ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'
+                : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Inactive</span>';
+            tr.appendChild(tdActive);
+
+            // Collection badges (loaded lazily per row)
+            const tdCols = document.createElement('td');
+            tdCols.className = 'align-middle';
+            tdCols.id = `col-badges-${u.username}`;
+            tdCols.innerHTML = '<span class="text-muted small">…</span>';
+            tr.appendChild(tdCols);
+            loadUserCollectionBadges(u.username);
+
+            const tdDate = document.createElement('td');
+            tdDate.className = 'align-middle small text-muted';
+            tdDate.textContent = new Date(u.created_at).toLocaleString();
+            tr.appendChild(tdDate);
+
+            const tdActions = document.createElement('td');
+            tdActions.className = 'align-middle text-end pe-3';
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'd-flex gap-1 justify-content-end';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-secondary btn-sm';
+            editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+            editBtn.addEventListener('click', () => openEditModal(u.username));
+            btnGroup.appendChild(editBtn);
+
+            if (!isSelf) {
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.innerHTML = '<i class="bi bi-trash"></i>';
+                delBtn.addEventListener('click', () => deleteUser(u.username));
+                btnGroup.appendChild(delBtn);
+            }
+
+            tdActions.appendChild(btnGroup);
+            tr.appendChild(tdActions);
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function loadUserCollectionBadges(username) {
+        const cell = document.getElementById(`col-badges-${username}`);
+        if (!cell) return;
+        try {
+            const resp = await apiFetch(`/api/v1/users/${username}/collection-roles`);
+            if (!resp.ok) { cell.innerHTML = ''; return; }
+            const roles = await resp.json();  // {collection_id: role}
+            const entries = Object.entries(roles);
+            if (entries.length === 0) {
+                cell.innerHTML = '<span class="text-muted small">–</span>';
+            } else {
+                cell.innerHTML = entries.map(([cid, role]) => {
+                    const name = COLLECTIONS.find(c => c.id === cid)?.name || cid;
+                    const cls = role === 'collection_admin'
+                        ? 'bg-warning-subtle text-warning border-warning-subtle'
+                        : 'bg-primary-subtle text-primary border-primary-subtle';
+                    const label = role === 'collection_admin' ? 'Collection Admin' : 'Collection User';
+                    return `<span class="badge border ${cls} me-1">${name}: ${label}</span>`;
+                }).join('');
+            }
+        } catch { cell.innerHTML = ''; }
+    }
+
+    // ── Create user ───────────────────────────────────────────────────────
+
+    document.getElementById('createUserModal').addEventListener('show.bs.modal', () => {
+        hideAlert('create-alert');
+        document.getElementById('new-username').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('new-role').value = 'system_reader';
+        document.getElementById('new-global-admin-note').classList.add('d-none');
+        buildRolesTable('new-roles-tbody', {});
+    });
+
+    document.getElementById('new-role').addEventListener('change', function () {
+        document.getElementById('new-global-admin-note').classList.toggle('d-none', this.value !== 'system_admin');
+    });
+
+    async function createUser() {
+        hideAlert('create-alert');
+        const username = document.getElementById('new-username').value.trim();
+        const password = document.getElementById('new-password').value;
+        const role     = document.getElementById('new-role').value;
+
+        if (!username || !password) {
+            showAlert('create-alert', 'Please fill in username and password.', 'warning');
+            return;
+        }
+
+        const resp = await apiFetch('/api/v1/users/', {
+            method: 'POST',
+            body: JSON.stringify({username, password, role}),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json();
+            showAlert('create-alert', err.detail || 'Creation failed.');
+            return;
+        }
+
+        // Save collection roles
+        const roles = collectRoles('new-roles-tbody');
+        await apiFetch(`/api/v1/users/${username}/collection-roles`, {
+            method: 'PATCH',
+            body: JSON.stringify({roles}),
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
+        await loadUsers();
+    }
+
+    // ── Edit user ─────────────────────────────────────────────────────────
+
+    async function openEditModal(username) {
+        const u = allUsers.find(x => x.username === username);
+        if (!u) return;
+        document.getElementById('edit-username').value = u.username;
+        document.getElementById('edit-username-label').textContent = u.username;
+        document.getElementById('edit-role').value = u.role;
+        document.getElementById('edit-active').value = u.is_active ? 'true' : 'false';
+        document.getElementById('edit-password').value = '';
+        hideAlert('edit-alert');
+
+        // Toggle admin note
+        document.getElementById('edit-global-admin-note').classList.toggle('d-none', u.role !== 'system_admin');
+
+        // Load collection roles
+        document.getElementById('edit-roles-loading').classList.remove('d-none');
+        document.getElementById('edit-roles-table').classList.add('d-none');
+
+        new bootstrap.Modal(document.getElementById('editUserModal')).show();
+
+        try {
+            const resp = await apiFetch(`/api/v1/users/${username}/collection-roles`);
+            const currentRoles = resp.ok ? await resp.json() : {};
+            buildRolesTable('edit-roles-tbody', currentRoles);
+        } finally {
+            document.getElementById('edit-roles-loading').classList.add('d-none');
+            document.getElementById('edit-roles-table').classList.remove('d-none');
+        }
+    }
+
+    document.getElementById('edit-role').addEventListener('change', function () {
+        document.getElementById('edit-global-admin-note').classList.toggle('d-none', this.value !== 'system_admin');
+    });
+
+    async function saveUser() {
+        hideAlert('edit-alert');
+        const username = document.getElementById('edit-username').value;
+        const payload = {
+            role:      document.getElementById('edit-role').value,
+            is_active: document.getElementById('edit-active').value === 'true',
+        };
+        const password = document.getElementById('edit-password').value;
+        if (password) payload.password = password;
+
+        const [respUser, respRoles] = await Promise.all([
+            apiFetch(`/api/v1/users/${username}`, {
+                method: 'PATCH',
+                body: JSON.stringify(payload),
+            }),
+            apiFetch(`/api/v1/users/${username}/collection-roles`, {
+                method: 'PATCH',
+                body: JSON.stringify({roles: collectRoles('edit-roles-tbody')}),
+            }),
+        ]);
+
+        if (!respUser.ok) {
+            const err = await respUser.json();
+            showAlert('edit-alert', err.detail || 'Save failed.');
+            return;
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+        await loadUsers();
+    }
+
+    // ── Delete user ───────────────────────────────────────────────────────
+
+    async function deleteUser(username) {
+        if (!confirm(`Delete user ${username}?`)) return;
+        const resp = await apiFetch(`/api/v1/users/${username}`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) await loadUsers();
+    }
+
+    loadUsers();
+</script>
+{% endblock %}

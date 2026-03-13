@@ -1,0 +1,916 @@
+# UIB – PLAYBOOK CSIRT: BEC / PODVODNÝ EMAIL (Business Email Compromise) – v1.0
+# Zpracováno dle CSIRT Playbook BEC v1.2 / SM/25/0100/P5
+# Terminologie a postup odpovídají interním playbookům CSIRT.
+
+template_id: uib-bec-v1
+name: 'BEC / Podvodný e-mail (Business Email Compromise)'
+version: '1.0'
+category: BEC
+status: active
+description: >
+  Workbook pro řešení incidentů typu BEC (Business Email Compromise) – falešné platební pokyny (CEO fraud),
+  změna platebních údajů dodavatelů, manipulace obchodní komunikace a podvod navazující na kompromitovaný účet.
+  L1 ITS provádí pouze příjem UIB/IIB, evidenci v TIS a okamžité předání Koordinátorovi CSIRT (L2).
+  Zpracováno dle CSIRT Playbook BEC v1.2 a SM/25/0100/P5.
+mitre_tactic: Initial Access
+mitre_technique: T1566 – Phishing
+mitre_subtechnique: T1566.002
+data_sources:
+  - Exchange / M365 mail logy
+  - M365 Defender (antiphishing / impersonation detection)
+  - AAD / Azure AD sign-in logy
+  - Proxy / URL filtering
+  - SIEM
+
+sections:
+
+  - id: header
+    type: workbook_header
+    title: Hlavička
+    fields:
+      - key: case_title
+        label: Stručný popis události
+        hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
+        example: 'BEC – podvodný e-mail s žádostí o změnu IBAN dodavatele · odesílatel: finance@dodavatel-platby[.]cz'
+      - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
+      - key: incident_coordinator
+        label: Koordinátor incidentu (CSIRT – L2)
+        hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
+
+  - id: classification
+    type: classification
+    title: Klasifikace
+    fields:
+      - {key: mitre_tactic, label: MITRE Tactic, editable: false, auto_value: template_mitre_tactic}
+      - {key: mitre_technique, label: MITRE Technique, editable: false, auto_value: template_mitre_technique}
+      - key: mitre_subtechnique
+        label: MITRE Sub-technique / Typ BEC
+        type: select
+        options:
+          - T1566.002 – Spearphishing Link (externí spoofovaná nebo napodobená doména)
+          - T1566.001 – Spearphishing Attachment (škodlivá příloha jako součást BEC)
+          - T1534 – Internal Spearphishing (kompromitovaný interní účet jako vektor BEC)
+          - T1657 – Financial Theft (primární dopad – finanční podvod)
+          - Kombinace typů
+          - Nelze určit
+        hint: >
+          Vyplň po Posouzení, až je znám způsob útoku. Pokud BEC navazuje na kompromitaci interního účtu,
+          vyber T1534 a zahaj paralelní postup dle workbooku Kompromitace účtu (account_compromise_v1).
+      - {key: data_sources, label: Doporučené zdroje dat pro investigaci, editable: false, auto_value: template_data_sources}
+
+  - id: contacts
+    title: Kontaktní matice
+    type: contact_table
+    description: >
+      Kontakty pro investigaci a eskalaci. Vyplň dle aktuální struktury organizace.
+      Finanční útvar kontaktuj okamžitě při jakémkoli podezření na provedenou platbu – čas je kritický.
+      L1 ITS předává incident Koordinátorovi CSIRT telefonicky nebo e-mailem (viz níže).
+    columns:
+      - system_role
+      - name
+      - email
+      - phone
+      - when_to_contact
+    column_labels:
+      system_role: Systém / role
+      name: Jméno
+      email: E-mail
+      phone: Telefon
+      when_to_contact: Kdy kontaktovat
+    editable_columns:
+      - name
+      - email
+      - phone
+    allow_append: true
+    append_row_template:
+      system_role: null
+      name: null
+      email: null
+      phone: null
+      when_to_contact: null
+    rows:
+      - system_role: L1 ITS (Service Desk H24)
+        name: ITS Service Desk
+        email: its@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Příjem UIB/IIB, evidence v TIS, okamžité předání Koordinátoru CSIRT
+      - system_role: Koordinátor incidentu CSIRT (L2)
+        name: Koordinátor CSIRT
+        email: csirt@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Přebírá řízení od L1 – okamžité předání po zaevidování UIB/IIB v TIS
+      - system_role: CSIRT analytici
+        name: CSIRT – analytický tým
+        email: csirt@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Technická analýza e-mailu, hlaviček, logů a IoC; aktivace Koordinátorem
+      - system_role: Správce Exchange / M365
+        name: Administrátor M365
+        email: m365admin@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: E-mailové logy, Search & Purge, forwarding rules, audit mailboxu, blokace domény
+      - system_role: Správce identity / IAM (AAD)
+        name: Administrátor IAM
+        email: iam@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Reset hesla, MFA, revokace tokenů – při podezření na kompromitaci účtu
+      - system_role: Finanční útvar
+        name: Vedoucí finančního oddělení
+        email: finance@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: 'Okamžitě při podezření na provedenou platbu – ověření legitimity, pozastavení transakce'
+      - system_role: Právní oddělení
+        name: Právní poradce / právní útvar
+        email: legal@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Potvrzená finanční škoda – posouzení trestního oznámení Policii ČR, GDPR
+      - system_role: Banka (fraud linka)
+        name: Bankovní fraud oddělení
+        email: fraud@banka.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: 'Okamžitě při provedené platbě – žádost o zastavení / vrácení transakce (koordinuje finanční útvar)'
+      - system_role: CISO
+        name: CISO
+        email: ciso@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Závažnost Vysoká / Kritická nebo potvrzená finanční škoda
+      - system_role: ISO
+        name: ISO
+        email: iso@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Závažnost Kritická / dle interní politiky
+      - system_role: Policie ČR – finanční kriminalita
+        name: Policie ČR
+        email: ''
+        phone: '158'
+        when_to_contact: Trestní oznámení při finanční škodě – podání koordinuje právní oddělení
+      - system_role: CERT / NÚKIB
+        name: NÚKIB
+        email: podatelna@nukib.cz
+        phone: +420 222 362 888
+        when_to_contact: 'Dle regulatorní povinnosti (NIS2 – KBI, pouze při dopadu na regulovanou službu)'
+
+  - id: incident_context
+    title: 'Detekce a hlášení (L1 ITS)'
+    type: section_group
+    subsections:
+      - id: reported_by_person
+        title: Hlášeno zaměstnancem / osobou
+        type: form
+        note: 'L1 ITS – záznam dle SM/25/0100/P5'
+        fields:
+          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, example: '2026-03-10T10:15'}
+          - {key: reporter_name, label: Jméno oznamovatele, example: Ing. Jana Procházková}
+          - {key: reporter_department, label: Oddělení / organizační jednotka, example: Finanční oddělení}
+          - {key: reporter_contact, label: Kontakt (e-mail / telefon), example: 'prochazkova@firma.cz / +420 XXX XXX XXX'}
+          - {key: affected_user, label: Postižený uživatel nebo útvarový mailbox, example: 'finance@firma.cz / Ing. Jana Procházková'}
+          - key: attachment_or_link
+            label: Otevřel uživatel přílohu nebo klikl na odkaz?
+            type: select
+            options:
+              - Ano – otevřena příloha
+              - Ano – prokliknut odkaz
+              - Ne
+              - Nelze zjistit
+            hint: Pokud příloha otevřena nebo odkaz prokliknut → rozšiř analýzu dle phishing workbooku.
+          - key: description_by_reporter
+            label: Popis události slovy oznamovatele
+            type: textarea
+            example: >
+              Obdrželi jsme e-mail od „dodavatele" s žádostí o změnu IBAN pro nadcházející platbu.
+              E-mail se jevil jako legitimní, ale kolegovi přišlo podezřelé, že přišel náhle bez předchozí komunikace.
+      - id: automated_detection
+        title: Automatizovaná detekce
+        type: form
+        note: 'L1 ITS – záznam dle SM/25/0100/P5'
+        condition: source_type == 'automated'
+        fields:
+          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, example: '2026-03-10T10:08'}
+          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, example: 'M365 Defender – Impersonation detection alert'}
+          - {key: alert_id, label: ID alertu / Identifikace pravidla}
+          - {key: affected_asset_auto, label: 'Postižený mailbox / uživatel', example: 'finance@firma.cz'}
+          - key: alert_description
+            label: Popis alertu
+            type: textarea
+            example: >
+              M365 Defender detekoval e-mail jako potenciální impersonation útok –
+              odesílatel napodobuje doménu dodavatele (typo-squatting: dodavatel-platby[.]cz vs dodavatel[.]cz).
+      - id: affected_assets
+        title: Dotčená aktiva
+        type: assets_table
+        note: 'Průběžně doplňuj při každém rozšíření scope'
+        hint: >
+          Pokud je dotčený mailbox nebo finanční systém součástí regulované služby → ihned informuj CISO.<br><br>
+          Do pole Poznámky uveď důležitá zjištění (výše platby, dotčený dodavatel, stav transakce, IBAN).
+        always_expanded: true
+        columns:
+          - asset_name
+          - fqdn
+          - asset_ip
+          - asset_type
+          - regulated_service
+          - notes
+        column_labels:
+          asset_name: Název aktiva
+          fqdn: FQDN / doména
+          asset_ip: IP / Netmask
+          asset_type: Typ aktiva
+          regulated_service: Regulovaná služba
+          notes: Poznámky
+        column_options:
+          asset_type:
+            - Mailbox
+            - Finanční systém
+            - Informační systém
+            - Endpoint
+            - Sdílené úložiště
+            - Jiné aktivum
+          regulated_service:
+            - Ne
+            - Ano
+        editable: true
+        rows: []
+
+  - id: l2_assessment
+    title: 'Prvotní posouzení koordinátora (CSIRT – L2)'
+    type: section_group
+    subsections:
+      - id: l2_initial_assessment
+        title: Prvotní posouzení Koordinátora CSIRT (L2)
+        type: form
+        note: Vyplní Koordinátor CSIRT ihned po převzetí od L1 – před zahájením Posouzení, třídění a rozhodování
+        fields:
+          - key: bec_action_taken
+            label: Byla žádost splněna? (platba provedena / změna IBAN)
+            type: select
+            options:
+              - Ano – platba provedena
+              - Ano – změna platebních údajů provedena, platba zatím neproběhla
+              - Ne – žádost nesplněna, nahlášeno ihned
+              - Nelze zjistit
+            hint: >
+              Pokud platba provedena → okamžitě kontaktuj finanční útvar (viz Kontaktní matice),
+              aby kontaktoval banku. Čas je kritický – transakce lze zastavit jen v omezeném okně (1–4 h).
+          - key: payment_stoppable
+            label: Je platba ještě zastavitelná?
+            type: select
+            options:
+              - Ano – platba dosud nebyla odeslána
+              - Možná – kontaktuj banku okamžitě
+              - Ne – platba již odešla
+              - Netýká se
+          - key: l2_initial_priority
+            label: Předběžná priorita (L2)
+            type: select
+            options:
+              - P1 – Kritická (kompromitace reg. služby nebo masivní finanční škoda)
+              - P2 – Vysoká (provedená platba / kompromitace interního účtu)
+              - P3 – Střední (pokus o BEC, platba nezastavitelná)
+              - P4 – Nízká (pokus odhalen včas, žádná škoda)
+            hint: Předběžná priorita se může upřesnit v průběhu Posouzení.
+
+  - id: triage_investigation
+    title: Posouzení, třídění a rozhodování
+    type: checklist
+    description: >
+      Cílem je potvrdit nebo vyvrátit BEC incident, stanovit zda došlo k finanční škodě nebo kompromitaci účtu,
+      a připravit podklady pro Odezvu. Koordinátor CSIRT (L2) přebírá řízení od L1 ITS a řídí celou reakci.
+    step_groups:
+      - id: bec_validation
+        title: Validace BEC události a stanovení priority (Koordinátor CSIRT – L2)
+        steps:
+          - action: >
+              Zjisti od oznamovatele (nebo z TIS záznamu L1 ITS) a zaznamenej do sekce Prvotní posouzení:
+              Byla žádost splněna (platba provedena / IBAN změněn)? Je platba ještě zastavitelná?
+            example: 'Platba provedena ve výši 48 000 EUR · banka dosud nezpracovala · zastavení možné – viz Prvotní posouzení'
+          - action: >
+              Ověř, zda se jedná o skutečný BEC pokus nebo incident: porovnej e-mail s historickou komunikací
+              s daným odesílatelem / dodavatelem – Reply-To adresa, doménové záhlaví, styl komunikace, jazyk
+            example: 'Doména odesílatele: dodavatel-platby[.]cz – legitimní doména je dodavatel[.]cz · typo-squatting potvrzen'
+          - action: >
+              Urči prioritu dle stavu:
+              pokus o BEC bez provedené platby → P3/P4 ·
+              provedená platba → obvykle P2 ·
+              vazba na kompromitaci interního účtu → P1/P2
+            example: 'Priorita: P2 – platba provedena, finanční škoda potvrzena'
+          - action: >
+              Posouď možnost KBU/KBI dle SM/25/0100/P5:
+              BEC typicky není KBI, pokud nemá dopad na regulovanou službu
+            example: 'KBI: Ne – incident se týká pouze finančního procesu, regulovaná služba není zasažena'
+          - action: 'Aktivuj CSIRT analytiky a Správce M365 pro technickou část (dle potřeby)'
+            example: 'CSIRT analytici zapojeni v 10:20 · Správce M365 kontaktován pro logy a Search & Purge'
+        hints:
+          - >
+            Pokud platba provedena → okamžitě kontaktuj finanční útvar (viz Kontaktní matice), aby kontaktoval banku.
+            Čas je kritický – transakce lze zastavit jen v omezeném okně (typicky 1–4 hodiny).
+          - >
+            Typické indikátory BEC: urgentní žádost o změnu platebních údajů · naléhání na rychlou platbu bez
+            standardních ověřovacích kroků · typo-squatting doména · jiný jazyk nebo styl než obvyklá komunikace ·
+            nesoulad metadat e-mailu (Reply-To, routing) · požadavky neodpovídající interním procesům.
+          - >
+            Pokud BEC navazuje na kompromitaci interního účtu → zahaj paralelní postup
+            dle workbooku Kompromitace účtu (account_compromise_v1).
+
+  - id: response_technical
+    title: 'Odezva – technická opatření (CSIRT + TA/MA)'
+    type: checklist
+    description: >
+      Technická odezva dle playbooku. Koordinátor CSIRT řídí průběh a zadává pokyny administrátorům.
+    step_groups:
+      - id: email_analysis
+        title: Analýza e-mailu (CSIRT analytici + Správce M365)
+        steps:
+          - action: >
+              Vyžádej si podezřelý e-mail ve formátu .eml nebo .msg (přes Správce M365 nebo oznamovatele) –
+              přílohu ani odkaz přímo neotvírej
+            example: 'E-mail přijat jako .eml z mailboxu finance@ans.cz · přiložen k záznamu v TIS'
+          - action: >
+              Zkontroluj záhlaví e-mailu: SPF, DKIM, DMARC výsledky, Reply-To adresu,
+              X-Originating-IP, Message-ID a routing path
+            example: 'SPF: pass (z cizí domény) · DKIM: none · DMARC: fail · Reply-To: platby@dodavatel-platby[.]cz (jiná doména než From)'
+          - action: >
+              Ověř doménu odesílatele: datum registrace, WHOIS vlastník, reputace – porovnej s legitimní
+              doménou dodavatele / partnera (Talos, IPVoid, NIC.CZ WHOIS)
+            example: 'dodavatel-platby[.]cz: registrována před 3 dny · WHOIS anonymizován · Talos: Neutral (nová doména)'
+          - action: >
+              Identifikuj znaky manipulace: typo-squatting, homoglyfové znaky,
+              subdoména napodobující legitimní doménu (platby.dodavatel.cz vs dodavatel-platby.cz)
+            example: 'Typo-squatting potvrzena: dodavatel[.]cz vs dodavatel-platby[.]cz'
+          - action: >
+              Porovnej e-mail s historickou komunikací s dotčeným dodavatelem / partnerem –
+              styl, jazyk, způsob adresování, formát faktury nebo žádosti
+            example: 'Historická komunikace vedena v češtině · podvodný e-mail ve slovenštině s jiným formátem IBAN – nesoulad potvrzen'
+          - action: >
+              Zkontroluj, zda e-mail obsahuje odkaz nebo přílohu.
+              Pokud ano → analyzuj dle phishing workbooku (URL analýza / analýza přílohy)
+            example: 'E-mail neobsahuje přílohu ani odkaz – čistý textový BEC pokus (Scénář: CEO fraud / změna IBAN)'
+        classification_hints:
+          - >
+            SPF fail + DMARC fail + typo-squatting + žádost o platbu → True Positive ·
+            Legitimní doména + validní DKIM/DMARC + standardní komunikační vzor → zvaž False Positive
+          - >
+            BEC z kompromitovaného interního účtu (SPF pass, DKIM pass, doména legitimní, ale neobvyklá aktivita) →
+            True Positive, T1534 – zahaj postup Kompromitace účtu
+
+      - id: account_compromise_check
+        title: Kontrola kompromitace interního účtu
+        note: Přeskoč pokud e-mail prokazatelně přišel z externí domény (typo-squatting, nová doména) bez jakékoli vazby na interní účet
+        steps:
+          - action: >
+              Ověř AAD / M365 sign-in logy pro dotčený mailbox nebo identitu:
+              přihlášení z neobvyklé IP / geografické lokace, neobvyklý čas, neznámé zařízení
+            example: 'Sign-in log: přihlášení z IP 185.xxx.xxx.xxx (geolokace: RU) ve 03:12 · neobvyklé zařízení · MFA obcházeno'
+          - action: >
+              Zkontroluj forwarding rules a delegation nastavení v mailboxu (včetně hidden rules) –
+              proveď přes Správce M365 (viz Kontaktní matice)
+            example: 'Nalezeno auto-forward pravidlo na externí adresu: vše@external-service[.]com – podezřelé, vytvořeno před 2 dny'
+          - action: >
+              Zkontroluj autorizované OAuth aplikace a delegace přístupu v AAD / M365 Admin Center
+            example: 'Neznámá OAuth aplikace s přístupem k mailboxu: Mail.Read – odebrána'
+          - action: >
+              Při potvrzení kompromitace: okamžitě eskaluj a zahaj postup dle workbooku Kompromitace účtu –
+              reset hesla, MFA, revokace tokenů (provádí Správce IAM dle pokynů Koordinátora CSIRT)
+            example: 'Kompromitace potvrzena – workbook Kompromitace účtu aktivován · reset hesla a MFA proveden v 10:45'
+        hints:
+          - >
+            BEC ze kompromitovaného interního účtu je závažnější scénář (P1/P2) –
+            útočník má přístup k interní komunikaci a může manipulovat e-mailová vlákna v reálném čase.
+
+      - id: financial_impact
+        title: Finanční dopad a koordinace s finančním útvarem
+        steps:
+          - action: >
+              Kontaktuj finanční útvar a zjisti přesný stav transakce:
+              výše, číslo účtu příjemce (IBAN), banka, stav (čeká / zpracovává se / odeslána)
+            example: '48 000 EUR · IBAN: CZ12 XXXX XXXX XXXX · Fio Banka · platba odeslána v 09:45'
+          - action: >
+              Pokud platba dosud nebyla finalizována → instrukce finančnímu útvaru k okamžitému pozastavení;
+              pokud odeslána → okamžitý kontakt banky (fraud linka) – koordinuje finanční útvar, CSIRT zajišťuje součinnost
+            example: 'Banka kontaktována finančním útvarem v 10:22 · transakce v clearingu · žádost o zastavení podána · reference: FR-2026-XXXX'
+          - action: >
+              Zaznamenej všechny finanční detaily do záznamu v TIS:
+              výše škody, stav transakce, jméno pracovníka banky, referenční číslo žádosti o zastavení
+            example: 'Bankovní reference zastavení: FR-2026-XXXX · kontaktní osoba banky: Jan Novotný'
+          - action: >
+              Při potvrzené finanční škodě → informuj CISO a právní oddělení;
+              posouď potřebu trestního oznámení Policii ČR (koordinuje právní oddělení)
+            example: 'CISO informován v 10:35 · právní oddělení zapojeno · trestní oznámení zvažováno'
+        hints:
+          - 'Čas kontaktu banky je kritický – většina bank má lhůtu 1–4 hodiny pro zastavení odchozí transakce.'
+          - >
+            Finanční a právní kroky neprovádí CSIRT – Koordinátor CSIRT zajišťuje koordinaci
+            a zajistí, aby všechny kroky byly zdokumentovány v TIS.
+
+      - id: scope_correlation
+        title: Rozsah kampaně a korelace
+        steps:
+          - action: >
+              Na M365 / Exchange ověř, zda stejný nebo podobný e-mail doručen dalším uživatelům –
+              hledej podle domény odesílatele, předmětu nebo klíčových slov obsahu (Správce M365)
+            example: 'Doručeno celkem 3 mailboxům ve finančním oddělení · 1 uživatel žádost splnil'
+          - action: >
+              Koreluj v SIEM s dalšími alertami v časovém okně (phishing, anomální přihlášení, exfiltrace dat)
+            example: 'SIEM: žádné korelující alertní události v časovém okně – izolovaný BEC pokus'
+          - action: >
+              Ověř, zda dotčený dodavatel / partner byl informován o podvodné doméně napodobující jeho identitu –
+              kontaktuj ho na ověřeném telefonním čísle, ne odpovědí na podvodný e-mail
+            example: 'Dodavatel kontaktován v 11:00 na ověřeném čísle – potvrdil, že žádný e-mail o změně IBAN neodesílal'
+          - action: 'Sestav timeline události od prvního doručení e-mailu po aktuální stav a zaznamenej ji do TIS'
+            example: '09:30 e-mail doručen · 09:45 platba zadána · 10:10 nahlášeno L1 ITS · 10:15 předáno CSIRT · 10:22 banka kontaktována'
+
+      - id: evidence_collection
+        title: Zajištění důkazů – uložení do IKB
+        steps:
+          - action: >
+              Ulož podezřelý e-mail ve formátu .eml nebo .msg do úložiště IKB –
+              zaznamenej cestu do záznamu v TIS
+            example: 'Uloženo do IKB: /BEC-2026-XXX/podvodny_email.eml'
+          - action: >
+              Exportuj a ulož do IKB: záhlaví e-mailu, M365 mail trace logy, AAD sign-in logy,
+              SIEM záznamy z relevantního časového okna
+            example: 'Logy uloženy do IKB: /BEC-2026-XXX/logs/'
+          - action: >
+              Zdokumentuj finanční detaily v záznamu TIS:
+              výše škody, IBAN příjemce, bankovní reference, stav transakce
+            example: 'Finanční detaily zdokumentovány v záznamu TIS UIB-XXXXXX'
+
+  - id: containment_remediation
+    title: 'Odezva – checklist'
+    type: action_table
+    description: >
+      Zaznamenej u každé akce zodpovědnou roli a aktuální stav. Pokud akce není relevantní, napiš N/A.
+      Finanční kroky (část C) koordinuje Koordinátor CSIRT s finančním útvarem – CSIRT tyto kroky sám neprovádí.
+      Technické zásahy provádí administrátoři výhradně na pokyn Koordinátora CSIRT.
+    columns:
+      - phase
+      - action
+      - responsible_role
+      - cooperation
+      - status
+    column_labels:
+      phase: Fáze
+      action: Akce
+      responsible_role: Zodpovědná role
+      cooperation: Součinnost
+      status: Stav
+    status_options:
+      - Provedeno
+      - Probíhá
+      - Čeká
+      - N/A
+      - Není nutné provést
+    editable_columns:
+      - status
+    allow_append: false
+    hints:
+      - >
+        Finanční kroky (C) provádí finanční útvar – Koordinátor CSIRT zajišťuje koordinaci a dokumentaci v TIS.
+      - >
+        Pokud BEC navazuje na kompromitaci interního účtu, zahaj paralelní Odezvu
+        dle workbooku Kompromitace účtu (account_compromise_v1).
+    rows:
+      - phase: A
+        action: Blokace podvodné domény odesílatele na mail serveru / M365 (Transport rule / block list)
+        responsible_role: CSIRT analytici
+        cooperation: Správce Exchange / M365
+        status: null
+      - phase: A
+        action: Search & Purge – odstranění všech doručených podvodných e-mailů ze schránek organizace (M365 Compliance Center / Content Search)
+        responsible_role: CSIRT analytici
+        cooperation: Správce Exchange / M365
+        status: null
+      - phase: A
+        action: Blokace podvodné URL / domény na proxy / firewallu (pokud e-mail obsahoval odkaz)
+        responsible_role: CSIRT analytici
+        cooperation: Správce Proxy / FW
+        status: null
+      - phase: B
+        action: Reset hesla a MFA dotčeného uživatele nebo mailboxu – při potvrzeném podezření na kompromitaci účtu
+        responsible_role: Správce identity / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: B
+        action: Revokace všech aktivních sessions a tokenů dotčeného účtu (AAD / M365 – forced sign-out)
+        responsible_role: Správce identity / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: B
+        action: Odstranění podezřelých forwarding rules, delegation nastavení a neautorizovaných OAuth aplikací z mailboxu
+        responsible_role: Správce Exchange / M365
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Pozastavení odchozí platby – finanční útvar kontaktuje banku (fraud linka) s žádostí o zastavení transakce
+        responsible_role: Finanční útvar
+        cooperation: Koordinátor CSIRT
+        status: null
+      - phase: C
+        action: Informování právního oddělení o finanční škodě – posouzení podání trestního oznámení Policii ČR
+        responsible_role: Právní oddělení
+        cooperation: Koordinátor CSIRT
+        status: null
+      - phase: D
+        action: Informování dotčených uživatelů o BEC kampani (praktické instrukce bez technických detailů – koordinuje Koordinátor CSIRT)
+        responsible_role: Koordinátor CSIRT
+        cooperation: '–'
+        status: null
+      - phase: D
+        action: Varování dodavatele / partnera, jehož identita byla zneužita – kontaktuj na ověřeném čísle
+        responsible_role: Koordinátor CSIRT
+        cooperation: Finanční útvar
+        status: null
+
+  - id: additional_actions
+    title: 'Odezva – dodatečné kroky'
+    type: action_table
+    description: >
+      Prostor pro zaznamenání kroků nad rámec standardního checklistu.
+      Vyplní Koordinátor CSIRT nebo analytik dle potřeby.
+    columns:
+      - action
+      - cooperation
+      - status
+    column_labels:
+      action: Akce
+      cooperation: Součinnost
+      status: Stav
+    status_options:
+      - Provedeno
+      - Probíhá
+      - Čeká
+      - N/A
+      - Není nutné provést
+    editable_columns:
+      - status
+    allow_append: true
+    allow_delete: true
+    append_row_template:
+      action: null
+      cooperation: null
+      status: null
+    rows: []
+
+  - id: communication
+    title: Komunikace a notifikace
+    type: action_table
+    columns:
+      - recipient
+      - communication_method
+      - sla
+      - note
+    column_labels:
+      recipient: Příjemce
+      communication_method: Způsob komunikace
+      sla: SLA pro notifikaci
+      note: Poznámka / stav
+    editable_columns:
+      - note
+    hints:
+      - 'SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.'
+      - 'Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.'
+      - 'Finanční útvar informuj okamžitě při jakémkoli podezření na provedenou platbu – čas je kritický.'
+    rows:
+      - recipient: Finanční útvar
+        communication_method: Telefon (okamžitě)
+        sla: Ihned při podezření na provedenou platbu
+        note: null
+      - recipient: Vlastník dotčeného aktiva (mailbox / systém)
+        communication_method: E-mail / telefon
+        sla: Do 30 min od Posouzení
+        note: null
+      - recipient: CISO / Management
+        communication_method: E-mail / telefon
+        sla: 'Do 1 h (High / Critical) nebo potvrzená finanční škoda'
+        note: null
+      - recipient: Dotčení uživatelé
+        communication_method: Hromadný e-mail
+        sla: Do 2 h
+        note: null
+      - recipient: Oznamovatel události
+        communication_method: E-mail / telefon
+        sla: Po uzavření incidentu
+        note: null
+      - recipient: Dodavatel / partner (zneužitá identita)
+        communication_method: Telefon na ověřeném čísle
+        sla: Do 4 h od potvrzení BEC
+        note: null
+      - recipient: Právní oddělení
+        communication_method: E-mail / telefon
+        sla: Při potvrzené finanční škodě
+        note: null
+      - recipient: DPO
+        communication_method: E-mail
+        sla: 'Při přístupu k osobním údajům v mailboxu (GDPR)'
+        note: null
+      - recipient: CERT / NÚKIB
+        communication_method: Datová schránka
+        sla: 'Dle regulatorní povinnosti (NIS2 – KBI, pouze při dopadu na regulovanou službu)'
+        note: null
+
+  - id: closure
+    title: Klasifikace a uzavření
+    type: form
+    description: >
+      Uzavření provádí Koordinátor CSIRT po dokončení Odezvy, nebo ihned po Posouzení u False Positive.
+      Klasifikace a Severity vyjadřují finální stav. Koordinátor uzavírá záznam v TIS.
+    hint: >
+      Před uzavřením ověř: (1) podvodná doména je zablokována a Search & Purge dokončen,
+      (2) forwarding rules a OAuth aplikace jsou odstraněny, (3) finanční útvar je informován o výsledku,
+      (4) oznamovatel je informován o výsledku šetření, (5) důkazy jsou uloženy v IKB.<br><br>
+      <b>Metodika klasifikace – Úroveň dopadu:</b><br>
+      <b>Nízká</b> – BEC pokus bez provedené platby nebo změny údajů; žádný dopad na regulovanou službu.<br>
+      <b>Střední</b> – provedena změna platebních údajů, platba dosud neodešla nebo úspěšně zastavena.<br>
+      <b>Vysoká</b> – potvrzená finanční škoda; při zasažení regulované služby splňuje kritéria KBI dle ZKB.<br>
+      <b>Kritická</b> – katastrofický finanční nebo reputační dopad; zasažena regulovaná služba; jde vždy o KBI.
+    fields:
+      - key: final_classification
+        label: Klasifikace výsledku
+        type: select
+        options:
+          - True Positive
+          - False Positive
+          - Benign True Positive
+        hint: >
+          False Positive: e-mail byl legitimní, podezření se nepotvrdilo.
+          Benign True Positive: BEC pokus odhalen včas, žádná škoda nevznikla.
+        example: True Positive
+      - key: impact_level
+        label: Úroveň dopadu
+        type: select
+        options:
+          - Nízká
+          - Střední
+          - Vysoká
+          - Kritická
+        option_hints:
+          Nízká: BEC pokus bez provedené platby nebo změny údajů. Žádný dopad na regulovanou službu.
+          Střední: Dílčí dopad – provedena změna platebních údajů, platba dosud neodešla nebo zastavena.
+          Vysoká: Potvrzená finanční škoda. Při zasažení regulované služby splňuje kritéria KBI dle ZKB.
+          Kritická: Katastrofický finanční nebo reputační dopad. Zasažena regulovaná služba. Jde vždy o KBI.
+        hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
+      - key: nukib_notification_required
+        label: Povinnost hlášení NÚKIB
+        type: select
+        options:
+          - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
+          - Zvážit – hraniční případ
+          - Není vyžadována
+        hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
+      - key: ucl_notification_required
+        label: Povinnost hlášení ÚCL
+        type: select
+        options:
+          - Povinná – Regulovaná letecká služba + Vysoká/Kritická
+          - Zvážit – hraniční případ
+          - Není vyžadována
+        hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
+      - key: impact_primary_service
+        label: Dostupnost primárních služeb organizace
+        type: select
+        options:
+          - Zcela nedostupné
+          - Částečně nedostupné / degradované
+          - Dostupné bez omezení
+          - Netýká se
+        hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
+      - key: impact_scope
+        label: Rozsah zasažených uživatelů / systémů
+        type: select
+        options:
+          - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
+          - Významný (10–50 %)
+          - 'Omezený (< 10 %)'
+          - Individuální (1 uživatel / 1 systém)
+      - key: impact_duration
+        label: Doba výpadku / narušení (dostupnost)
+        type: select
+        options:
+          - '> 4 hodiny'
+          - 1–4 hodiny
+          - 15 min – 1 hodina
+          - < 15 min
+          - Žádný výpadek / narušení
+      - key: impact_data
+        label: Dopad na data (důvěrnost / integrita)
+        type: select
+        options:
+          - Exfiltrace dat potvrzena
+          - Neoprávněný přístup k datům potvrzen
+          - Integrita dat narušena
+          - Žádný dopad na data
+          - Nelze určit
+      - key: bec_type_final
+        label: Typ BEC (finální)
+        type: select
+        options:
+          - CEO fraud / impersonace vedení nebo obchodního partnera
+          - Vendor Email Compromise – změna platebních údajů dodavatele
+          - Internal Spearphishing – kompromitovaný interní účet (T1534)
+          - Kombinace typů
+          - Nelze určit
+      - key: financial_loss_confirmed
+        label: Finanční škoda
+        type: select
+        options:
+          - Potvrzena – platba odeslána a nezastavena
+          - Minimalizována – platba zastavena nebo částečně vrácena
+          - Žádná – platba neproběhla nebo pokus odhalen včas
+        hint: 'Při potvrzené finanční škodě → koordinuj s právním oddělením podání trestního oznámení Policii ČR.'
+      - key: financial_loss_amount
+        label: Výše škody (pokud relevantní)
+        example: '48 000 EUR'
+      - key: root_cause
+        label: Root Cause
+        type: textarea
+        example: >
+          Útočník registroval typo-squatting doménu a zaslal podvodný e-mail s žádostí o změnu IBAN dodavatele.
+          Platba byla provedena před odhalením útoku. BEC bez kompromitace interního účtu.
+      - key: actions_taken
+        label: Popis přijatých opatření
+        type: textarea
+        example: >
+          Blokace podvodné domény na M365 · Search & Purge (3 mailboxy) ·
+          kontakt banky – transakce zastavena · CISO informován · dodavatel varován · logy uloženy do IKB
+      - key: recommendations
+        label: Doporučení pro zlepšení
+        type: textarea
+        example: >
+          Zavést dvoufázové ověření změny platebních údajů dodavatelů (telefonické potvrzení na ověřeném čísle).
+          Zpřísnit DMARC/DKIM politiky. Školení finančního oddělení zaměřené na BEC.
+          Zvážit víceúrovňové schvalování plateb nad stanovenou finanční hranici.
+      - key: related_service_requests
+        label: Související servisní požadavky
+        type: textarea
+        hint: >
+          Čísla nebo odkazy na servisní požadavky vytvořené v průběhu řešení
+          (úpravy politik M365, pravidla blokace, požadavky na změnu konfigurace apod.)
+        example: 'SR-2026-1142 – blokace domény na M365 · SR-2026-1143 – úprava DMARC politiky'
+      - key: related_security_events
+        label: Navázané bezpečnostní události (UIB/IIB)
+        type: textarea
+        hint: >
+          Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
+          (např. navázaný incident Kompromitace účtu, phishingová kampaň ve stejném časovém okně apod.)
+        example: 'UIB-10032026-1045-XXXX – Kompromitace účtu (paralelně šetřeno) · UIB-10032026-0930-YYYY – phishing stejná doména'
+      - key: reporter_notified
+        label: Oznamovatel informován
+        type: select
+        options:
+          - Ano
+          - Ne
+      - {key: closed_at, label: Datum uzavření, type: datetime}
+
+  - id: raci
+    title: RACI matice
+    type: raci_table
+    legend: >
+      R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) ·
+      C = Consulted (poskytuje součinnost) · I = Informed (je informován) ·
+      (Vysoká/Kritická) = podmínka pro aktivaci role
+    columns:
+      - activity
+      - l1_its
+      - koordinator
+      - cirt
+      - r_dtech
+      - r_dplr
+      - garant
+      - delegat
+      - financni_pravni
+      - dpo
+      - nukib
+      - ucl
+    column_labels:
+      activity: Aktivita
+      l1_its: L1 (ITS)
+      koordinator: Koordinátor
+      cirt: CIRT
+      r_dtech: Ř-DTECH
+      r_dplr: Ř-DPLR
+      garant: Garant
+      delegat: Delegát
+      financni_pravni: Fin. / Právní
+      dpo: DPO
+      nukib: NÚKIB
+      ucl: ÚCL
+    rows:
+      - activity: Příjem UIB/IIB a evidence v TIS
+        l1_its: R, A
+        koordinator: I
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        financni_pravni: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Předání incidentu Koordinátorovi CSIRT (L2)
+        l1_its: R
+        koordinator: A
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        financni_pravni: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Posouzení, třídění a rozhodování
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: C
+        delegat: C
+        financni_pravni: C
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Technická odezva (analýza e-mailu, blokace, Search & Purge)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: '–'
+        delegat: R
+        financni_pravni: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Finanční kroky (pozastavení platby, kontakt banky)
+        l1_its: '–'
+        koordinator: C
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        financni_pravni: R, A
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Notifikace dotčených stran a oznamovatele
+        l1_its: '–'
+        koordinator: R, A
+        cirt: '–'
+        r_dtech: I
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        financni_pravni: I
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Notifikace DPO (přístup k osobním údajům)
+        l1_its: '–'
+        koordinator: R
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        financni_pravni: C
+        dpo: A, I
+        nukib: '–'
+        ucl: '–'
+      - activity: Eskalace na management
+        l1_its: '–'
+        koordinator: R
+        cirt: '–'
+        r_dtech: A
+        r_dplr: I
+        garant: '–'
+        delegat: '–'
+        financni_pravni: I
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Hlášení NÚKIB / ÚCL
+        l1_its: '–'
+        koordinator: R
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        financni_pravni: '–'
+        dpo: '–'
+        nukib: I (Vysoká/Kritická)
+        ucl: I (Vysoká/Kritická)
+      - activity: Klasifikace a uzavření (TIS)
+        l1_its: '–'
+        koordinator: R, A
+        cirt: C
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        financni_pravni: I
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'

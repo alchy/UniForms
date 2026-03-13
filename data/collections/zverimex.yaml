@@ -1,0 +1,38 @@
+id: zverimex
+name: Zverimex
+description: Evidence zvířat – příjem, péče a prodej.
+
+workflow:
+  initial_state: prijato
+  states:
+    - id: prijato
+      label: Přijato
+      color: secondary
+    - id: v_peci
+      label: V péči
+      color: primary
+    - id: rezervovano
+      label: Rezervováno
+      color: warning
+    - id: prodano
+      label: Prodáno
+      color: success
+    - id: vraceno
+      label: Vráceno
+      color: danger
+
+id_format:
+  prefix: ZVR
+  format: "{prefix}-{YYYYMM}-{rand:04d}"
+
+list_columns:
+  - key: druh
+    label: Druh
+  - key: koordinator
+    label: Odpovědný vedoucí
+
+roles:
+  - id: collection_admin
+    label: Vedoucí
+  - id: collection_user
+    label: Zaměstnanec

@@ -1,0 +1,1024 @@
+# UIB – PLAYBOOK CSIRT: PHISHING / PODEZŘELÝ E‑MAIL – v1.0
+# Zpracováno dle CSIRT Playbook Phishing v1.2 / SM/25/0100/P5
+# Terminologie a postup odpovídají interním playbookům CSIRT.
+
+template_id: uib-phishing-v1
+name: 'Phishing / Podezřelý e-mail'
+version: '1.0'
+category: Phishing
+status: active
+description: >
+  Workbook pro řešení incidentů typu phishing – podezřelé e-maily, phishingové odkazy, podvržené přihlašovací
+  stránky, škodlivé přílohy, zadání hesla uživatelem a podezření na kompromitaci identity. Pokrývá čtyři scénáře
+  odezvy: A) nekliknutí, B) kliknutí bez zadání údajů, C) zadání hesla (možná kompromitace účtu),
+  D) podezření na malware. Primárně cílí na prostředí MIS. L1 ITS provádí pouze příjem UIB/IIB, evidenci v TIS
+  a okamžité předání Koordinátorovi CSIRT (L2). Zpracováno dle CSIRT Playbook Phishing v1.2 a SM/25/0100/P5.
+mitre_tactic: Initial Access
+mitre_technique: T1566 – Phishing
+mitre_subtechnique: T1566.002
+data_sources:
+  - Exchange / M365 mail logy (mail trace, message headers)
+  - M365 Defender (Safe Links, Safe Attachments, antiphishing, URLScan)
+  - AAD / Azure AD sign-in logy
+  - Proxy / URL filtering logy
+  - EDR / AV (endpoint – scénář D)
+  - Sandbox (Any.Run, Joe Sandbox nebo interní – analýza příloh)
+  - SIEM
+
+sections:
+
+  - id: header
+    type: workbook_header
+    title: Hlavička
+    fields:
+      - key: case_title
+        label: Stručný popis události
+        hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
+        example: 'Phishing – podezřelý e-mail s odkazem na fake přihlašovací stránku M365 · odesílatel: helpdesk@firma-support[.]com'
+      - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
+      - key: incident_coordinator
+        label: Koordinátor incidentu (CSIRT – L2)
+        hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
+
+  - id: classification
+    type: classification
+    title: Klasifikace
+    fields:
+      - {key: mitre_tactic, label: MITRE Tactic, editable: false, auto_value: template_mitre_tactic}
+      - {key: mitre_technique, label: MITRE Technique, editable: false, auto_value: template_mitre_technique}
+      - key: mitre_subtechnique
+        label: MITRE Sub-technique / Typ phishingu
+        type: select
+        options:
+          - T1566.002 – Spearphishing Link (phishingový odkaz)
+          - T1566.001 – Spearphishing Attachment (škodlivá příloha)
+          - T1566.003 – Spearphishing via Service (zneužití legitimní služby)
+          - T1598.003 – Spearphishing Link – Credential Harvesting (krádež přihlašovacích údajů)
+          - Kombinace typů
+          - Nelze určit
+        hint: >
+          Vyplň po Posouzení, až je znám způsob útoku.
+          Pokud uživatel zadal heslo → zvaž eskalaci dle workbooku Kompromitace účtu (uib-account-compromise-v1).
+          Pokud otevřel podezřelou přílohu → zvaž eskalaci dle workbooku Malware (uib-malware-v1).
+      - {key: data_sources, label: Doporučené zdroje dat pro investigaci, editable: false, auto_value: template_data_sources}
+
+  - id: contacts
+    title: Kontaktní matice
+    type: contact_table
+    description: >
+      Kontakty pro investigaci a eskalaci. Vyplň dle aktuální struktury organizace.
+      Koordinátor CSIRT řídí celou technickou reakci – administrátoři jednají výhradně na jeho pokyn.
+      L1 ITS předává incident Koordinátorovi CSIRT telefonicky nebo e-mailem ihned po zaevidování v TIS.
+    columns:
+      - system_role
+      - name
+      - email
+      - phone
+      - when_to_contact
+    column_labels:
+      system_role: Systém / role
+      name: Jméno
+      email: E-mail
+      phone: Telefon
+      when_to_contact: Kdy kontaktovat
+    editable_columns:
+      - name
+      - email
+      - phone
+    allow_append: true
+    append_row_template:
+      system_role: null
+      name: null
+      email: null
+      phone: null
+      when_to_contact: null
+    rows:
+      - system_role: L1 ITS (Service Desk H24)
+        name: ITS Service Desk
+        email: its@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Příjem UIB/IIB, evidence v TIS, okamžité předání Koordinátoru CSIRT
+      - system_role: Koordinátor incidentu CSIRT (L2)
+        name: Koordinátor CSIRT
+        email: csirt@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Přebírá řízení od L1 – okamžité předání po zaevidování UIB/IIB v TIS
+      - system_role: CSIRT analytici
+        name: CSIRT – analytický tým
+        email: csirt@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Technická analýza e-mailu, záhlaví, URL, přílohy, logů a IoC; aktivace Koordinátorem
+      - system_role: Správce Exchange / M365
+        name: Administrátor M365
+        email: m365admin@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: E-mailové logy, Search & Purge, Safe Links, mail trace, blokace domény; aktivace Koordinátorem
+      - system_role: Administrátor MIS
+        name: Administrátor MIS
+        email: mis@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Součinnost a lokální úkony v prostředí MIS (ověření doručení, lokální dopady); aktivace Koordinátorem
+      - system_role: Správce identity / IAM (AAD)
+        name: Administrátor IAM
+        email: iam@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: 'Reset hesla, MFA, revokace tokenů – při podezření na kompromitaci účtu (Scénář C)'
+      - system_role: CISO
+        name: CISO
+        email: ciso@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Závažnost Vysoká / Kritická nebo rozsáhlá kampaň zasahující regulovanou službu
+      - system_role: ISO
+        name: ISO
+        email: iso@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Závažnost Kritická / dle interní politiky
+      - system_role: DPO
+        name: DPO
+        email: dpo@firma.cz
+        phone: +420 XXX XXX XXX
+        when_to_contact: Pokud došlo k přístupu k osobním údajům nebo narušení důvěrnosti dat (GDPR – 72 h lhůta)
+      - system_role: CERT / NÚKIB
+        name: NÚKIB
+        email: podatelna@nukib.cz
+        phone: +420 222 362 888
+        when_to_contact: 'Dle regulatorní povinnosti (NIS2 – KBI, pouze při dopadu na regulovanou službu)'
+
+  - id: incident_context
+    title: 'Detekce a hlášení (L1 ITS)'
+    type: section_group
+    subsections:
+      - id: reported_by_person
+        title: Hlášeno zaměstnancem / osobou
+        type: form
+        note: 'L1 ITS – záznam dle SM/25/0100/P5'
+        fields:
+          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, example: '2026-03-10T09:30'}
+          - {key: reporter_name, label: Jméno oznamovatele, example: Bc. Pavel Kratochvíl}
+          - {key: reporter_department, label: Oddělení / organizační jednotka, example: 'Provozní oddělení – MIS'}
+          - {key: reporter_contact, label: Kontakt (e-mail / telefon), example: 'kratochvil@firma.cz / +420 XXX XXX XXX'}
+          - {key: affected_user, label: Postižený uživatel nebo útvarový mailbox, example: 'kratochvil@firma.cz / sdilena@firma.cz'}
+          - key: user_action
+            label: Co uživatel provedl?
+            type: select
+            options:
+              - Neotevřel odkaz ani přílohu – nahlásil podezřelý e-mail
+              - Klikl na odkaz, ale nezadal žádné údaje
+              - Otevřel přílohu (bez zadání údajů)
+              - Zadal přihlašovací údaje (heslo / MFA kód)
+              - Otevřel přílohu a zadal údaje
+              - Nelze zjistit
+            hint: Tato informace je klíčová pro výběr scénáře odezvy (A / B / C / D) – zjistí L1 ITS od uživatele.
+          - key: description_by_reporter
+            label: Popis události slovy oznamovatele
+            type: textarea
+            example: >
+              Obdržel jsem e-mail od „helpdesk@firma-support.com" s výzvou k ověření přístupu do M365.
+              Klikl jsem na odkaz a přihlašovací stránka vypadala jako Microsoft – možná jsem zadal heslo.
+      - id: automated_detection
+        title: Automatizovaná detekce
+        type: form
+        note: 'L1 ITS – záznam dle SM/25/0100/P5'
+        condition: source_type == 'automated'
+        fields:
+          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, example: '2026-03-10T09:22'}
+          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, example: 'M365 Defender – Phishing simulation alert / Safe Links detonation'}
+          - {key: alert_id, label: ID alertu / Identifikace pravidla}
+          - {key: affected_asset_auto, label: Postižený mailbox / uživatel, example: 'kratochvil@firma.cz'}
+          - key: alert_description
+            label: Popis alertu
+            type: textarea
+            example: >
+              M365 Defender – Safe Links zablokoval přístup na URL hxxps://firma-support[.]com/login
+              (kategorie: Phishing, reputace: Malicious). Uživatel proklikl odkaz z e-mailu doručeného v 09:18.
+      - id: affected_assets
+        title: Dotčená aktiva
+        type: assets_table
+        note: 'Průběžně doplňuj při každém rozšíření scope'
+        hint: >
+          Pokud je dotčený mailbox nebo systém součástí prostředí MIS nebo regulované služby → ihned informuj CISO.<br><br>
+          Do pole Poznámky uveď důležitá zjištění (podezřelá URL, hash přílohy, IP útočníka, počet zasažených uživatelů).
+        always_expanded: true
+        columns:
+          - asset_name
+          - fqdn
+          - asset_ip
+          - asset_type
+          - regulated_service
+          - notes
+        column_labels:
+          asset_name: Název aktiva
+          fqdn: FQDN / doména
+          asset_ip: IP / Netmask
+          asset_type: Typ aktiva
+          regulated_service: Regulovaná služba
+          notes: Poznámky
+        column_options:
+          asset_type:
+            - Mailbox
+            - Endpoint (pracovní stanice)
+            - Endpoint (MIS)
+            - Informační systém
+            - Server
+            - Sdílené úložiště
+            - Jiné aktivum
+          regulated_service:
+            - Ne
+            - Ano
+        editable: true
+        rows: []
+
+  - id: l2_assessment
+    title: 'Prvotní posouzení koordinátora (CSIRT – L2)'
+    type: section_group
+    subsections:
+      - id: l2_initial_assessment
+        title: Prvotní posouzení Koordinátora CSIRT (L2)
+        type: form
+        note: Vyplní Koordinátor CSIRT ihned po převzetí od L1 – před zahájením Posouzení, třídění a rozhodování
+        fields:
+          - key: phishing_scenario
+            label: Scénář odezvy (dle interakce uživatele)
+            type: select
+            options:
+              - 'Scénář A – uživatel neotevřel odkaz ani přílohu'
+              - 'Scénář B – klikl na odkaz nebo otevřel přílohu, nezadal údaje'
+              - 'Scénář C – zadal přihlašovací údaje (podezření na kompromitaci účtu)'
+              - 'Scénář D – otevřel přílohu a podezření na spuštění malwaru'
+              - Kombinace scénářů
+              - Zatím nezjištěno
+            hint: >
+              Scénář C → aktivuj paralelní postup dle workbooku Kompromitace účtu (uib-account-compromise-v1).
+              Scénář D → aktivuj paralelní postup dle workbooku Malware (uib-malware-v1).
+          - key: credential_submitted
+            label: Byly zadány přihlašovací údaje nebo MFA kód?
+            type: select
+            options:
+              - Ano – potvrzeno uživatelem
+              - Pravděpodobně – uživatel si není jistý
+              - Ne – potvrzeno uživatelem
+              - Nelze zjistit
+            hint: 'Pokud Ano nebo Pravděpodobně → okamžitě kontaktuj Správce IAM a zahaj reset hesla + MFA (viz Scénář C).'
+          - key: l2_initial_priority
+            label: Předběžná priorita (L2)
+            type: select
+            options:
+              - P1 – Kritická (kompromitace regulované služby nebo rozsáhlý útok)
+              - P2 – Vysoká (zadány přihlašovací údaje / podezření na malware / cílený útok)
+              - P3 – Střední (kliknutí bez zadání údajů nebo hromadný phishing)
+              - P4 – Nízká (e-mail nahlášen bez interakce, izolovaný případ)
+            hint: Předběžná priorita se může upřesnit v průběhu Posouzení.
+
+  - id: triage_investigation
+    title: Posouzení, třídění a rozhodování
+    type: checklist
+    description: >
+      Cílem je potvrdit nebo vyvrátit phishingový incident, určit scénář (A/B/C/D) a posoudit dopad.
+      Koordinátor CSIRT (L2) přebírá řízení od L1 ITS a řídí celou reakci.
+    step_groups:
+      - id: validate_alert
+        title: Validace phishing události a stanovení priority (Koordinátor CSIRT – L2)
+        steps:
+          - action: >
+              Ověř informace od L1 ITS nebo z TIS záznamu a zaznamenej do sekce Prvotní posouzení:
+              co uživatel provedl (kliknutí / příloha / zadání hesla), scénář odezvy a předběžnou prioritu
+            example: 'Uživatel zadal přihlašovací údaje na podvržené stránce – Scénář C · Priorita: P2'
+          - action: >
+              Proveď technickou validaci e-mailu: SPF, DKIM, DMARC výsledky, reputace odesílající domény –
+              ověř, zda se jedná o skutečný pokus o phishing nebo legitimní zprávu
+            example: 'SPF: fail · DKIM: none · DMARC: fail · doména firma-support[.]com registrována před 5 dny – phishing potvrzen'
+          - action: >
+              Urči prioritu dle scénáře: A → P4/P3 · B → P3 · C → P2 · D → P2 ·
+              rozsáhlá kampaň v MIS nebo cílený spearphishing → P2/P1
+            example: 'Scénář C – zadány údaje → Priorita P2; po ověření scope bez eskalace do P1'
+          - action: >
+              Posouď možnost KBU/KBI dle SM/25/0100/P5:
+              běžný phishing nebývá KBI, pokud nemá dopad na regulovanou službu nebo nedošlo k GDPR incidentu
+            example: 'KBI: Ne – dotčený uživatel není správcem regulované služby; GDPR: posoudit při zadání hesla'
+          - action: 'Aktivuj CSIRT analytiky, Správce M365 a Administrátora MIS pro technickou část (dle potřeby)'
+            example: 'CSIRT analytici zapojeni v 09:45 · Správce M365 kontaktován pro logy a Safe Links analýzu'
+        hints:
+          - >
+            Typické indikátory phishingu: urgentní výzva k akci · napodobení interní identity (M365, helpdesk) ·
+            podvržená přihlašovací stránka · typo-squatting doména · SafeLinks zablokován · SPF/DKIM/DMARC selhání ·
+            odkaz přesměrovává přes zkracovač URL nebo legitimní službu (Google Redirect, OneDrive).
+          - >
+            Pokud uživatel zadal heslo (Scénář C) → okamžitě informuj Správce IAM a zahaj reset hesla + MFA.
+            Paralelně aktivuj workbook Kompromitace účtu (uib-account-compromise-v1).
+          - >
+            Pokud uživatel otevřel přílohu a dochází k podezřelému chování stanice (Scénář D) →
+            okamžitě aktivuj workbook Malware (uib-malware-v1).
+
+  - id: response_technical
+    title: 'Odezva – technická opatření (CSIRT + TA/MA)'
+    type: checklist
+    description: >
+      Technická odezva dle playbooku. Koordinátor CSIRT řídí průběh a zadává pokyny administrátorům.
+    step_groups:
+      - id: email_analysis
+        title: Analýza e-mailu (CSIRT analytici + Správce M365)
+        steps:
+          - action: >
+              Vyžádej si podezřelý e-mail ve formátu .eml nebo .msg (přes Správce M365 nebo oznamovatele) –
+              přílohu ani odkaz přímo neotvírej
+            example: 'E-mail přijat jako .eml z mailboxu kratochvil@firma.cz · přiložen k záznamu v TIS'
+          - action: >
+              Zkontroluj záhlaví e-mailu: SPF, DKIM, DMARC výsledky, Reply-To adresu,
+              X-Originating-IP, Message-ID a routing path
+            example: 'SPF: fail (IP 185.xxx.x.xx) · DKIM: none · DMARC: fail · Reply-To: odlišná adresa než From'
+          - action: >
+              Ověř doménu odesílatele: datum registrace, WHOIS vlastník, kategorizace a reputace
+              (Talos Intelligence, IPVoid, NIC.CZ WHOIS, VirusTotal) – porovnej s legitimní doménou
+            example: 'firma-support[.]com: registrována 5 dní před incidentem · WHOIS anonymizován · Talos: Malicious'
+          - action: >
+              Identifikuj znaky manipulace: typo-squatting, homoglyfové znaky, subdoména napodobující
+              legitimní doménu (helpdesk.firma.cz vs firma-helpdesk.cz), spoofovaný Display Name
+            example: 'Typo-squatting: firma-support[.]com vs firma[.]cz · Display Name: „IT Helpdesk <noreply@firma-support.com>"'
+          - action: >
+              Analyzuj odkaz (URL) nebo přílohu bez přímého otevření:
+              URL detonace v M365 Defender / URLScan.io · příloha – hash ověření (VirusTotal, Any.Run)
+            example: 'URL: hxxps://firma-support[.]com/login → přesměrování na credential harvesting stránku napodobující M365 · VT: 32/73 detekce'
+          - action: >
+              Proveď M365 mail trace: ověř doručení, počet příjemců, čas doručení, stav Safe Links
+              a případnou blokaci M365 Defender (Safe Attachments / antiphishing)
+            example: 'Mail trace: doručeno 12 uživatelům (09:15–09:22) · Safe Links aktivní · 2 prokliknutí zaznamenána · 1 Safe Links blokace'
+        classification_hints:
+          - >
+            SPF fail + DMARC fail + nová doména + credential harvesting page → True Positive ·
+            Legitimní odesílatel + validní DKIM/SPF + standardní komunikace → False Positive
+          - >
+            Spearphishing s personalizovaným obsahem (jméno příjemce, interní terminologie) → zvýšená priorita,
+            zvaž cílený útok (P2)
+
+      - id: scenario_a
+        title: 'Scénář A – Uživatel neotevřel odkaz ani přílohu (Koordinátor CSIRT + Správce M365)'
+        note: Přeskoč pokud uživatel klikl na odkaz nebo otevřel přílohu (viz Scénář B/C/D)
+        steps:
+          - action: >
+              Proveď Search & Purge – odstraň všechny doručené phishingové e-maily ze schránek organizace
+              (M365 Compliance Center / Content Search) – koordinuje Správce M365 na pokyn Koordinátora CSIRT
+            example: 'Search & Purge: odstraněno 12 kopií e-mailu z mailboxů organizace · M365 Compliance audit uložen'
+          - action: 'Zablokuj doménu a e-mailovou adresu odesílatele na M365 (Transport rule / Tenant Allow/Block List)'
+            example: 'Blokace přidána: firma-support[.]com · entry valid 90 dní · Transport rule ID: TR-2026-XXX'
+          - action: >
+              Ověř, zda byl stejný e-mail doručen dalším uživatelům v MIS nebo jiných útvarech –
+              spolupracuj s Administrátorem MIS pro lokální ověření
+            example: 'MIS ověřen – žádné další doručení v prostředí MIS · celkem 12 mailboxů v hlavní doméně zasaženo'
+          - action: >
+              Informuj dotčeného uživatele o závěru šetření a poskytni praktická doporučení
+              (jak rozpoznat phishing, jak nahlásit příště)
+            example: 'Uživatel informován e-mailem v 10:30 · instrukce k rozpoznání phishingu přiloženy'
+        hints:
+          - >
+            I když uživatel neklikl, Search & Purge je doporučen vždy – zabrání budoucímu prokliknutí.
+
+      - id: scenario_b
+        title: 'Scénář B – Uživatel klikl na odkaz nebo otevřel přílohu, ale nezadal údaje'
+        note: Přeskoč pokud uživatel nezadal žádné akce (Scénář A) nebo zadal přihlašovací údaje (Scénář C)
+        steps:
+          - action: >
+              Zkontroluj Safe Links / M365 Defender logy pro dotčeného uživatele:
+              jaká URL byla navštívena, zda byla blokována, zda Safe Links zadetonoval přílohu
+            example: 'Safe Links: URL hxxps://firma-support[.]com/login prokliknuta v 09:19 · blokace Safe Links aktivována · uživatel viděl warning stránku'
+          - action: >
+              Ověř, zda URL nevedla na stránku stahující payload nebo aktivující makro –
+              proveď URL analýzu v URLScan.io nebo interním sandboxu
+            example: 'URLScan: žádný automatický download · stránka pouze credential harvesting · bez script injection'
+          - action: >
+              Zkontroluj aktivitu účtu v AAD sign-in logy po době prokliknutí:
+              neobvyklá přihlášení, anomálie, neznámá zařízení
+            example: 'Sign-in logy: žádné neobvyklé přihlášení v časovém okně 09:00–10:30 · MFA aktivní a nevyžádané výzvy nezaznamenány'
+          - action: >
+              Proveď Search & Purge a blokaci odesílající domény (stejný postup jako Scénář A)
+            example: 'Search & Purge dokončen · blokace domény přidána na M365'
+          - action: >
+              Informuj dotčeného uživatele o závěru – zdůrazni, aby okamžitě nahlásil pokud si
+              vzpomene, že zadal jakékoli údaje nebo pokud zpozoruje neobvyklé chování systému
+            example: 'Uživatel informován v 10:45 · instrukce k monitorování vlastního účtu přiloženy'
+        hints:
+          - >
+            Kliknutí bez zadání údajů obvykle nevyžaduje eskalaci na Scénář C, ale AAD logy je nutné
+            ověřit vždy – phishingová stránka mohla iniciovat OAuth token krádež nebo automatické přihlášení.
+
+      - id: scenario_c
+        title: 'Scénář C – Uživatel zadal přihlašovací údaje (podezření na kompromitaci účtu)'
+        note: Aktivuj při potvrzení nebo podezření na zadání hesla nebo MFA kódu
+        steps:
+          - action: >
+              Okamžitě informuj Správce IAM – zahaj reset hesla dotčeného uživatele a vynucení nové volby hesla
+              (Správce IAM provádí na pokyn Koordinátora CSIRT)
+            example: 'Správce IAM kontaktován v 09:50 · reset hesla zahájen · uživatel informován o nutnosti nového hesla'
+          - action: >
+              Reset MFA tokenu dotčeného uživatele a re-onboarding (nová registrace MFA zařízení) –
+              provádí Správce IAM
+            example: 'MFA token revokován · re-onboarding zahájen · uživatel ověřen telefonicky před vydáním nového MFA'
+          - action: >
+              Revokace všech aktivních relací a tokenů dotčeného účtu (AAD – Forced Sign-Out / Revoke Sessions) –
+              provádí Správce IAM
+            example: 'Forced sign-out proveden pro všechna aktivní sezení · tokeny revokována v AAD v 10:00'
+          - action: >
+              Analyzuj AAD / M365 sign-in logy od doby phishingu:
+              přihlášení z neobvyklé IP / geografické lokace, neobvyklý čas, neznámé zařízení, MFA obcházení
+            example: 'Sign-in log: 2 přihlášení z IP 185.xxx.xxx.xx (RU) · přes MFA bypass · v 09:25 a 09:31 – útočník získal přístup'
+          - action: >
+              Zkontroluj forwarding rules a delegation nastavení v mailboxu (včetně hidden rules),
+              OAuth aplikace a delegace přístupu – proveď přes Správce M365
+            example: 'Nalezeno auto-forward pravidlo na external@service[.]ru – okamžitě odstraněno Správcem M365'
+          - action: >
+              Zaznamenej všechny kroky do TIS a zahaj paralelní postup dle workbooku Kompromitace účtu –
+              pro plné pokrytí aktivit v kompromitovaném účtu
+            example: 'Workbook Kompromitace účtu (uib-account-compromise-v1) aktivován v 09:55 – paralelní šetření'
+          - action: >
+              Posouď dopad na data (GDPR): měl útočník přístup k osobním údajům v mailboxu nebo sdíleném úložišti?
+              Pokud ano → informuj DPO (72 h GDPR lhůta pro posouzení hlášení ÚOOÚ)
+            example: 'Mailbox obsahoval osobní údaje pacientů – DPO informován v 10:10 · posouzení notifikace ÚOOÚ zahájeno'
+        hints:
+          - >
+            Scénář C je vždy eskalován na Workbook Kompromitace účtu (uib-account-compromise-v1) –
+            phishing workbook zajišťuje pouze první kroky (reset, revokace, logy). Další šetření vede
+            koordinovaně Koordinátor CSIRT dle workbooku Kompromitace účtu.
+          - >
+            Čas je kritický – útočník může využít ukradené přihlašovací údaje v řádu minut.
+            Reset hesla a revokace tokenů je prioritou číslo jedna.
+
+      - id: scenario_d
+        title: 'Scénář D – Podezření na malware (příloha otevřena nebo spuštění podezřelého kódu)'
+        note: Aktivuj při otevření přílohy nebo podezření na spuštění škodlivého kódu na stanici
+        steps:
+          - action: >
+              Okamžitě izoluj dotčenou stanici od sítě (EDR – Network Isolation, fyzické odpojení) –
+              provádí Správce TA / Administrátor MIS na pokyn Koordinátora CSIRT
+            example: 'Stanice PC-KRATOCHVIL-01 izolována přes EDR v 09:55 · fyzické odpojení provedeno jako záloha'
+          - action: >
+              Analyzuj přílohu v sandboxu (Any.Run, Joe Sandbox nebo interní sandbox):
+              hash (MD5/SHA256), chování při spuštění, síťové spojení, vytváření procesů
+            example: 'Příloha faktura_2026.xlsm · SHA256: a1b2c3... · Any.Run: makro spouští PowerShell → C2 volání na 185.xxx.xxx.xx · detekce: dropper'
+          - action: >
+              Zaznamenej hash přílohy a výsledky analýzy do TIS; ověř IoC (hash, C2 IP, doména) v VirusTotal
+            example: 'Hash přiložen k záznamu TIS · VirusTotal: 45/72 detekce – Trojan.Dropper · C2 IP přidána do blokace na FW'
+          - action: >
+              Zahaj paralelní postup dle workbooku Malware (uib-malware-v1) –
+              phishing workbook zajišťuje pouze první kroky (izolace, analýza přílohy)
+            example: 'Workbook Malware (uib-malware-v1) aktivován v 10:05 – paralelní šetření'
+        hints:
+          - >
+            Scénář D vždy eskaluj na Workbook Malware (uib-malware-v1) – bez izolace stanice
+            nelze zaručit, že nedochází k laterálnímu pohybu nebo C2 komunikaci.
+
+      - id: scope_correlation
+        title: Rozsah kampaně a korelace (CSIRT analytici + Správce M365 + Administrátor MIS)
+        steps:
+          - action: >
+              Na M365 / Exchange ověř, zda stejný nebo podobný e-mail byl doručen dalším uživatelům –
+              hledej podle domény odesílatele, předmětu, URL nebo obsahu (M365 Content Search)
+            example: 'Doručeno celkem 12 mailboxům · 2 prokliknutí Safe Links · 1 potvrzené zadání hesla (Scénář C)'
+          - action: >
+              Ověř, zda byly v prostředí MIS zasaženy lokální mailboxy nebo sdílená úložiště –
+              spolupracuj s Administrátorem MIS
+            example: 'MIS: sdílený mailbox mis-provoz@firma.cz zasažen – 1 doručený e-mail, nikdo neklikl · Purge proveden'
+          - action: >
+              Koreluj v SIEM s dalšími alertami v časovém okně (anomální přihlášení, EDR alerty, exfiltrace)
+            example: 'SIEM: 1 AAD alert na neobvyklé přihlášení v korelaci s phishingem (09:25) – potvrzen jako Scénář C'
+          - action: 'Sestav timeline události od prvního doručení e-mailu po aktuální stav a zaznamenej ji do TIS'
+            example: '09:15 e-mail doručen · 09:19 prokliknutí · 09:22 zadání hesla · 09:30 nahlášeno L1 ITS · 09:35 předáno CSIRT'
+
+      - id: evidence_collection
+        title: Zajištění důkazů – uložení do IKB
+        steps:
+          - action: >
+              Ulož podezřelý e-mail ve formátu .eml nebo .msg do úložiště IKB –
+              zaznamenej cestu do záznamu v TIS
+            example: 'Uloženo do IKB: /PHISH-2026-XXX/podvodny_email.eml'
+          - action: >
+              Exportuj a ulož do IKB: záhlaví e-mailu, M365 mail trace logy, Safe Links detonation report,
+              AAD sign-in logy (při Scénáři C), SIEM záznamy z relevantního časového okna
+            example: 'Logy uloženy do IKB: /PHISH-2026-XXX/logs/ · Safe Links report · AAD sign-in export'
+          - action: >
+              Pokud příloha: ulož původní soubor i výsledek sandbox analýzy do IKB, zaznamenej hash a IOC
+            example: 'Příloha + Any.Run report uloženy do IKB: /PHISH-2026-XXX/attachments/ · hash: a1b2c3...'
+          - action: >
+              Zdokumentuj všechna přijatá opatření a jejich časové razítko v záznamu TIS
+            example: 'Timeline a opatření zdokumentována v záznamu TIS UIB-XXXXXX'
+
+  - id: containment_remediation
+    title: 'Odezva – checklist'
+    type: action_table
+    description: >
+      Zaznamenej u každé akce zodpovědnou roli a aktuální stav. Pokud akce není relevantní pro daný scénář, napiš N/A.
+      Technické zásahy provádí administrátoři výhradně na pokyn Koordinátora CSIRT.
+      Scénáře C a D vyžadují paralelní aktivaci workbooků Kompromitace účtu a/nebo Malware.
+    columns:
+      - phase
+      - action
+      - responsible_role
+      - cooperation
+      - status
+    column_labels:
+      phase: Fáze
+      action: Akce
+      responsible_role: Zodpovědná role
+      cooperation: Součinnost
+      status: Stav
+    status_options:
+      - Provedeno
+      - Probíhá
+      - Čeká
+      - N/A
+      - Není nutné provést
+    editable_columns:
+      - status
+    allow_append: false
+    hints:
+      - >
+        Scénář C → zahaj paralelní Odezvu dle workbooku Kompromitace účtu (uib-account-compromise-v1).
+        Scénář D → zahaj paralelní Odezvu dle workbooku Malware (uib-malware-v1).
+    rows:
+      - phase: A
+        action: Blokace odesílající domény a e-mailové adresy na M365 (Transport rule / Tenant Block List)
+        responsible_role: CSIRT analytici
+        cooperation: Správce Exchange / M365
+        status: null
+      - phase: A
+        action: Search & Purge – odstranění všech doručených phishingových e-mailů ze schránek organizace (M365 Compliance Center)
+        responsible_role: CSIRT analytici
+        cooperation: Správce Exchange / M365
+        status: null
+      - phase: A
+        action: Blokace phishingové URL a domény na proxy / firewallu a M365 Safe Links (pokud e-mail obsahoval odkaz)
+        responsible_role: CSIRT analytici
+        cooperation: Správce Proxy / FW
+        status: null
+      - phase: A
+        action: Ověření doručení v prostředí MIS a provedení lokální nápravy (Administrátor MIS)
+        responsible_role: Administrátor MIS
+        cooperation: CSIRT analytici
+        status: null
+      - phase: B
+        action: Analýza Safe Links / M365 Defender logů pro prokliknuté URL – ověření, zda nedošlo k download payloadu nebo token krádeži
+        responsible_role: CSIRT analytici
+        cooperation: Správce Exchange / M365
+        status: null
+      - phase: B
+        action: Kontrola AAD sign-in logů dotčeného uživatele po dobu prokliknutí – ověření anomálií bez zadání hesla
+        responsible_role: CSIRT analytici
+        cooperation: Správce identity / IAM
+        status: null
+      - phase: C
+        action: Reset hesla dotčeného uživatele, vynucení nové volby hesla a re-onboarding MFA
+        responsible_role: Správce identity / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Revokace všech aktivních sessions a tokenů dotčeného účtu (AAD – Forced Sign-Out)
+        responsible_role: Správce identity / IAM
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Odstranění podezřelých forwarding rules, delegation nastavení a neautorizovaných OAuth aplikací z mailboxu
+        responsible_role: Správce Exchange / M365
+        cooperation: CSIRT analytici
+        status: null
+      - phase: C
+        action: Aktivace workbooku Kompromitace účtu (uib-account-compromise-v1) pro plné pokrytí kompromitovaného účtu
+        responsible_role: Koordinátor CSIRT
+        cooperation: CSIRT analytici
+        status: null
+      - phase: D
+        action: Izolace dotčené stanice od sítě (EDR Network Isolation nebo fyzické odpojení)
+        responsible_role: Administrátor MIS / TA
+        cooperation: Koordinátor CSIRT
+        status: null
+      - phase: D
+        action: Sandbox analýza přílohy (hash, IoC, chování, C2 komunikace) + blokace IoC na FW a proxy
+        responsible_role: CSIRT analytici
+        cooperation: Správce Proxy / FW
+        status: null
+      - phase: D
+        action: Aktivace workbooku Malware (uib-malware-v1) pro plné pokrytí malware incidentu
+        responsible_role: Koordinátor CSIRT
+        cooperation: CSIRT analytici
+        status: null
+      - phase: E
+        action: Informování dotčených uživatelů o phishingové kampani (praktické instrukce – koordinuje Koordinátor CSIRT)
+        responsible_role: Koordinátor CSIRT
+        cooperation: '–'
+        status: null
+
+  - id: additional_actions
+    title: 'Odezva – dodatečné kroky'
+    type: action_table
+    description: >
+      Prostor pro zaznamenání kroků nad rámec standardního checklistu.
+      Vyplní Koordinátor CSIRT nebo analytik dle potřeby.
+    columns:
+      - action
+      - cooperation
+      - status
+    column_labels:
+      action: Akce
+      cooperation: Součinnost
+      status: Stav
+    status_options:
+      - Provedeno
+      - Probíhá
+      - Čeká
+      - N/A
+      - Není nutné provést
+    editable_columns:
+      - status
+    allow_append: true
+    allow_delete: true
+    append_row_template:
+      action: null
+      cooperation: null
+      status: null
+    rows: []
+
+  - id: communication
+    title: Komunikace a notifikace
+    type: action_table
+    columns:
+      - recipient
+      - communication_method
+      - sla
+      - note
+    column_labels:
+      recipient: Příjemce
+      communication_method: Způsob komunikace
+      sla: SLA pro notifikaci
+      note: Poznámka / stav
+    editable_columns:
+      - note
+    hints:
+      - 'SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.'
+      - 'Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.'
+      - 'Při zadání přihlašovacích údajů (Scénář C) upřednos komunikaci se Správcem IAM před ostatními.'
+    rows:
+      - recipient: Oznamovatel / dotčený uživatel
+        communication_method: E-mail / telefon
+        sla: Do 30 min od Posouzení a ihned po závěru šetření
+        note: null
+      - recipient: Vlastník dotčeného aktiva (mailbox / systém)
+        communication_method: E-mail / telefon
+        sla: Do 30 min od Posouzení
+        note: null
+      - recipient: CISO / Management
+        communication_method: E-mail / telefon
+        sla: Do 1 h (Vysoká / Kritická) nebo rozsáhlá kampaň
+        note: null
+      - recipient: Dotčení uživatelé (kampaň s více adresáty)
+        communication_method: Hromadný e-mail
+        sla: Do 2 h od potvrzení kampaně
+        note: null
+      - recipient: Administrátor MIS
+        communication_method: E-mail / telefon
+        sla: Při podezření na dopad v prostředí MIS
+        note: null
+      - recipient: DPO
+        communication_method: E-mail
+        sla: 'Při přístupu k osobním údajům nebo zadání hesla (GDPR – posoudit do 72 h)'
+        note: null
+      - recipient: CERT / NÚKIB
+        communication_method: Datová schránka
+        sla: 'Dle regulatorní povinnosti (NIS2 – KBI, pouze při dopadu na regulovanou službu)'
+        note: null
+
+  - id: closure
+    title: Klasifikace a uzavření
+    type: form
+    description: >
+      Uzavření provádí Koordinátor CSIRT po dokončení Odezvy, nebo ihned po Posouzení u False Positive.
+      Klasifikace a Severity vyjadřují finální stav. Koordinátor uzavírá záznam v TIS.
+    hint: >
+      Před uzavřením ověř: (1) phishingová doména je zablokována a Search & Purge dokončen,
+      (2) při Scénáři C – heslo resetováno, MFA obnoveno, forwarding rules odstraněny,
+      (3) při Scénáři D – Workbook Malware aktivován, stanice v izolaci nebo čistá,
+      (4) oznamovatel informován o výsledku, (5) důkazy uloženy v IKB.<br><br>
+      <b>Metodika klasifikace – Úroveň dopadu:</b><br>
+      <b>Nízká</b> – phishingový e-mail odhalen bez interakce uživatele; žádný dopad na systémy nebo data.<br>
+      <b>Střední</b> – uživatel klikl nebo otevřel přílohu bez zadání údajů; bez potvrzeného dopadu na účet.<br>
+      <b>Vysoká</b> – zadány přihlašovací údaje (Scénář C) nebo spuštěn malware (Scénář D);
+      při zasažení regulované služby splňuje kritéria KBI dle ZKB.<br>
+      <b>Kritická</b> – rozsáhlá kampaň, kompromitace kritického účtu nebo regulované služby; jde vždy o KBI.
+    fields:
+      - key: final_classification
+        label: Klasifikace výsledku
+        type: select
+        options:
+          - True Positive
+          - False Positive
+          - Benign True Positive
+        hint: >
+          False Positive: e-mail byl legitimní, podezření se nepotvrdilo.
+          Benign True Positive: phishing pokus odhalen včas, žádná škoda nevznikla.
+        example: True Positive
+      - key: impact_level
+        label: Úroveň dopadu
+        type: select
+        options:
+          - Nízká
+          - Střední
+          - Vysoká
+          - Kritická
+        option_hints:
+          Nízká: Phishing odhalen bez interakce uživatele. Žádný dopad na účty, systémy nebo data.
+          Střední: Uživatel klikl nebo otevřel přílohu bez potvrzeného zadání údajů nebo spuštění kódu.
+          Vysoká: Zadány přihlašovací údaje nebo spuštěn malware. Při zasažení regulované služby → KBI.
+          Kritická: Rozsáhlá kampaň nebo kompromitace kritického účtu / regulované služby. Vždy KBI.
+        hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
+      - key: nukib_notification_required
+        label: Povinnost hlášení NÚKIB
+        type: select
+        options:
+          - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
+          - Zvážit – hraniční případ
+          - Není vyžadována
+        hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
+      - key: ucl_notification_required
+        label: Povinnost hlášení ÚCL
+        type: select
+        options:
+          - Povinná – Regulovaná letecká služba + Vysoká/Kritická
+          - Zvážit – hraniční případ
+          - Není vyžadována
+        hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
+      - key: impact_primary_service
+        label: Dostupnost primárních služeb organizace
+        type: select
+        options:
+          - Zcela nedostupné
+          - Částečně nedostupné / degradované
+          - Dostupné bez omezení
+          - Netýká se
+        hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
+      - key: impact_scope
+        label: Rozsah zasažených uživatelů / systémů
+        type: select
+        options:
+          - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
+          - Významný (10–50 %)
+          - 'Omezený (< 10 %)'
+          - Individuální (1 uživatel / 1 systém)
+      - key: impact_duration
+        label: Doba výpadku / narušení (dostupnost)
+        type: select
+        options:
+          - '> 4 hodiny'
+          - 1–4 hodiny
+          - 15 min – 1 hodina
+          - < 15 min
+          - Žádný výpadek / narušení
+      - key: impact_data
+        label: Dopad na data (důvěrnost / integrita)
+        type: select
+        options:
+          - Exfiltrace dat potvrzena
+          - Neoprávněný přístup k datům potvrzen
+          - Integrita dat narušena
+          - Žádný dopad na data
+          - Nelze určit
+      - key: phishing_type_final
+        label: Typ phishingu (finální)
+        type: select
+        options:
+          - Spearphishing Link – krádež přihlašovacích údajů (T1566.002)
+          - Spearphishing Attachment – škodlivá příloha (T1566.001)
+          - Spearphishing via Service – zneužití legitimní služby (T1566.003)
+          - Masový phishing – hromadná kampaň
+          - Kombinace typů
+          - Nelze určit
+      - key: credential_submitted_final
+        label: Byly zadány přihlašovací údaje?
+        type: select
+        options:
+          - Ano – potvrzeno (Scénář C – aktivován Workbook Kompromitace účtu)
+          - Pravděpodobně – nelze vyloučit
+          - Ne – potvrzeno
+        hint: 'Pokud Ano nebo Pravděpodobně → workbook Kompromitace účtu (uib-account-compromise-v1) musí být aktivován.'
+      - key: malware_suspected_final
+        label: Podezření na spuštění malwaru
+        type: select
+        options:
+          - Ano – příloha otevřena a malware potvrzen (Scénář D – aktivován Workbook Malware)
+          - Pravděpodobně – příloha otevřena, výsledek analýzy čeká
+          - Ne – příloha neotevřena nebo analýzou vyloučena
+        hint: 'Pokud Ano nebo Pravděpodobně → workbook Malware (uib-malware-v1) musí být aktivován.'
+      - key: root_cause
+        label: Root Cause
+        type: textarea
+        example: >
+          Útočník registroval typo-squatting doménu firma-support[.]com a odesílal e-maily napodobující
+          interní helpdesk. Uživatel klikl na odkaz a zadal přihlašovací údaje na podvržené stránce.
+          Útočník získal přístup k mailboxu a nastavil forwarding pravidlo.
+      - key: actions_taken
+        label: Popis přijatých opatření
+        type: textarea
+        example: >
+          Blokace domény firma-support[.]com na M365 · Search & Purge (12 mailboxů) ·
+          reset hesla a MFA (Správce IAM) · forwarding pravidlo odstraněno ·
+          Workbook Kompromitace účtu aktivován · logy uloženy do IKB
+      - key: recommendations
+        label: Doporučení pro zlepšení
+        type: textarea
+        example: >
+          Zpřísnit antiphishing politiky v M365 Defender (impersonation protection, lookalike domain detection).
+          Zavést pravidelná phishingová cvičení (simulace) pro uživatele v MIS a finančním oddělení.
+          Zvážit FIDO2 / hardware token MFA pro privilegované účty a uživatele v MIS.
+          Aktualizovat postup pro nahlašování podezřelých e-mailů – jeden klik přes Outlook Report Message doplněk.
+      - key: related_service_requests
+        label: Související servisní požadavky
+        type: textarea
+        hint: >
+          Čísla nebo odkazy na servisní požadavky vytvořené v průběhu řešení
+          (blokace domény, úpravy antiphishing politik, požadavky na reset hesla apod.)
+        example: 'SR-2026-2210 – blokace domény na M365 · SR-2026-2211 – reset hesla a MFA uživatele'
+      - key: related_security_events
+        label: Navázané bezpečnostní události (UIB/IIB)
+        type: textarea
+        hint: >
+          Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
+          (např. navázaný incident Kompromitace účtu při Scénáři C, Malware při Scénáři D, phishingová kampaň apod.)
+        example: 'UIB-10032026-1000-XXXX – Kompromitace účtu (Scénář C – paralelně šetřeno) · UIB-10032026-0945-YYYY – Malware (Scénář D)'
+      - key: reporter_notified
+        label: Oznamovatel informován
+        type: select
+        options:
+          - Ano
+          - Ne
+      - {key: closed_at, label: Datum uzavření, type: datetime}
+
+  - id: raci
+    title: RACI matice
+    type: raci_table
+    legend: >
+      R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) ·
+      C = Consulted (poskytuje součinnost) · I = Informed (je informován) ·
+      (Vysoká/Kritická) = podmínka pro aktivaci role
+    columns:
+      - activity
+      - l1_its
+      - koordinator
+      - cirt
+      - r_dtech
+      - r_dplr
+      - garant
+      - delegat
+      - dpo
+      - nukib
+      - ucl
+    column_labels:
+      activity: Aktivita
+      l1_its: L1 (ITS)
+      koordinator: Koordinátor
+      cirt: CIRT
+      r_dtech: Ř-DTECH
+      r_dplr: Ř-DPLR
+      garant: Garant
+      delegat: Delegát
+      dpo: DPO
+      nukib: NÚKIB
+      ucl: ÚCL
+    rows:
+      - activity: Příjem UIB/IIB a evidence v TIS
+        l1_its: R, A
+        koordinator: I
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Předání incidentu Koordinátorovi CSIRT (L2)
+        l1_its: R
+        koordinator: A
+        cirt: '–'
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Posouzení, třídění a rozhodování (Scénář A/B/C/D)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: C
+        delegat: C
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Analýza e-mailu, URL a přílohy
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Search & Purge a blokace odesílatele / URL (Scénář A/B)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: '–'
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Reset hesla, MFA a revokace tokenů (Scénář C)
+        l1_its: '–'
+        koordinator: A
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Izolace stanice a analýza malware (Scénář D)
+        l1_its: '–'
+        koordinator: A
+        cirt: R
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: '–'
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Součinnost prostředí MIS (lokální ověření, izolace)
+        l1_its: '–'
+        koordinator: A
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: C
+        delegat: R
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Notifikace DPO (přístup k osobním údajům / GDPR)
+        l1_its: '–'
+        koordinator: R
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        dpo: A, I
+        nukib: '–'
+        ucl: '–'
+      - activity: Notifikace dotčených stran a oznamovatele
+        l1_its: '–'
+        koordinator: R, A
+        cirt: '–'
+        r_dtech: I
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Eskalace na management
+        l1_its: '–'
+        koordinator: R
+        cirt: '–'
+        r_dtech: A
+        r_dplr: I
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'
+      - activity: Hlášení NÚKIB / ÚCL
+        l1_its: '–'
+        koordinator: R
+        cirt: C
+        r_dtech: '–'
+        r_dplr: '–'
+        garant: '–'
+        delegat: '–'
+        dpo: '–'
+        nukib: I (Vysoká/Kritická)
+        ucl: I (Vysoká/Kritická)
+      - activity: Klasifikace a uzavření (TIS)
+        l1_its: '–'
+        koordinator: R, A
+        cirt: C
+        r_dtech: I (Vysoká/Kritická)
+        r_dplr: '–'
+        garant: I
+        delegat: '–'
+        dpo: '–'
+        nukib: '–'
+        ucl: '–'

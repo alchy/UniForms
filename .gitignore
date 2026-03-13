@@ -1,0 +1,49 @@
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+dist/
+build/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Virtual environment ───────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Secrets / local config ────────────────────────────────────────────────
+.env
+
+# ── IDE ───────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+
+# ── OS ────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Claude Code ───────────────────────────────────────────────────────────
+.claude/
+memory/
+
+# ── Database ──────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+
+# ── User data (records, locks, exports) ───────────────────────────────────
+data/records/**/*.json
+data/records/**/*.lock
+data/events/*.json
+data/events/*.lock
+data/tisk/*.pdf
+data/templates/*.yaml
+
+# ── Vendor JS/CSS (downloaded via scripts/download_vendors.py) ────────────
+app/static/vendor/

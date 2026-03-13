@@ -1,0 +1,33 @@
+id: general
+name: General
+description: General-purpose collection for all form types.
+
+workflow:
+  initial_state: new
+  states:
+    - id: new
+      label: New
+      color: secondary
+    - id: in_progress
+      label: In Progress
+      color: primary
+    - id: review
+      label: Review
+      color: warning
+    - id: closed
+      label: Closed
+      color: success
+
+id_format:
+  prefix: REC
+  format: "{prefix}-{YYYYMM}-{rand:04d}"
+
+list_columns:
+  - key: coordinator
+    label: Coordinator
+
+roles:
+  - id: collection_admin
+    label: Admin
+  - id: collection_user
+    label: User

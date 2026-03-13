@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+
+{% block title %}Collection editor – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-0 px-0 d-flex flex-column{% endblock %}
+
+{% block content %}
+
+{# ── Toolbar ────────────────────────────────────────────────────────────── #}
+<div id="editor-toolbar" class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-white flex-shrink-0" style="min-height:52px;">
+    <a href="/admin/collections" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Collections
+    </a>
+    <div class="vr"></div>
+    <span id="tb-filename" class="text-muted small font-monospace"></span>
+    <div class="ms-auto d-flex gap-2">
+        {% if mode == 'edit' %}
+        <button id="btn-delete" class="btn btn-outline-danger btn-sm" onclick="confirmDelete()">
+            <i class="bi bi-trash me-1"></i>Delete
+        </button>
+        {% endif %}
+        <button id="btn-save" class="btn btn-success btn-sm" onclick="saveCollection()">
+            <span class="spinner-border spinner-border-sm me-1 d-none" id="save-spinner"></span>
+            <i class="bi bi-floppy me-1" id="save-icon"></i>Save
+        </button>
+    </div>
+</div>
+
+{# ── Error banner ─────────────────────────────────────────────────────── #}
+<div id="error-banner" class="d-none mx-3 mt-2 alert alert-danger alert-dismissible py-2 flex-shrink-0" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i><span id="error-msg"></span>
+    <button type="button" class="btn-close py-2" onclick="hideError()"></button>
+</div>
+
+{# ── Status bar ─────────────────────────────────────────────────────────── #}
+<div id="status-bar" class="d-flex align-items-center gap-3 px-3 bg-light border-bottom flex-shrink-0" style="height:28px; font-size:0.75rem; color:#666;">
+    <span id="sb-id"><i class="bi bi-hash me-1"></i><span>–</span></span>
+    <span id="sb-name"><i class="bi bi-card-text me-1"></i><span>–</span></span>
+    <span class="ms-auto" id="sb-yaml-ok"><i class="bi bi-file-code me-1"></i>YAML</span>
+</div>
+
+{# ── Ace editor ─────────────────────────────────────────────────────────── #}
+<div id="ace-editor" class="flex-grow-1" style="min-height:0;"></div>
+
+{# ── Modal: Save as (new collection) ────────────────────────────────────── #}
+<div class="modal fade" id="saveAsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title">Save as new collection</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label small fw-semibold">Filename <span class="text-muted fw-normal">(without .yaml)</span></label>
+                <input type="text" id="input-filename" class="form-control form-control-sm font-monospace"
+                       placeholder="e.g. my-collection" pattern="[a-z0-9_\-]+" autocomplete="off">
+                <div class="form-text">Allowed: lowercase letters, digits, <code>_</code>, <code>-</code></div>
+                <div id="save-as-error" class="text-danger small mt-1 d-none"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success btn-sm" onclick="doCreate()">
+                    <i class="bi bi-floppy me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Modal: Confirm delete ─────────────────────────────────────────────── #}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2 border-danger">
+                <h6 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete collection</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1 small">Really delete collection <strong id="delete-name"></strong>?</p>
+                <p class="text-danger small mb-0">Only the definition file is removed. Records and templates are not affected.</p>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="doDelete()">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/ace/ace.js"></script>
+<script src="/static/vendor/js-yaml/js-yaml.min.js"></script>
+<script>
+const MODE          = '{{ mode }}';
+const COLLECTION_ID = '{{ collection_id or "" }}';
+
+// ── Ace init ──────────────────────────────────────────────────────────────
+
+ace.config.set('basePath', '/static/vendor/ace/');
+
+const editor = ace.edit('ace-editor');
+editor.setTheme('ace/theme/tomorrow');
+editor.session.setMode('ace/mode/yaml');
+editor.setOptions({
+    fontSize: '13px',
+    showPrintMargin: false,
+    tabSize: 2,
+    useSoftTabs: true,
+    wrap: false,
+});
+editor.session.on('change', onEditorChange);
+
+// ── State ─────────────────────────────────────────────────────────────────
+
+let currentId   = COLLECTION_ID || null;
+let saveAsModal = null;
+let deleteModal = null;
+
+// ── Bootstrap modals ──────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    saveAsModal = new bootstrap.Modal(document.getElementById('saveAsModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    document.getElementById('input-filename').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doCreate();
+    });
+    init();
+});
+
+// ── Default YAML template ─────────────────────────────────────────────────
+
+const DEFAULT_COLLECTION = `id: my-collection
+name: My Collection
+description: ''
+
+workflow:
+  initial_state: new
+  states:
+    - id: new
+      label: New
+      color: secondary
+    - id: in_progress
+      label: In Progress
+      color: primary
+    - id: closed
+      label: Closed
+      color: success
+
+id_format:
+  prefix: REC
+  format: "{prefix}-{YYYYMM}-{rand:04d}"
+
+list_columns:
+  - key: title
+    label: Title
+
+roles:
+  - id: admin
+    label: Admin
+  - id: user
+    label: User
+`;
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+async function init() {
+    if (MODE === 'edit' && COLLECTION_ID) {
+        const resp = await apiFetch(`/api/v1/admin/collections/${COLLECTION_ID}/source`);
+        if (resp.ok) {
+            const data = await resp.json();
+            setContent(data.content);
+            document.getElementById('tb-filename').textContent = data.filename;
+        } else {
+            showError('Collection not found.');
+            setContent(DEFAULT_COLLECTION);
+        }
+    } else {
+        setContent(DEFAULT_COLLECTION);
+        document.getElementById('tb-filename').textContent = '(new file)';
+    }
+}
+
+// ── Editor helpers ────────────────────────────────────────────────────────
+
+function setContent(text) {
+    editor.setValue(text, -1);
+    editor.clearSelection();
+    updateStatusBar();
+}
+
+let _changeTimer = null;
+function onEditorChange() {
+    clearTimeout(_changeTimer);
+    _changeTimer = setTimeout(updateStatusBar, 300);
+}
+
+function getYamlField(text, key) {
+    const m = text.match(new RegExp(`^${key}:\\s*['\"]?([^'\"\\n]+)['\"]?`, 'm'));
+    return m ? m[1].trim() : '–';
+}
+
+function validateYaml() {
+    try {
+        jsyaml.load(editor.getValue());
+        return null;
+    } catch (e) {
+        return e;
+    }
+}
+
+function updateYamlIndicator() {
+    const err = validateYaml();
+    const el = document.getElementById('sb-yaml-ok');
+    if (!err) {
+        el.innerHTML = '<i class="bi bi-check-circle me-1 text-success"></i><span class="text-success fw-semibold">YAML OK</span>';
+    } else {
+        const line = err.mark ? err.mark.line + 1 : '?';
+        el.title = err.reason || err.message || '';
+        el.innerHTML = `<i class="bi bi-x-circle me-1 text-danger"></i><span class="text-danger fw-semibold">YAML error line ${line}</span>`;
+    }
+}
+
+function updateStatusBar() {
+    const raw = editor.getValue();
+    document.getElementById('sb-id').querySelector('span').textContent   = getYamlField(raw, 'id');
+    document.getElementById('sb-name').querySelector('span').textContent = getYamlField(raw, 'name');
+    updateYamlIndicator();
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────
+
+async function saveCollection() {
+    if (MODE === 'edit' && currentId) {
+        await doSaveExisting();
+    } else {
+        document.getElementById('input-filename').value = '';
+        document.getElementById('save-as-error').classList.add('d-none');
+        saveAsModal.show();
+        setTimeout(() => document.getElementById('input-filename').focus(), 200);
+    }
+}
+
+async function doSaveExisting() {
+    const yamlErr = validateYaml();
+    if (yamlErr) {
+        const line = yamlErr.mark ? ` (line ${yamlErr.mark.line + 1})` : '';
+        showError(`YAML error${line}: ${yamlErr.reason || yamlErr.message} – save blocked.`);
+        return;
+    }
+    setSaving(true);
+    try {
+        const resp = await apiFetch(`/api/v1/admin/collections/${currentId}`, {
+            method: 'PUT',
+            body: JSON.stringify({content: editor.getValue()}),
+        });
+        if (resp.ok) {
+            showToast('Collection saved.', 'success');
+        } else {
+            const err = await resp.json();
+            showError(err.detail || 'Save failed.');
+        }
+    } catch {
+        showError('Server connection error.');
+    } finally {
+        setSaving(false);
+    }
+}
+
+async function doCreate() {
+    const filename = document.getElementById('input-filename').value.trim();
+    const errEl    = document.getElementById('save-as-error');
+    if (!filename) {
+        errEl.textContent = 'Please enter a filename.';
+        errEl.classList.remove('d-none');
+        return;
+    }
+    if (!/^[a-z0-9_\-]+$/.test(filename)) {
+        errEl.textContent = 'Only lowercase letters, digits, _ and - are allowed.';
+        errEl.classList.remove('d-none');
+        return;
+    }
+    const yamlErr = validateYaml();
+    if (yamlErr) {
+        const line = yamlErr.mark ? ` (line ${yamlErr.mark.line + 1})` : '';
+        errEl.textContent = `YAML error${line}: ${yamlErr.reason || yamlErr.message}`;
+        errEl.classList.remove('d-none');
+        return;
+    }
+    errEl.classList.add('d-none');
+    saveAsModal.hide();
+    setSaving(true);
+    try {
+        const resp = await apiFetch('/api/v1/admin/collections/', {
+            method: 'POST',
+            body: JSON.stringify({filename, content: editor.getValue()}),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            window.location.href = `/admin/collections/${data.collection_id}/edit`;
+        } else {
+            showError(data.detail || 'Save failed.');
+            setSaving(false);
+        }
+    } catch {
+        showError('Server connection error.');
+        setSaving(false);
+    }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────
+
+function confirmDelete() {
+    const name = getYamlField(editor.getValue(), 'name');
+    document.getElementById('delete-name').textContent = name !== '–' ? name : currentId;
+    deleteModal.show();
+}
+
+async function doDelete() {
+    deleteModal.hide();
+    try {
+        const resp = await apiFetch(`/api/v1/admin/collections/${currentId}`, {method: 'DELETE'});
+        if (resp.ok || resp.status === 204) {
+            window.location.href = '/admin/collections';
+        } else {
+            const err = await resp.json();
+            showError(err.detail || 'Delete failed.');
+        }
+    } catch {
+        showError('Server connection error.');
+    }
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────
+
+function setSaving(on) {
+    document.getElementById('save-spinner').classList.toggle('d-none', !on);
+    document.getElementById('save-icon').classList.toggle('d-none', on);
+    document.getElementById('btn-save').disabled = on;
+}
+
+function showError(msg) {
+    document.getElementById('error-msg').textContent = msg;
+    document.getElementById('error-banner').classList.remove('d-none');
+}
+
+function hideError() {
+    document.getElementById('error-banner').classList.add('d-none');
+}
+
+function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `toast align-items-center text-bg-${type} border-0 show position-fixed bottom-0 end-0 m-3`;
+    t.style.zIndex = 9999;
+    t.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.parentElement.parentElement.remove()"></button></div>`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+</script>
+{% endblock %}
