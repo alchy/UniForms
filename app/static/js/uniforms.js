@@ -446,7 +446,7 @@ function renderTable(section) {
         const tr = document.createElement('tr');
         cols.forEach(col => {
             const td = el('td', 'align-middle');
-            const isEditable = row.analyst_added || col.editable;
+            const isEditable = row.user_added || col.editable;
 
             if (isEditable && col.type === 'select') {
                 const sel = el('select', 'form-select form-select-sm border-0 p-0');
@@ -471,7 +471,7 @@ function renderTable(section) {
 
         if (hasActions) {
             const delTd = el('td', 'align-middle text-center');
-            if (section.allow_delete_row || row.analyst_added) {
+            if (section.allow_delete_row || row.user_added) {
                 delTd.appendChild(makeDeleteBtn(() => {
                     section.rows.splice(section.rows.indexOf(row), 1);
                     tr.remove();
@@ -513,7 +513,7 @@ function renderTable(section) {
         const addBtn = el('button', 'btn btn-outline-secondary btn-sm mt-2',
             `<i class="bi bi-plus me-1"></i>${addLabel}`);
         addBtn.addEventListener('click', () => {
-            const newRow = Object.assign({}, section.append_row_template || {}, { analyst_added: true });
+            const newRow = Object.assign({}, section.append_row_template || {}, { user_added: true });
             cols.forEach(col => { if (!(col.key in newRow)) newRow[col.key] = null; });
             if (!section.rows) section.rows = [];
             section.rows.push(newRow);

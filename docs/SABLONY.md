@@ -137,25 +137,6 @@ name: "Helpdesk – základní požadavek"
 version: '1.0'
 status: active
 description: "Standardní šablona pro IT helpdesk požadavky prvního stupně."
-abstract: false
-extends: null
-
-meta:
-  sla_hodiny: 8
-  kategorie: "IT Support"
-
-workflow:
-  initial_state: new
-  states:
-    - id: new
-      label: "Nové"
-      color: secondary
-    - id: in_progress
-      label: "Zpracovává se"
-      color: warning
-    - id: closed
-      label: "Uzavřeno"
-      color: success
 
 sections:
   - id: header
@@ -175,7 +156,7 @@ sections:
 | `abstract` | | `true` = šablona slouží pouze jako základ pro dědičnost, nezobrazí se v dashboardu (výchozí: `false`) |
 | `extends` | | `template_id` rodičovské šablony; sekce rodiče jsou vloženy před sekce potomka |
 | `meta{}` | | Libovolné doménové klíče; hodnoty jsou přístupné v polích přes `auto: meta.<klíč>` |
-| `workflow{}` | | Přepíše workflow kolekce jen pro tuto šablonu; obsahuje `initial_state` a `states[]` |
+| `workflow{}` | | Per-šablonový override workflow kolekce (pokročilé, výjimečné). Struktura je shodná s `workflow` v konfiguraci kolekce — viz [KOLEKCE.md § workflow](KOLEKCE.md#sekce-workflow). |
 
 > **Poznámka:** Hodnotu `version` vždy uzavřete do jednoduchých uvozovek: `version: '1.0'`. Bez uvozovek YAML parsuje `1.0` jako číslo a dojde k chybě při načítání šablony.
 
