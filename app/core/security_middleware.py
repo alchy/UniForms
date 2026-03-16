@@ -2,6 +2,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+# ---------------------------------------------------------------------------
+# Starlette middleware aplikovaný na každý request.
+# Chrání API před CSRF útoky (Content-Type guard pro POST/PUT/PATCH na /api/v1/*)
+# a přidává bezpečnostní HTTP hlavičky ke každé odpovědi
+# (X-Content-Type-Options, X-Frame-Options, Referrer-Policy).
+# ---------------------------------------------------------------------------
+
 # HTTP metody, které nesou tělo a musejí mít správný Content-Type
 _BODY_METHODS = {"POST", "PUT", "PATCH"}
 

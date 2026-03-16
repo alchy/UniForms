@@ -3,6 +3,14 @@ import asyncio
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+# ---------------------------------------------------------------------------
+# API endpointy pro autentizaci.
+# POST /auth/login  – ověří přihlašovací údaje, vydá JWT cookie.
+# POST /auth/logout – smaže JWT cookie.
+# GET  /auth/me     – vrátí aktuálně přihlášeného uživatele.
+# Vybírá a inicializuje správný AuthProvider dle nastavení AUTH_PROVIDER.
+# ---------------------------------------------------------------------------
+
 from app.auth.auth_provider import AuthProvider
 from app.auth.ldap_auth import LDAPProvider
 from app.auth.oauth_auth import OAuthProvider

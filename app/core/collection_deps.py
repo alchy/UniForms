@@ -1,14 +1,14 @@
-"""
-FastAPI dependencies pro rizeni pristupu k jednotlivym kolekci.
-
-Pouziti v route handlerech:
-    current_user: User = Depends(require_collection_access)
-    current_user: User = Depends(require_collection_admin)
-
-FastAPI automaticky rozlisi collection_id z URL path parametru.
-"""
 import aiosqlite
 from fastapi import Depends, HTTPException, status
+
+# ---------------------------------------------------------------------------
+# FastAPI dependencies pro řízení přístupu k jednotlivým kolekcím.
+# require_collection_access – povolí přístup system_adminovi nebo uživateli
+#   s jakoukoli rolí v dané kolekci (collection_admin nebo collection_user).
+# require_collection_admin  – povolí přístup pouze system_adminovi nebo
+#   uživateli s rolí collection_admin v dané kolekci.
+# collection_id se automaticky rozlišuje z URL path parametru.
+# ---------------------------------------------------------------------------
 
 from app.core.database import get_db
 from app.core.security import require_auth

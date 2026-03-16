@@ -4,6 +4,13 @@ import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# API endpointy pro správu rolí uživatelů v kolekcích.
+# GET    /collections/{id}/roles           – seznam přiřazení uživatel→role.
+# PUT    /collections/{id}/roles/{username} – přiřazení nebo změna role.
+# DELETE /collections/{id}/roles/{username} – odebrání přístupu. Vyžaduje system_admin.
+# ---------------------------------------------------------------------------
+
 from app.config import settings
 from app.core.database import get_db
 from app.core.security import require_admin

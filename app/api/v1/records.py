@@ -1,6 +1,17 @@
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, status
 
+# ---------------------------------------------------------------------------
+# API endpointy pro záznamy (records).
+# GET    /records/{col}/           – seznam záznamů kolekce.
+# POST   /records/{col}/           – vytvoření záznamu ze šablony.
+# GET    /records/{col}/{id}        – detail záznamu.
+# PATCH  /records/{col}/{id}        – aktualizace dat nebo stavu záznamu.
+# DELETE /records/{col}/{id}        – smazání záznamu (vyžaduje system_admin nebo collection_admin).
+# POST   /records/{col}/{id}/lock   – zamknutí záznamu pro editaci.
+# DELETE /records/{col}/{id}/lock   – odemknutí záznamu.
+# ---------------------------------------------------------------------------
+
 from app.core.collection_deps import require_collection_access, require_collection_admin
 from app.core.database import get_db
 from app.models.collection import CollectionConfig

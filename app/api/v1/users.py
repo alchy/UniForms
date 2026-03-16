@@ -2,6 +2,14 @@ import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# API endpointy pro správu uživatelů aplikace. Vyžadují roli system_admin.
+# GET    /users/           – seznam všech uživatelů.
+# POST   /users/           – vytvoření nového uživatele.
+# PATCH  /users/{username} – změna role, hesla nebo stavu aktivace.
+# DELETE /users/{username} – smazání uživatele.
+# ---------------------------------------------------------------------------
+
 from app.core.database import get_db
 from app.core.security import hash_password, require_admin
 from app.models.user import User, UserCreate, UserResponse, UserUpdate

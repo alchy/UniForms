@@ -7,6 +7,13 @@ from typing import Optional
 from app.models.record import UniRecord
 from app.storage.base import StorageBackend
 
+# ---------------------------------------------------------------------------
+# Souborový storage backend ukládající záznamy jako JSON soubory.
+# Každý záznam je uložen jako {records_dir}/{record_id}.json,
+# zámek editace jako {records_dir}/{record_id}.lock.
+# Operace jsou asynchronní; zámky jsou jednoduché soubory s metadaty.
+# ---------------------------------------------------------------------------
+
 logger = logging.getLogger(__name__)
 
 

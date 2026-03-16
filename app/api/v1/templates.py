@@ -1,6 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# API endpointy pro správu YAML šablon kolekce.
+# GET    /templates/{col}/            – seznam šablon (bez abstraktních).
+# GET    /templates/{col}/{id}         – detail šablony (normalizovaná struktura).
+# GET    /templates/{col}/{id}/source  – zdrojový YAML text šablony.
+# PUT    /templates/{col}/{id}         – uložení upraveného YAML (vyžaduje collection_admin).
+# POST   /templates/{col}/             – vytvoření nové šablony (vyžaduje collection_admin).
+# DELETE /templates/{col}/{id}         – smazání šablony (vyžaduje collection_admin).
+# ---------------------------------------------------------------------------
+
 from app.core.collection_deps import require_collection_access, require_collection_admin
 from app.models.template import UniTemplate
 from app.models.user import User

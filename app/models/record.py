@@ -3,6 +3,11 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# Pydantic modely pro záznamy (records).
+# UniRecord je hlavní datová struktura záznamu uloženého jako JSON soubor.
+# CreateRecordRequest a UpdateRecordRequest jsou modely pro API požadavky.
+# ---------------------------------------------------------------------------
 
 class UniRecord(BaseModel):
     record_id: str

@@ -3,6 +3,12 @@ from typing import Optional
 
 from app.models.record import UniRecord
 
+# ---------------------------------------------------------------------------
+# Abstraktní rozhraní pro storage backend záznamů.
+# Definuje kontrakt pro CRUD operace a správu zámků (lock/unlock).
+# Aktuální implementace: FileStorageBackend (JSON soubory).
+# Budoucí implementace mohou přidat Elasticsearch, MongoDB apod.
+# ---------------------------------------------------------------------------
 
 class StorageBackend(ABC):
     """

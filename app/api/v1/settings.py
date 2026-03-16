@@ -3,6 +3,13 @@ from pathlib import Path
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, status
 
+# ---------------------------------------------------------------------------
+# API endpointy pro runtime nastavení aplikace. Vyžadují roli system_admin.
+# GET   /settings/      – vrátí všechna editovatelná nastavení (slovník klíč→hodnota).
+# PATCH /settings/      – aktualizuje jeden nebo více klíčů (records_dir, schemas_dir, collections_dir).
+# Zadaný adresář musí fyzicky existovat, jinak endpoint vrátí HTTP 400.
+# ---------------------------------------------------------------------------
+
 from app.core.database import get_db
 from app.core.security import require_admin
 from app.models.user import User

@@ -8,6 +8,12 @@ from fastapi import Cookie, Depends, HTTPException, status
 from app.config import settings
 from app.models.user import TokenPayload, User
 
+# ---------------------------------------------------------------------------
+# Bezpečnostní vrstva: bcrypt hashování hesel, vydávání a ověřování JWT tokenů,
+# FastAPI dependencies pro ochranu API endpointů (require_auth, require_admin)
+# a výjimky pro webové přesměrování (WebLoginRequired, WebAdminRequired).
+# ---------------------------------------------------------------------------
+
 COOKIE_NAME = "uniforms_token"
 
 

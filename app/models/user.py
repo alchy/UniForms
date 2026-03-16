@@ -1,6 +1,12 @@
 from pydantic import BaseModel
 from typing import Optional
 
+# ---------------------------------------------------------------------------
+# Pydantic modely pro uživatele a autentizaci.
+# User a TokenPayload se používají interně při ověřování JWT.
+# LoginRequest, Token, UserCreate, UserResponse, UserUpdate obsluhují
+# příslušné API endpointy pro přihlášení a správu uživatelů.
+# ---------------------------------------------------------------------------
 
 class User(BaseModel):
     username: str

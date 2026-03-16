@@ -7,12 +7,14 @@ import yaml
 
 from app.models.collection import CollectionConfig
 
+# ---------------------------------------------------------------------------
+# Služba pro správu kolekcí.
+# Načítá definice kolekcí z YAML souborů v collections_dir, filtruje je dle
+# přístupových práv uživatele (system_admin vidí vše, ostatní jen své kolekce)
+# a poskytuje funkce pro čtení a zápis rolí uživatelů v kolekcích (SQLite).
+# ---------------------------------------------------------------------------
+
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Nacitani kolekcí ze souboru YAML
-# ---------------------------------------------------------------------------
 
 # Nacte jednu kolekci z YAML souboru; vrati None, pokud soubor nelze nacist nebo je prazdny
 def _load_collection_from_path(path: Path) -> Optional[CollectionConfig]:

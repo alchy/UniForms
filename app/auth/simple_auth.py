@@ -6,6 +6,11 @@ from app.auth.auth_provider import AuthProvider
 from app.core.security import verify_password
 from app.models.user import User
 
+# ---------------------------------------------------------------------------
+# Výchozí autentizační provider čtoucí uživatele ze SQLite databáze.
+# Ověřuje heslo pomocí bcrypt. Admin uživatel je vytvořen při init_db().
+# Správa uživatelů je dostupná přes admin GUI (/admin/users).
+# ---------------------------------------------------------------------------
 
 class SimpleAuthProvider(AuthProvider):
     """

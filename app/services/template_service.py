@@ -14,6 +14,14 @@ from app.core.database import get_db
 from app.models.template import UniTemplate
 from app.services.settings_service import get_setting
 
+# ---------------------------------------------------------------------------
+# Služba pro načítání a správu YAML šablon.
+# TemplateService obsluhuje jednu kolekci (adresář {schemas_dir}/{collection_id}).
+# Zajišťuje normalizaci zkratkového zápisu v2 (auto, example, flat steps…),
+# dědičnost šablon (extends), CRUD operace (list, get, save, create, delete)
+# a FastAPI dependency get_template_service() pro injekci do route handlerů.
+# ---------------------------------------------------------------------------
+
 logger = logging.getLogger(__name__)
 
 

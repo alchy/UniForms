@@ -2,6 +2,11 @@ from typing import Optional
 
 import aiosqlite
 
+# ---------------------------------------------------------------------------
+# Služba pro čtení a zápis runtime nastavení uložených v SQLite tabulce settings.
+# Klíče: records_dir, schemas_dir, collections_dir (editovatelné za běhu přes GUI).
+# Ostatní nastavení (JWT, hesla, cesty) jsou v .env a vyžadují restart.
+# ---------------------------------------------------------------------------
 
 async def get_setting(db: aiosqlite.Connection, key: str) -> Optional[str]:
     """Vrátí hodnotu nastavení dle klíče nebo None."""

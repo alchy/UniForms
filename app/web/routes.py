@@ -13,6 +13,13 @@ from app.services import collection_service
 from app.services.settings_service import get_all_settings, get_setting
 from app.services.template_service import TemplateService, get_template_service
 
+# ---------------------------------------------------------------------------
+# Webové routy pro server-side rendering (Jinja2).
+# Obsluhuje všechny stránky UI: login, dashboard, seznam záznamů, detail záznamu,
+# tiskový náhled, seznam šablon, editor šablon, správu uživatelů, nastavení
+# a admin správu kolekcí. Přístup chrání závislosti require_web_user / require_web_admin.
+# ---------------------------------------------------------------------------
+
 router = APIRouter(tags=["Web"])
 templates = Jinja2Templates(directory="app/templates")
 

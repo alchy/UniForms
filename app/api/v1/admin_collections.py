@@ -5,6 +5,15 @@ import yaml
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# API endpointy pro admin správu kolekcí (YAML souborů). Vyžadují system_admin.
+# GET    /admin/collections/           – seznam všech souborů kolekcí.
+# GET    /admin/collections/{id}        – zdrojový YAML text kolekce.
+# PUT    /admin/collections/{id}        – uložení upraveného YAML kolekce.
+# POST   /admin/collections/            – vytvoření nového souboru kolekce.
+# DELETE /admin/collections/{id}        – smazání souboru kolekce.
+# ---------------------------------------------------------------------------
+
 import aiosqlite
 from app.core.database import get_db
 from app.core.security import require_admin

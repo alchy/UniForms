@@ -2,6 +2,13 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
+# ---------------------------------------------------------------------------
+# Pydantic model pro YAML šablonu (template).
+# UniTemplate je výsledek načtení a normalizace YAML souboru šablony přes
+# TemplateService. Umožňuje rozšiřující pole (extra="allow") pro doménová
+# metadata (např. mitre_tactic). Klíč `filename` se neplní z YAML, ale
+# doplňuje ho TemplateService při načtení ze souboru.
+# ---------------------------------------------------------------------------
 
 class UniTemplate(BaseModel):
     model_config = ConfigDict(extra="allow")  # templates may carry arbitrary extension fields

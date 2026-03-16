@@ -1,5 +1,11 @@
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# Pydantic modely pro konfiguraci kolekce (collection YAML soubor).
+# CollectionConfig je hlavní model načítaný ze souborů v collections_dir.
+# Zahrnuje workflow stavů, formát ID záznamu, sloupce seznamu, role,
+# terminologii, titulek záznamu a volitelné tlačítko Převzít (take_over).
+# ---------------------------------------------------------------------------
 
 class IdFormatConfig(BaseModel):
     prefix: str = "REC"

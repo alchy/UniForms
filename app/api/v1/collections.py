@@ -3,6 +3,12 @@ from pathlib import Path
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
 
+# ---------------------------------------------------------------------------
+# API endpointy pro kolekce.
+# GET /collections/          – seznam kolekcí přístupných přihlášenému uživateli.
+# GET /collections/{id}      – detail jedné kolekce (config, workflow, list_columns…).
+# ---------------------------------------------------------------------------
+
 from app.config import settings
 from app.core.database import get_db
 from app.core.security import require_auth

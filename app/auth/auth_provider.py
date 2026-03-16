@@ -3,6 +3,12 @@ from typing import Optional
 
 from app.models.user import User
 
+# ---------------------------------------------------------------------------
+# Abstraktní rozhraní autentizačního provideru.
+# Definuje kontrakt pro metody authenticate() a get_user().
+# Konkrétní implementace: SimpleAuthProvider (SQLite), LDAPProvider (stub),
+# OAuthProvider (stub). Přepnutí provideru se provádí v .env (AUTH_PROVIDER).
+# ---------------------------------------------------------------------------
 
 class AuthProvider(ABC):
     """

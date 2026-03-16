@@ -6,6 +6,12 @@ import aiosqlite
 from app.config import settings
 from app.core.security import hash_password
 
+# ---------------------------------------------------------------------------
+# Správa SQLite databáze.
+# Zajišťuje inicializaci schématu (tabulky users, settings, collection_roles),
+# seed prvního admin uživatele, migrace starých názvů rolí a FastAPI dependency
+# get_db(), která otevírá a zavírá spojení pro každý request.
+# ---------------------------------------------------------------------------
 
 # FastAPI dependency – poskytne DB spojeni pro jeden request a po skonceni ho uzavre
 async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:

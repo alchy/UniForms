@@ -10,6 +10,12 @@ from app.models.record import UniRecord, UpdateRecordRequest
 from app.models.template import UniTemplate
 from app.storage.base import StorageBackend
 
+# ---------------------------------------------------------------------------
+# Byznysová logika pro záznamy.
+# Zajišťuje generování ID záznamu dle formátu kolekce, vytváření záznamu
+# z šablony (klonování + doplnění auto_value polí), aktualizaci záznamu
+# (PATCH), správu workflow stavu a delegování CRUD operací na StorageBackend.
+# ---------------------------------------------------------------------------
 
 def _now_local_str() -> str:
     """Current time in configured timezone formatted as YYYY-MM-DDTHH:MM."""

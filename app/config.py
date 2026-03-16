@@ -5,6 +5,12 @@ import yaml
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
+# ---------------------------------------------------------------------------
+# Konfigurace aplikace načítaná ze dvou zdrojů:
+#   uniforms.yaml – doménová a UI konfigurace (branding, terminologie, workflow)
+#   .env          – tajné hodnoty a infrastrukturní nastavení (JWT, cesty, hesla)
+# Oba zdroje jsou načteny při startu a dostupné jako singletony `uniforms` a `settings`.
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # uniforms.yaml – domain / UI configuration

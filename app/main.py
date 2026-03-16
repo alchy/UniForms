@@ -11,6 +11,13 @@ from app.core.security import WebAdminRequired, WebLoginRequired
 from app.core.security_middleware import SecurityMiddleware
 from app.web import routes as web_routes
 
+# ---------------------------------------------------------------------------
+# Vstupní bod aplikace.
+# Inicializuje FastAPI instanci, registruje všechny API routery (prefix /api/v1)
+# a webové routy pro server-side rendering (Jinja2). Zajišťuje startup databáze,
+# připojení statických souborů a přesměrování při chybějícím přihlášení nebo
+# nedostatečném oprávnění.
+# ---------------------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
