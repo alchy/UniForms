@@ -53,18 +53,21 @@ terminology:
 workflow:
   initial_state: draft
   states:
-    - id: draft
-      label: "Rozpracovaná"
-      color: grey
-    - id: in_review
-      label: "V přípravě"
-      color: blue
-    - id: approved
-      label: "Schválená"
-      color: green
-    - id: archived
-      label: "Archivní"
-      color: black
+    - id: identified
+      label: "Identifikovaný zdroj dat"
+      color: secondary
+      
+    - id: accessible
+      label: "Přístupný zdroj dat"
+      color: primary
+      
+    - id: ingested
+      label: "Napojený zdroj dat"
+      color: success
+      
+    - id: deprecated
+      label: "Vyřazený zdroj dat"
+      color: dark
 
 # ── Formát ID záznamu ─────────────────────────────────────────────────────────
 #
