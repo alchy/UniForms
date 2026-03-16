@@ -21,13 +21,13 @@
             <li class="nav-item">
                 <a href="/records/{{ col.id }}"
                    class="nav-link {% if collection_id == col.id and active_section == 'records' %}active{% endif %}">
-                    <i class="bi bi-folder2-open me-2"></i>{{ term.records | capitalize }}
+                    <i class="bi bi-folder2-open me-2"></i>{{ col_term(col, 'records') | capitalize }}
                 </a>
             </li>
             <li class="nav-item">
                 <a href="/templates/{{ col.id }}"
                    class="nav-link {% if collection_id == col.id and active_section == 'templates' %}active{% endif %}">
-                    <i class="bi bi-file-earmark-text me-2"></i>{{ term.templates | capitalize }}
+                    <i class="bi bi-file-earmark-text me-2"></i>{{ col_term(col, 'templates') | capitalize }}
                 </a>
             </li>
         </ul>
