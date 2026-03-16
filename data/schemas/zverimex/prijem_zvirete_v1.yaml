@@ -26,7 +26,7 @@ sections:
 
   - id: zvirete
     title: Údaje o zvířeti
-    type: fields
+    type: form
     fields:
       - key: druh
         label: Druh zvířete
@@ -65,7 +65,7 @@ sections:
 
   - id: dodavatel
     title: Původ zvířete
-    type: fields
+    type: form
     fields:
       - key: zdroj
         label: Zdroj

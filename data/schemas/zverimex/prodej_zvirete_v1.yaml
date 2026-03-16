@@ -26,7 +26,7 @@ sections:
 
   - id: zvire
     title: Prodávané zvíře
-    type: fields
+    type: form
     fields:
       - key: druh
         label: Druh zvířete
@@ -50,7 +50,7 @@ sections:
 
   - id: zakaznik
     title: Zákazník
-    type: fields
+    type: form
     fields:
       - key: jmeno_zakaznika
         label: Jméno a příjmení
@@ -71,7 +71,7 @@ sections:
 
   - id: poznamky
     title: Doplňující informace
-    type: fields
+    type: form
     fields:
       - key: pribalene_zbozi
         label: Přibalené zboží / příslušenství

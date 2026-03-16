@@ -20,23 +20,20 @@
  *   UniForms.render(sections, container)           – render a form
  *   UniForms.registerRenderer(type, fn)            – register a custom section type
  *
- * Section types provided by this core file:
- *   header, form, checklist, table,
- *   section_group, contact_table, item_table, task_table
- *   (workbook_header, playbook_header, record_header, action_table, assets_table
- *    are kept as aliases for existing templates)
+ * Section types:
+ *   header        – read-only info grid + editable fields in a card header
+ *   form          – editable form fields in a card body
+ *   table         – editable table with per-column type/options/editable flags
+ *   checklist     – step groups with checkboxes and analyst notes
+ *   section_group – accordion container wrapping subsections
  *
- * v2 template schema features supported:
- *   - type: header   (generic header, alias for workbook_header)
- *   - type: table    (unified table with per-column type/options/editable)
+ * Template schema features:
  *   - auto: <source> fields (resolved by backend; rendered read-only)
  *   - visible_if: "field == 'value'"  (conditional field visibility)
  *   - required_if: "field == 'value'" (conditional required indicator)
  *   - placeholder: "..."              (UI hint, not saved as value)
  *   - flat steps: (resolved by backend into step_groups with null title)
- *
- * Domain-specific section types (e.g. classification, raci_table for SOC)
- * are provided by extension JS files loaded after this file.
+ *   - append_row_template: {}         (default values for user-added table rows)
  */
 
 const UniForms = (() => {
@@ -159,23 +156,11 @@ function applyConditionals(fields, container) {
 // ---------------------------------------------------------------------------
 
 const renderers = {
-    // v2 generic types
-    header:           renderHeader,
-    table:            renderTable,
-    // v1 type aliases (kept for existing templates)
-    workbook_header:  renderHeader,
-    playbook_header:  renderHeader,
-    record_header:    renderHeader,
-    contact_table:    renderContactTable,
-    item_table:       renderItemTable,
-    assets_table:     renderItemTable,
-    task_table:       renderTaskTable,
-    action_table:     renderTaskTable,
-    // shared types
-    section_group:    renderSectionGroup,
-    form:             renderFormSection,
-    fields:           renderFormSection,   // alias: type: fields → form
-    checklist:        renderChecklist,
+    header:        renderHeader,
+    form:          renderFormSection,
+    table:         renderTable,
+    checklist:     renderChecklist,
+    section_group: renderSectionGroup,
 };
 
 function renderSections(sections, container) {
@@ -387,7 +372,6 @@ function renderFormSection(section) {
 }
 
 // Header section – editable fields prominent, read-only auto fields as info grid
-// Handles: type: header (v2), workbook_header / playbook_header / record_header (v1)
 function renderHeader(section) {
     const wrap = el('div');
     const editableFields = (section.fields || []).filter(f => f.editable);
@@ -529,218 +513,11 @@ function renderTable(section) {
         const addBtn = el('button', 'btn btn-outline-secondary btn-sm mt-2',
             `<i class="bi bi-plus me-1"></i>${addLabel}`);
         addBtn.addEventListener('click', () => {
-            const newRow = { analyst_added: true };
-            cols.forEach(col => { newRow[col.key] = null; });
+            const newRow = Object.assign({}, section.append_row_template || {}, { analyst_added: true });
+            cols.forEach(col => { if (!(col.key in newRow)) newRow[col.key] = null; });
             if (!section.rows) section.rows = [];
             section.rows.push(newRow);
             tbody.appendChild(renderRow(newRow));
-        });
-        wrap.appendChild(addBtn);
-    }
-
-    return wrap;
-}
-
-// Contact table – predefined rows with selectively editable columns (v1)
-function renderContactTable(section) {
-    const wrap = el('div');
-    const tableWrap = el('div', 'table-responsive');
-    const table = el('table', 'table table-sm table-bordered mb-0');
-
-    table.appendChild(buildTableHead(section.columns || [], section.column_labels, section.allow_append));
-
-    const tbody = document.createElement('tbody');
-
-    const renderContactRow = (row) => {
-        const tr = document.createElement('tr');
-        (section.columns || []).forEach(col => {
-            const td = document.createElement('td');
-            const editable = row.analyst_added || (section.editable_columns || []).includes(col);
-            if (editable) {
-                const inp = el('input', 'form-control form-control-sm border-0 p-0');
-                inp.type = 'text';
-                inp.value = row[col] || '';
-                inp.placeholder = row[col + '_example'] || '';
-                inp.style.background = 'transparent';
-                inp.addEventListener('change', () => { row[col] = inp.value || null; });
-                td.appendChild(inp);
-            } else {
-                td.className = 'small align-middle';
-                td.textContent = row[col] || '–';
-            }
-            tr.appendChild(td);
-        });
-
-        if (section.allow_append) {
-            const delTd = document.createElement('td');
-            if (row.analyst_added) {
-                delTd.appendChild(makeDeleteBtn(() => {
-                    section.rows.splice(section.rows.indexOf(row), 1);
-                    tr.remove();
-                }));
-            }
-            tr.appendChild(delTd);
-        }
-        return tr;
-    };
-
-    (section.rows || []).forEach(row => tbody.appendChild(renderContactRow(row)));
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    wrap.appendChild(tableWrap);
-
-    if (section.allow_append) {
-        const addBtn = el('button', 'btn btn-outline-secondary btn-sm mt-2',
-            '<i class="bi bi-plus me-1"></i>Add row');
-        addBtn.addEventListener('click', () => {
-            const newRow = Object.assign({}, section.append_row_template || {}, { analyst_added: true });
-            if (!section.rows) section.rows = [];
-            section.rows.push(newRow);
-            tbody.appendChild(renderContactRow(newRow));
-        });
-        wrap.appendChild(addBtn);
-    }
-
-    return wrap;
-}
-
-// Item table – fully editable table with add/delete rows (v1 generic assets_table)
-function renderItemTable(section) {
-    const wrap = el('div');
-
-    if (section.hint) {
-        wrap.appendChild(el('div', 'alert alert-warning alert-sm py-2 small mb-3',
-            `<i class="bi bi-exclamation-triangle me-1"></i>${section.hint}`));
-    }
-
-    const tableWrap = el('div', 'table-responsive');
-    const table = el('table', 'table table-sm table-bordered mb-2');
-    table.appendChild(buildTableHead(section.columns || [], section.column_labels, true));
-
-    const tbody = document.createElement('tbody');
-    tbody.id = `items-body-${section.id}`;
-
-    const renderItemRow = (row) => {
-        const tr = document.createElement('tr');
-        (section.columns || []).forEach(col => {
-            const td = document.createElement('td');
-            const opts = section.column_options?.[col];
-            if (opts) {
-                const sel = el('select', 'form-select form-select-sm border-0');
-                buildOptions(sel, opts, row[col]);
-                sel.addEventListener('change', () => { row[col] = sel.value; });
-                td.appendChild(sel);
-            } else {
-                const inp = el('input', 'form-control form-control-sm border-0');
-                inp.type = 'text';
-                inp.value = row[col] || '';
-                inp.addEventListener('change', () => { row[col] = inp.value || null; });
-                td.appendChild(inp);
-            }
-            tr.appendChild(td);
-        });
-
-        const delTd = document.createElement('td');
-        delTd.appendChild(makeDeleteBtn(() => {
-            section.rows.splice(section.rows.indexOf(row), 1);
-            tr.remove();
-        }));
-        tr.appendChild(delTd);
-        return tr;
-    };
-
-    (section.rows || []).forEach(row => tbody.appendChild(renderItemRow(row)));
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    wrap.appendChild(tableWrap);
-
-    const addLabel = section.add_row_label || 'Add row';
-    const addBtn = el('button', 'btn btn-outline-secondary btn-sm',
-        `<i class="bi bi-plus me-1"></i>${addLabel}`);
-    addBtn.addEventListener('click', () => {
-        const newRow = {};
-        (section.columns || []).forEach(col => { newRow[col] = null; });
-        if (!section.rows) section.rows = [];
-        section.rows.push(newRow);
-        tbody.appendChild(renderItemRow(newRow));
-    });
-    wrap.appendChild(addBtn);
-    return wrap;
-}
-
-// Task table – table with status column (v1 action_table)
-function renderTaskTable(section) {
-    const wrap = el('div');
-    const tableWrap = el('div', 'table-responsive');
-    const table = el('table', 'table table-sm table-bordered mb-0');
-
-    const hasActions = section.allow_delete || section.allow_append;
-    table.appendChild(buildTableHead(section.columns || [], section.column_labels, hasActions));
-
-    const tbody = document.createElement('tbody');
-
-    const renderTaskRow = (row) => {
-        const tr = document.createElement('tr');
-        (section.columns || []).forEach(col => {
-            const td = el('td', 'small align-middle');
-            const statusCol = section.status_column || 'status';
-            const isStatus = col === statusCol && (section.editable_columns || []).includes(col) && section.status_options;
-
-            if (isStatus) {
-                const sel = el('select', 'form-select form-select-sm border-0');
-                const emptyOpt = document.createElement('option');
-                emptyOpt.value = ''; emptyOpt.textContent = '–';
-                sel.appendChild(emptyOpt);
-                buildOptions(sel, section.status_options, row[col]);
-                sel.addEventListener('change', () => { row[col] = sel.value || null; });
-                td.appendChild(sel);
-            } else if (row.analyst_added) {
-                const inp = el('input', 'form-control form-control-sm border-0 p-0');
-                inp.type = 'text';
-                inp.value = row[col] || '';
-                inp.style.background = 'transparent';
-                inp.addEventListener('change', () => { row[col] = inp.value || null; });
-                td.appendChild(inp);
-            } else {
-                td.textContent = row[col] || '–';
-            }
-            tr.appendChild(td);
-        });
-
-        if (hasActions) {
-            const delTd = el('td', 'align-middle text-center');
-            if (section.allow_delete || row.analyst_added) {
-                delTd.appendChild(makeDeleteBtn(() => {
-                    section.rows.splice(section.rows.indexOf(row), 1);
-                    tr.remove();
-                }));
-            }
-            tr.appendChild(delTd);
-        }
-        return tr;
-    };
-
-    (section.rows || []).forEach(row => tbody.appendChild(renderTaskRow(row)));
-    table.appendChild(tbody);
-    tableWrap.appendChild(table);
-    wrap.appendChild(tableWrap);
-
-    if (section.hints) {
-        section.hints.forEach(hint => {
-            wrap.appendChild(el('div', 'form-text text-secondary small mt-2',
-                `<i class="bi bi-info-circle me-1"></i>${hint}`));
-        });
-    }
-
-    if (section.allow_append) {
-        const addLabel = section.add_row_label || 'Add row';
-        const addBtn = el('button', 'btn btn-outline-secondary btn-sm mt-2',
-            `<i class="bi bi-plus me-1"></i>${addLabel}`);
-        addBtn.addEventListener('click', () => {
-            const newRow = Object.assign({}, section.append_row_template || {}, { analyst_added: true });
-            if (!section.rows) section.rows = [];
-            section.rows.push(newRow);
-            tbody.appendChild(renderTaskRow(newRow));
         });
         wrap.appendChild(addBtn);
     }

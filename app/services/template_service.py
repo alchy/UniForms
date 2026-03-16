@@ -83,21 +83,12 @@ def _norm_group(group: dict, idx: int, section_id: str) -> dict:
     return group
 
 
-_SECTION_TYPE_ALIASES = {
-    "fields": "form",
-}
-
-
 def _norm_section(section: dict, idx: int) -> dict:
     title = section.get("title", "")
     section_id = section.get("id") or _slugify(
         title or section.get("type", f"section_{idx + 1}")
     )
     section["id"] = section_id
-
-    # Normalize type aliases (e.g. "fields" → "form")
-    if section.get("type") in _SECTION_TYPE_ALIASES:
-        section["type"] = _SECTION_TYPE_ALIASES[section["type"]]
 
     if "fields" in section:
         section["fields"] = [_norm_field(f) for f in section["fields"]]

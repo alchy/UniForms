@@ -36,7 +36,6 @@ TemplateService.get_template()
            • Chybějící value  →  null
            • Flat steps:  →  step_groups: [{title: null, steps: [...]}]
            • Chybějící id sekce/kroku/skupiny  →  slugify z title
-           • Typ "fields"  →  "form" (aliasová kompatibilita)
     │
     ▼
 UniTemplate (normalizovaný objekt)
@@ -279,8 +278,6 @@ Dvousloupcová mřížka s libovolnými poli. Label je vlevo, vstupní pole vpra
 | `fields[]` | ✓ | Formulářová pole |
 | `hint` | | Modrý informační box nad formulářem |
 
-> **Poznámka:** Typ `fields` je alias pro `form` a funguje identicky. Nové šablony by měly používat `type: form`.
-
 ---
 
 ### `checklist` — kontrolní seznam
@@ -363,6 +360,10 @@ Ke každému kroku lze přidat `hint` (nápověda pod krokem) nebo `example` (vz
 
 Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append: true` přidá tlačítko pro nový řádek, `allow_delete: true` umožní řádky mazat.
 
+**`rows` vs. prázdná tabulka:** Klíč `rows` definuje řádky, které se do záznamu vloží hned při jeho vytvoření ze šablony. Jde tedy o *počáteční data záznamu* — nejsou to jen výchozí hodnoty ve formuláři, ale reálný obsah uložený do JSON. Pokud chceš, aby nový záznam vždy obsahoval jeden prázdný řádek (například jeden kontaktní slot), dej do `rows` jeden záznam s `null` hodnotami. Pokud chceš tabulku zcela prázdnou, napiš `rows: []` nebo klíč vynech.
+
+Uživatelem přidané řádky (tlačítko „+ Přidat řádek") dostávají hodnoty z `append_row_template`, pokud je definován — jinak mají všechna pole `null`. Klíč `append_row_template` tedy slouží k nastavení výchozích hodnot nově přidaných řádků (např. `status: "Nekontaktován"`).
+
 ```yaml
 - id: contacts
   title: Kontakty
@@ -390,11 +391,15 @@ Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append: 
       editable: true
       options: ["Nekontaktován", "Kontaktován", "Odpověděl"]
   rows:
+    # Jeden prázdný řádek při vytvoření záznamu – analytik ho okamžitě vidí a vyplní.
+    # Chceš-li tabulku prázdnou, napiš: rows: []
     - name: null
       role: null
       phone: null
       status: "Nekontaktován"
   append_row_template:
+    # Výchozí hodnoty pro každý řádek přidaný tlačítkem „+ Přidat řádek".
+    # Klíče nemusí pokrývat všechny sloupce – chybějící dostanou null.
     name: null
     role: null
     phone: null
@@ -407,10 +412,10 @@ Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append: 
 | `type` | ✓ | `"table"` |
 | `title` | ✓ | Nadpis karty |
 | `columns[]` | ✓ | Definice sloupců (viz níže) |
-| `rows[]` | | Počáteční řádky; prázdná tabulka: `rows: []` |
+| `rows[]` | | Počáteční řádky vložené do záznamu při jeho vytvoření; `rows: []` nebo absence = prázdná tabulka |
+| `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem; neuvedené klíče dostávají `null` |
 | `allow_append` | | `true` = tlačítko „+ Přidat řádek" (výchozí: `false`) |
 | `allow_delete` | | `true` = tlačítko pro smazání řádku (výchozí: `false`) |
-| `append_row_template{}` | ◐ | Šablona nového řádku; povinné pokud `allow_append: true` |
 | `hint` | | Modrý informační box nad tabulkou |
 | `hints[]` | | Seznam šedých textů pod tabulkou |
 
@@ -478,12 +483,7 @@ Sdružuje více logicky souvisejících sekcí pod jeden nadpis jako accordionov
           type: select
           editable: true
           options: ["Čeká", "Probíhá", "Hotovo"]
-      rows: []
-      append_row_template:
-        action: null
-        owner: null
-        due_date: null
-        status: "Čeká"
+      rows: []   # prázdná tabulka při vytvoření záznamu
 ```
 
 | Klíč | ✓ | Popis |
@@ -890,10 +890,10 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 | Klíč | ✓ | Popis |
 |------|:-:|-------|
 | `columns[]` | ✓ | Definice sloupců |
-| `rows[]` | | Počáteční řádky; prázdná tabulka: `rows: []` |
+| `rows[]` | | Počáteční řádky vložené do záznamu při vytvoření; `rows: []` = prázdná tabulka |
+| `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem tlačítkem „+ Přidat řádek" |
 | `allow_append` | | `true` = tlačítko pro přidání řádku |
 | `allow_delete` | | `true` = tlačítko pro smazání řádku |
-| `append_row_template{}` | ◐ | Povinné pokud `allow_append: true` |
 | `hints[]` | | Seznam šedých textů pod tabulkou |
 
 ### Sloupec tabulky (`column`)

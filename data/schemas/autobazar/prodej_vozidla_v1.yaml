@@ -26,7 +26,7 @@ sections:
 
   - id: vozidlo
     title: Prodávané vozidlo
-    type: fields
+    type: form
     fields:
       - key: znacka
         label: Značka a model
@@ -42,7 +42,7 @@ sections:
 
   - id: zakaznik
     title: Kupující
-    type: fields
+    type: form
     fields:
       - key: jmeno_zakaznika
         label: Jméno a příjmení
@@ -59,7 +59,7 @@ sections:
 
   - id: platba
     title: Platba a financování
-    type: fields
+    type: form
     fields:
       - key: zpusob_platby
         label: Způsob platby
@@ -80,7 +80,7 @@ sections:
 
   - id: poznamky
     title: Závěrečné poznámky
-    type: fields
+    type: form
     fields:
       - key: predate_klice
         label: Předány klíče

@@ -26,7 +26,7 @@ sections:
 
   - id: vozidlo
     title: Údaje o vozidle
-    type: fields
+    type: form
     fields:
       - key: znacka
         label: Značka
@@ -78,7 +78,7 @@ sections:
 
   - id: cena
     title: Ocenění
-    type: fields
+    type: form
     fields:
       - key: cena_vykupni_kc
         label: Výkupní cena (Kč)
@@ -89,7 +89,7 @@ sections:
 
   - id: stav
     title: Technický stav
-    type: fields
+    type: form
     fields:
       - key: stk_do
         label: STK platná do
@@ -105,7 +105,7 @@ sections:
 
   - id: prodejce
     title: Předchozí majitel
-    type: fields
+    type: form
     fields:
       - key: jmeno_prodejce
         label: Jméno a příjmení
