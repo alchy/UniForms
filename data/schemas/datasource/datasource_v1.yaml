@@ -1,0 +1,253 @@
+# Průvodka datového zdroje SOC – šablona v1.0
+#
+# Dokumentuje jeden logový zdroj napojený na SOC/SIEM.
+# Pokrývá: technické parametry přenosu, retenční politiku,
+# monitoring dostupnosti a přehled detekčních use cases.
+
+template_id: datasource-v1
+name: "Průvodka datového zdroje SOC"
+version: "1.0"
+category: "Data Source"
+status: active
+description: >
+  Průvodka pro dokumentaci datového zdroje napojovaného na SOC/SIEM.
+  Zachycuje technické parametry, retenční politiku, monitoring dostupnosti
+  a přehled detekčních use cases krytých tímto zdrojem.
+
+sections:
+
+  # ── Hlavička ────────────────────────────────────────────────────────────────
+
+  - id: header
+    title: "Hlavička"
+    type: header
+    fields:
+      - key: record_id
+        label: "ID průvodky"
+        auto: record_id
+
+      - key: source_name
+        label: "Název zdroje"
+        placeholder: "např. Windows Security Event Log – DC01"
+
+      - key: source_type
+        label: "Typ zdroje"
+        placeholder: "např. Windows Event Log, Syslog, NetFlow, API"
+
+      - key: data_classification
+        label: "Klasifikace citlivosti dat"
+        type: select
+        options:
+          - Public
+          - Internal
+          - Confidential
+          - Secret
+
+      - key: source_status
+        label: "Status zdroje"
+        type: select
+        options:
+          - Draft
+          - In Testing
+          - Active
+          - Inactive
+          - Deprecated
+
+      - key: data_owner_business
+        label: "Vlastník dat (business)"
+        placeholder: "Jméno nebo tým odpovědný za data ze strany businessu"
+
+      - key: record_owner
+        label: "Technický garant"
+        hint: "Technický garant přebírá zodpovědnost tlačítkem Převzít garanci."
+
+      - key: last_updated
+        label: "Datum poslední aktualizace"
+        auto: last_saved
+        editable: false
+
+      - key: sheet_version
+        label: "Verze listu"
+        auto: template_version
+        editable: false
+
+  # ── Obecný popis zdroje ─────────────────────────────────────────────────────
+
+  - id: general_description
+    title: "Obecný popis zdroje"
+    type: form
+    fields:
+      - key: description
+        label: "Obecný popis"
+        type: textarea
+        placeholder: "Stručný popis zdroje, jeho účelu a kontextu v infrastruktuře"
+
+      - key: fqdn_ip_list
+        label: "Seznam FQDN / IP zasílajících data"
+        type: textarea
+        placeholder: "dc01.corp.local (10.0.1.10)\ndc02.corp.local (10.0.1.11)"
+
+      - key: transfer_protocol
+        label: "Způsob přenosu (protokol)"
+        placeholder: "např. Syslog UDP, WEF (Windows Event Forwarding), Beats Agent"
+
+      - key: data_format
+        label: "Formát dat"
+        type: select
+        options:
+          - CEF
+          - Syslog
+          - JSON
+          - LEEF
+          - Raw
+          - Jiný
+
+      - key: normalization_parser
+        label: "Normalizace / Parser"
+        placeholder: "např. Windows Security Event Parser v2.1"
+
+      - key: source_timezone
+        label: "Časové pásmo zdroje (timezone)"
+        placeholder: "např. Europe/Prague, UTC"
+
+      - key: transfer_auth
+        label: "Autentizace přenosu"
+        placeholder: "např. TLS mutual auth, API key, anonymní"
+
+      - key: ingest_endpoint
+        label: "Ingest endpoint"
+        placeholder: "např. siem-ingest.corp.local:514"
+
+      - key: typical_eps
+        label: "Obvyklé EPS"
+        placeholder: "např. 500 EPS (špička 2 000 EPS)"
+
+      - key: typical_volume_per_day
+        label: "Obvyklý datový objem / den"
+        placeholder: "např. 2 GB / den"
+
+      - key: data_quality_score
+        label: "Data Quality skóre"
+        placeholder: "např. 4 / 5 – chybí pole src_ip u části událostí"
+
+      - key: notes
+        label: "Poznámky"
+        type: textarea
+
+      - key: related_tickets
+        label: "Související servisní požadavky"
+        placeholder: "např. SR-2025-0042, SR-2025-0071"
+
+  # ── Retenční politika ───────────────────────────────────────────────────────
+
+  - id: retention
+    title: "Retenční politika"
+    type: form
+    fields:
+      - key: retention_online_months
+        label: "Uchování dat online (měsíce)"
+        placeholder: "např. 12"
+
+      - key: retention_offline_months
+        label: "Uchování dat offline (měsíce)"
+        placeholder: "např. 84 (7 let)"
+
+      - key: required_capacity
+        label: "Požadovaná kapacita po dobu retence"
+        placeholder: "např. ~730 GB (online) + ~5 TB (offline)"
+
+      - key: legal_basis
+        label: "Právní / regulatorní základ retence"
+        type: textarea
+        placeholder: "např. NIS2 čl. 21, interní směrnice IS-07/2024"
+
+      - key: retention_approver
+        label: "Odpovědná osoba za schválení retence"
+        placeholder: "Jméno nebo funkce"
+
+  # ── Monitoring dostupnosti zdroje ───────────────────────────────────────────
+
+  - id: monitoring
+    title: "Monitoring dostupnosti zdroje"
+    type: form
+    fields:
+      - key: monitoring_enabled
+        label: "Monitoring příjmu dat"
+        type: select
+        options:
+          - "Ano"
+          - "Ne"
+
+      - key: alert_on_outage
+        label: "Alert při výpadku příjmu dat"
+        type: select
+        options:
+          - "Ano"
+          - "Ne"
+
+      - key: escalation_contact
+        label: "Kontakt pro eskalaci při výpadku"
+        placeholder: "např. noc@corp.local, +420 xxx xxx xxx"
+
+      - key: availability_sla
+        label: "SLA dostupnosti zdroje"
+        placeholder: "např. 99,5 % / měsíc, max. výpadek 4 h"
+
+  # ── Přehled detekčních use cases ────────────────────────────────────────────
+
+  - id: use_cases
+    title: "Přehled detekčních use cases"
+    type: table
+    allow_append_row: true
+    allow_delete_row: true
+    columns:
+      - key: uc_id
+        label: "ID use case"
+        editable: true
+      - key: event_description
+        label: "Popis události"
+        editable: true
+      - key: mitre_tactic
+        label: "MITRE Tactic"
+        editable: true
+      - key: mitre_technique
+        label: "MITRE Technique"
+        editable: true
+      - key: detection_method
+        label: "Způsob detekce"
+        type: select
+        editable: true
+        options:
+          - Signature
+          - Anomaly
+          - Threshold
+          - Correlation
+          - Threat Intel
+      - key: severity
+        label: "Závažnost"
+        type: select
+        editable: true
+        options:
+          - Critical
+          - High
+          - Medium
+          - Low
+      - key: playbook_ref
+        label: "Odkaz na playbook"
+        editable: true
+    append_row_template:
+      uc_id: ""
+      event_description: ""
+      mitre_tactic: ""
+      mitre_technique: ""
+      detection_method: ""
+      severity: ""
+      playbook_ref: ""
+    rows:
+      - uc_id: "UC-001"
+        event_description: ""
+        mitre_tactic: ""
+        mitre_technique: ""
+        detection_method: ""
+        severity: ""
+        playbook_ref: ""
