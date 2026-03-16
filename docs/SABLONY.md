@@ -360,9 +360,12 @@ Ke každému kroku lze přidat `hint` (nápověda pod krokem) nebo `example` (vz
 
 Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append: true` přidá tlačítko pro nový řádek, `allow_delete: true` umožní řádky mazat.
 
-**`rows` vs. prázdná tabulka:** Klíč `rows` definuje řádky, které se do záznamu vloží hned při jeho vytvoření ze šablony. Jde tedy o *počáteční data záznamu* — nejsou to jen výchozí hodnoty ve formuláři, ale reálný obsah uložený do JSON. Pokud chceš, aby nový záznam vždy obsahoval jeden prázdný řádek (například jeden kontaktní slot), dej do `rows` jeden záznam s `null` hodnotami. Pokud chceš tabulku zcela prázdnou, napiš `rows: []` nebo klíč vynech.
+Klíče `rows` a `append_row_template` slouží různým účelům a zpravidla **nepoužíváš oba najednou**:
 
-Uživatelem přidané řádky (tlačítko „+ Přidat řádek") dostávají hodnoty z `append_row_template`, pokud je definován — jinak mají všechna pole `null`. Klíč `append_row_template` tedy slouží k nastavení výchozích hodnot nově přidaných řádků (např. `status: "Nekontaktován"`).
+- **`rows`** — řádky vložené do záznamu při jeho *vytvoření* ze šablony. Jsou součástí uloženého JSON a analytik je vidí okamžitě. Použij, když potřebuješ tabulku s předvyplněnými daty (např. známé kontakty ze šablony).
+- **`append_row_template`** — vzor pro řádky přidané uživatelem tlačítkem „+ Přidat řádek". Určuje výchozí hodnoty nového řádku (chybějící klíče = `null`). Použij, když chceš tabulku prázdnou, ale nové řádky mají mít rozumné výchozí hodnoty (např. `status: "Nekontaktován"`).
+
+Kombinace dává smysl jen tehdy, když počáteční řádky mají *jiný obsah* než šablona pro nové — například šablona předvyplní koordinátora projektu, zatímco nové řádky jsou prázdné.
 
 ```yaml
 - id: contacts
@@ -390,20 +393,9 @@ Uživatelem přidané řádky (tlačítko „+ Přidat řádek") dostávají hod
       type: select
       editable: true
       options: ["Nekontaktován", "Kontaktován", "Odpověděl"]
-  rows:
-    # Jeden prázdný řádek při vytvoření záznamu – analytik ho okamžitě vidí a vyplní.
-    # Chceš-li tabulku prázdnou, napiš: rows: []
-    - name: null
-      role: null
-      phone: null
-      status: "Nekontaktován"
+  rows: []   # tabulka začíná prázdná
   append_row_template:
-    # Výchozí hodnoty pro každý řádek přidaný tlačítkem „+ Přidat řádek".
-    # Klíče nemusí pokrývat všechny sloupce – chybějící dostanou null.
-    name: null
-    role: null
-    phone: null
-    status: "Nekontaktován"
+    status: "Nekontaktován"   # jediná výchozí hodnota; ostatní sloupce = null
 ```
 
 | Klíč | ✓ | Popis |
