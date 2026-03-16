@@ -55,16 +55,16 @@ workflow:
   states:
     - id: draft
       label: "Rozpracovaná"
-      color: secondary
+      color: grey
     - id: in_review
       label: "V přípravě"
-      color: warning
+      color: blue
     - id: approved
       label: "Schválená"
-      color: success
+      color: green
     - id: archived
       label: "Archivní"
-      color: dark
+      color: black
 
 # ── Formát ID záznamu ─────────────────────────────────────────────────────────
 #
