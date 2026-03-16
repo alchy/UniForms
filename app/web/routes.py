@@ -1,5 +1,6 @@
 import aiosqlite
 import jwt
+from pathlib import Path
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -50,7 +51,7 @@ def _extension_js(request: Request) -> list[str]:
     js_urls = []
     for ext in get_extensions():
         for js_file in ext.js_files:
-            js_urls.append(f"/extensions/{ext.id}/js/{js_file.lstrip('js/').lstrip('/')}")
+            js_urls.append(f"/extensions/{ext.id}/js/{Path(js_file).name}")
     return js_urls
 
 
