@@ -57,9 +57,13 @@ sections:
         label: "Vlastník dat (business)"
         placeholder: "Jméno nebo tým odpovědný za data ze strany businessu"
 
+      - key: garant
+        label: "Garant"
+        placeholder: "Technický garant datového zdroje"
+
       - key: record_owner
-        label: "Technický garant"
-        hint: "Technický garant přebírá zodpovědnost tlačítkem Převzít garanci."
+        label: "Vlastník průvodky"
+        hint: "Vlastník průvodky přebírá správu záznamu tlačítkem Převzít vlastnictví."
 
       - key: last_updated
         label: "Datum poslední aktualizace"

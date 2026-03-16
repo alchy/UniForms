@@ -36,8 +36,8 @@ terminology:
   templates_subtitle: "Dostupné šablony"
   dashboard_subtitle: "Přehled datových zdrojů"
   new_record_btn: "Nová průvodka"
-  record_owner_label: "Technický garant"
-  take_over_btn: "Převzít garanci"
+  record_owner_label: "Vlastník průvodky"
+  take_over_btn: "Převzít vlastnictví"
   status_active: "Aktivní"
   status_draft: "Rozpracovaná"
   status_deprecated: "Archivní"
@@ -96,7 +96,7 @@ list_columns:
   - key: source_status
     label: "Status zdroje"
   - key: record_owner
-    label: "Technický garant"
+    label: "Vlastník průvodky"
 
 # ── Role v kolekci ────────────────────────────────────────────────────────────
 #
