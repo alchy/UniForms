@@ -25,7 +25,7 @@ terminology:
 
   # Action buttons
   new_record_btn: "New Record"       # button label on templates list
-  coordinator_label: "Coordinator"   # field label for the responsible person
+  record_owner_label: "Record Owner"  # label for the record owner / responsible person field
   take_over_btn: "Take Over"         # button to assign a record to yourself
 
   # Status labels (shown as badges on template cards)
@@ -97,7 +97,7 @@ extensions: []
 #   templates_subtitle: "Available request types"
 #   dashboard_subtitle: "Ticket overview"
 #   new_record_btn: "New Ticket"
-#   coordinator_label: "Assigned To"
+#   record_owner_label: "Assigned To"
 #   take_over_btn: "Assign to Me"
 #   status_active: "Published"
 #   status_draft: "Draft"
@@ -150,7 +150,7 @@ extensions: []
 #   templates_subtitle: "Available SOC workbooks"
 #   dashboard_subtitle: "Incident overview"
 #   new_record_btn: "New Incident"
-#   coordinator_label: "Incident Coordinator"
+#   record_owner_label: "Incident Coordinator"
 #   take_over_btn: "Take Over"
 #   status_active: "Active"
 #   status_draft: "Draft"

@@ -53,7 +53,7 @@ class CollectionConfig(BaseModel):
     terminology: dict[str, str] = {}
     workflow: CollectionWorkflow = CollectionWorkflow()
     list_columns: list[ListColumn] = [
-        ListColumn(key="coordinator", label="Coordinator"),
+        ListColumn(key="record_owner", label="Record Owner"),
     ]
     id_format: IdFormatConfig = IdFormatConfig()
     roles: list[CollectionRole] = [

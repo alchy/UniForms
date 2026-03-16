@@ -26,7 +26,7 @@ class TerminologyConfig(BaseModel):
 
     # Action buttons
     new_record_btn: str = "New Record"
-    coordinator_label: str = "Coordinator"
+    record_owner_label: str = "Record Owner"
     take_over_btn: str = "Take Over"
 
     # Template / record status labels

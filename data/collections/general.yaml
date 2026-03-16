@@ -68,8 +68,8 @@ id_format:
 # label – záhlaví sloupce v UI
 
 list_columns:
-  - key: coordinator
-    label: Coordinator
+  - key: record_owner
+    label: Record Owner
 
 # ── Role v kolekci ────────────────────────────────────────────────────────────
 #
@@ -105,5 +105,5 @@ title_field: title
 # Pokud sekci take_over vynecháš, tlačítko se vůbec nezobrazí.
 
 take_over:
-  field: coordinator
+  field: record_owner
   value_type: username

@@ -167,7 +167,7 @@ terminology:
   template: "template"
   templates: "templates"
   new_record_btn: "New Record"
-  coordinator_label: "Coordinator"
+  record_owner_label: "Coordinator"
   take_over_btn: "Take Over"
   status_active: "Active"
   status_draft: "Draft"

@@ -35,7 +35,7 @@ sections:
         hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
         placeholder: 'Kompromitace účtu – přihlášení z neznámé IP (RU) · uživatel: novak@firma.cz · MFA změněno bez vědomí uživatele'
       - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
-      - key: incident_coordinator
+      - key: record_owner
         label: Koordinátor incidentu (CSIRT – L2)
         hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
 

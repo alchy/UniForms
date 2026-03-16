@@ -58,7 +58,7 @@ id_format:
   format: "{prefix}-{YYYYMM}-{rand:04d}"
 
 list_columns:
-  - key: coordinator
+  - key: record_owner
     label: Zodpovědná osoba
 
 roles:
@@ -222,7 +222,7 @@ Záznam
     └── sections
         ├── section_1 (type: header)
         │   └── fields
-        │       └── {key: "coordinator", value: "jan.novak"}  ← nalezeno
+        │       └── {key: "record_owner", value: "jan.novak"}  ← nalezeno
         ├── section_2 (type: form)
         │   └── fields
         │       └── {key: "case_title", value: "BEC útok"}    ← nalezeno
@@ -238,7 +238,7 @@ Aplikace prohledá všechny sekce záznamu (včetně `step_groups`) a vrátí pr
 list_columns:
   - key: case_title
     label: "Popis události"
-  - key: incident_coordinator
+  - key: record_owner
     label: "Koordinátor CSIRT"
 ```
 
@@ -301,7 +301,7 @@ Pokud `take_over` chybí nebo je `null`, tlačítko se na stránce detailu nezob
 
 ```yaml
 take_over:
-  field: incident_coordinator
+  field: record_owner
   value_type: username
 ```
 
@@ -334,7 +334,7 @@ Přepisovatelné klíče:
 | `templates_subtitle` | `Available templates` | Podtitulek stránky seznamu šablon. |
 | `dashboard_subtitle` | `Overview` | Podtitulek dashboardu. |
 | `new_record_btn` | `New Record` | Text tlačítka pro vytvoření nového záznamu. |
-| `coordinator_label` | `Coordinator` | Záhlaví sloupce koordinátora. |
+| `record_owner_label` | `Coordinator` | Záhlaví sloupce koordinátora. |
 | `take_over_btn` | `Take Over` | Text tlačítka Převzít. |
 | `status_active` | `Active` | Název stavu šablony „aktivní". |
 | `status_draft` | `Draft` | Název stavu šablony „rozpracovaná". |
@@ -351,7 +351,7 @@ terminology:
   templates_subtitle: "Dostupné playbooks"
   dashboard_subtitle: "Přehled incidentů"
   new_record_btn: "Nový UIB"
-  coordinator_label: "Koordinátor CSIRT"
+  record_owner_label: "Koordinátor CSIRT"
   take_over_btn: "Převzít"
   status_active: "Aktivní"
   status_draft: "Rozpracovaný"
@@ -450,7 +450,7 @@ Přehled všech klíčů konfiguračního souboru kolekce.
 | `workflow.states[].id` | ✓ | string | — | Interní identifikátor stavu. |
 | `workflow.states[].label` | ✓ | string | — | Zobrazovaný název stavu. |
 | `workflow.states[].color` | ✓ | string | `secondary` | Bootstrap barva stavu. |
-| `list_columns` | ✓ | list | (coordinator) | Sloupce v seznamu záznamů. |
+| `list_columns` | ✓ | list | (record_owner) | Sloupce v seznamu záznamů. |
 | `list_columns[].key` | ✓ | string | — | Klíč pole záznamu. |
 | `list_columns[].label` | ✓ | string | — | Záhlaví sloupce. |
 | `id_format.prefix` | | string | `REC` | Textový prefix ID. |

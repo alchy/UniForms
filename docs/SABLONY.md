@@ -93,7 +93,7 @@ sections:
       - key: title
         label: Název požadavku
         placeholder: 'např.: Tiskárna offline – budova B'
-      - key: coordinator
+      - key: record_owner
         label: Řešitel
 
   - id: details
@@ -185,7 +185,7 @@ Povinná první sekce každé šablony. Zobrazí se jako info-grid: automaticky 
       editable: true
       placeholder: Krátký výstižný popis pro odlišení od ostatních záznamů
       value: null
-    - key: coordinator
+    - key: record_owner
       label: Koordinátor
       type: text
       editable: true
@@ -763,7 +763,7 @@ sections:
         type: text
         editable: true
         value: null
-      - key: coordinator
+      - key: record_owner
         label: Koordinátor
         type: text
         editable: true

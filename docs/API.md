@@ -238,7 +238,7 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/collections/
     },
     "list_columns": [
       { "key": "title",       "label": "Název"       },
-      { "key": "coordinator", "label": "Koordinátor" }
+      { "key": "record_owner", "label": "Koordinátor" }
     ],
     "id_format": {
       "prefix": "SOC",

@@ -35,7 +35,7 @@ terminology:
   templates_subtitle: "Dostupné workbooky"
   dashboard_subtitle: "Přehled UIB"
   new_record_btn: "Nová UIB"
-  coordinator_label: "Koordinátor CSIRT"
+  record_owner_label: "Koordinátor CSIRT"
   take_over_btn: "Převzít"
   status_active: "Aktivní"
   status_draft: "Rozpracovaný"
@@ -95,7 +95,7 @@ id_format:
 list_columns:
   - key: case_title
     label: "Popis události"
-  - key: incident_coordinator
+  - key: record_owner
     label: "Koordinátor CSIRT"
 
 # ── Role v kolekci ────────────────────────────────────────────────────────────
@@ -132,5 +132,5 @@ title_field: case_title
 # Pokud sekci take_over vynecháš, tlačítko se vůbec nezobrazí.
 
 take_over:
-  field: incident_coordinator
+  field: record_owner
   value_type: username

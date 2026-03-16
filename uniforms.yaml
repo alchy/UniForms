@@ -16,7 +16,7 @@ terminology:
 
   # Action buttons
   new_record_btn: "New Record"
-  coordinator_label: "Coordinator"
+  record_owner_label: "Record Owner"
   take_over_btn: "Take Over"
 
   # Status labels

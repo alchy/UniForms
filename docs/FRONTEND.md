@@ -189,7 +189,7 @@ Render tabulky
 | 2 | ID záznamu | `record.id` |
 | 3 | Název | `getFieldValue(record, title_field)` |
 | 4 | Šablona | `record.template_name` |
-| 5 | Řešitel | `getFieldValue(record, "coordinator")` |
+| 5 | Řešitel | `getFieldValue(record, "record_owner")` |
 | 6 | Zámek | `record.locked_by` |
 | 7 | *(skrytý)* | priorita stavu pro řazení (1–N) |
 | 8 | Akce | Tisk, Otevřít; admin: Odemknout, Smazat |
