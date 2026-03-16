@@ -32,9 +32,9 @@ description: >
 terminology:
   record_id_label: "ID UIB"
   records_subtitle: "Všechny incidenty"
-  templates_subtitle: "Dostupné playbooks"
-  dashboard_subtitle: "Přehled incidentů"
-  new_record_btn: "Nový UIB"
+  templates_subtitle: "Dostupné playbooky"
+  dashboard_subtitle: "Přehled UIB"
+  new_record_btn: "Nová UIB"
   coordinator_label: "Koordinátor CSIRT"
   take_over_btn: "Převzít"
   status_active: "Aktivní"
