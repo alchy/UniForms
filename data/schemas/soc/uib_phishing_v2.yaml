@@ -81,7 +81,7 @@ sections:
       - {key: email,           label: "E-mail",          type: text, editable: true}
       - {key: phone,           label: "Telefon",         type: text, editable: true}
       - {key: when_to_contact, label: "Kdy kontaktovat", type: text, editable: false}
-    allow_append: true
+    allow_append_row: true
     rows:
       - system_role: L1 ITS (Service Desk H24)
         name: ITS Service Desk
@@ -533,7 +533,7 @@ sections:
           - Čeká
           - N/A
           - Není nutné provést
-    allow_append: false
+    allow_append_row: false
     rows:
       - phase: A
         action: Blokace odesílající domény a e-mailové adresy na M365 (Transport rule / Tenant Block List)
@@ -625,8 +625,8 @@ sections:
           - Čeká
           - N/A
           - Není nutné provést
-    allow_append: true
-    allow_delete: true
+    allow_append_row: true
+    allow_delete_row: true
     rows: []
 
   - id: communication

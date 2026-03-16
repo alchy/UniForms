@@ -91,7 +91,7 @@ Nepiš fragmenty (žádné `...` nebo `// zbytek`). Pokud je příklad dlouhý, 
 
 Tabulka se třemi sloupci: `Klíč | ✓ | Popis`.
 Sloupec `✓` označuje povinné klíče; volitelné jsou prázdné.
-Pro podmíněně povinné (např. „povinný pokud `allow_append: true`") použij `◐`.
+Pro podmíněně povinné (např. „povinný pokud `allow_append_row: true`") použij `◐`.
 
 ```markdown
 | Klíč | ✓ | Popis |
@@ -100,7 +100,7 @@ Pro podmíněně povinné (např. „povinný pokud `allow_append: true`") použ
 | `type` | ✓ | `"form"` |
 | `fields[]` | ✓ | Formulářová pole |
 | `hint` | | Modrý informační box nad formulářem |
-| `append_row_template{}` | ◐ | Povinný pokud `allow_append: true` |
+| `append_row_template{}` | ◐ | Povinný pokud `allow_append_row: true` |
 ```
 
 ---

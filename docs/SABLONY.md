@@ -358,7 +358,7 @@ Ke každému kroku lze přidat `hint` (nápověda pod krokem) nebo `example` (vz
 
 ### `table` — tabulka
 
-Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append: true` přidá tlačítko pro nový řádek, `allow_delete: true` umožní řádky mazat.
+Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append_row: true` přidá tlačítko pro nový řádek, `allow_delete_row: true` umožní řádky mazat.
 
 `rows` a `append_row_template` slouží různým fázím — jsou to **nezávislé klíče, ne alternativy**:
 
@@ -369,12 +369,12 @@ Typické použití — **vyber jeden ze tří vzorů**:
 
 ```yaml
 # 1. Prázdná tabulka, nové řádky mají výchozí hodnoty (nejčastější)
-allow_append: true
+allow_append_row: true
 append_row_template:
   status: "Nekontaktován"
 
 # 2. Tabulka s předvyplněnými řádky ze šablony, nové řádky prázdné
-allow_append: true
+allow_append_row: true
 rows:
   - name: "Jan Novák"
     role: "Primární kontakt"
@@ -382,7 +382,7 @@ rows:
     status: "Nekontaktován"
 
 # 3. Předvyplněné řádky i výchozí hodnoty pro nové (výjimečné)
-allow_append: true
+allow_append_row: true
 rows:
   - name: "Jan Novák"
     role: "Primární kontakt"
@@ -399,8 +399,8 @@ Plný příklad sekce (vzor 1):
   title: Kontakty
   type: table
   hint: "Primární a záložní kontakty pro tento incident."
-  allow_append: true
-  allow_delete: true
+  allow_append_row: true
+  allow_delete_row: true
   columns:
     - key: name
       label: Jméno
@@ -432,8 +432,8 @@ Plný příklad sekce (vzor 1):
 | `columns[]` | ✓ | Definice sloupců (viz níže) |
 | `rows[]` | | Počáteční řádky vložené do záznamu při jeho vytvoření; vynechání = prázdná tabulka |
 | `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem; neuvedené klíče = `null` |
-| `allow_append` | | `true` = tlačítko „+ Přidat řádek" (výchozí: `false`) |
-| `allow_delete` | | `true` = tlačítko pro smazání řádku (výchozí: `false`) |
+| `allow_append_row` | | `true` = tlačítko „+ Přidat řádek" (výchozí: `false`) |
+| `allow_delete_row` | | `true` = tlačítko pro smazání řádku (výchozí: `false`) |
 | `hint` | | Modrý informační box nad tabulkou |
 | `hints[]` | | Seznam šedých textů pod tabulkou |
 
@@ -481,8 +481,8 @@ Sdružuje více logicky souvisejících sekcí pod jeden nadpis jako accordionov
     - id: action_items
       type: table
       title: Akční body
-      allow_append: true
-      allow_delete: true
+      allow_append_row: true
+      allow_delete_row: true
       columns:
         - key: action
           label: Akce
@@ -910,8 +910,8 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 | `columns[]` | ✓ | Definice sloupců |
 | `rows[]` | | Počáteční řádky vložené do záznamu při vytvoření; vynechání = prázdná tabulka (`rows: []` nepište) |
 | `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem tlačítkem „+ Přidat řádek" |
-| `allow_append` | | `true` = tlačítko pro přidání řádku |
-| `allow_delete` | | `true` = tlačítko pro smazání řádku |
+| `allow_append_row` | | `true` = tlačítko pro přidání řádku |
+| `allow_delete_row` | | `true` = tlačítko pro smazání řádku |
 | `hints[]` | | Seznam šedých textů pod tabulkou |
 
 ### Sloupec tabulky (`column`)

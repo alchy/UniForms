@@ -431,7 +431,7 @@ function normalizeColumns(section) {
  */
 function renderTable(section) {
     const cols = normalizeColumns(section);
-    const hasActions = section.allow_delete || section.allow_append;
+    const hasActions = section.allow_delete_row || section.allow_append_row;
 
     const thead = document.createElement('thead');
     const headTr = document.createElement('tr');
@@ -471,7 +471,7 @@ function renderTable(section) {
 
         if (hasActions) {
             const delTd = el('td', 'align-middle text-center');
-            if (section.allow_delete || row.analyst_added) {
+            if (section.allow_delete_row || row.analyst_added) {
                 delTd.appendChild(makeDeleteBtn(() => {
                     section.rows.splice(section.rows.indexOf(row), 1);
                     tr.remove();
@@ -508,7 +508,7 @@ function renderTable(section) {
         });
     }
 
-    if (section.allow_append) {
+    if (section.allow_append_row) {
         const addLabel = section.add_row_label || 'Add row';
         const addBtn = el('button', 'btn btn-outline-secondary btn-sm mt-2',
             `<i class="bi bi-plus me-1"></i>${addLabel}`);

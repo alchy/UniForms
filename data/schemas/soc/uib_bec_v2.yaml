@@ -77,7 +77,7 @@ sections:
       - {key: email,           label: "E-mail",           type: text, editable: true}
       - {key: phone,           label: "Telefon",          type: text, editable: true}
       - {key: when_to_contact, label: "Kdy kontaktovat",  type: text, editable: false}
-    allow_append: true
+    allow_append_row: true
     rows:
       - system_role: L1 ITS (Service Desk H24)
         name: ITS Service Desk
@@ -259,8 +259,8 @@ sections:
           - {key: asset_type,        label: "Typ aktiva",        type: select, editable: true, options: ["Mailbox", "Finanční systém", "Informační systém", "Endpoint", "Sdílené úložiště", "Jiné aktivum"]}
           - {key: regulated_service, label: "Regulovaná služba", type: select, editable: true, options: ["Ne", "Ano"]}
           - {key: notes,             label: "Poznámky",          type: text,   editable: true}
-        allow_append: true
-        allow_delete: true
+        allow_append_row: true
+        allow_delete_row: true
         rows: []
 
   - id: l2_assessment
@@ -491,7 +491,7 @@ sections:
       - {key: responsible_role, label: "Zodpovědná role", type: text,   editable: false}
       - {key: cooperation,      label: "Součinnost",      type: text,   editable: false}
       - {key: status,           label: "Stav",            type: select, editable: true, options: ["Provedeno", "Probíhá", "Čeká", "N/A", "Není nutné provést"]}
-    allow_append: false
+    allow_append_row: false
     rows:
       - phase: A
         action: Blokace podvodné domény odesílatele na mail serveru / M365 (Transport rule / block list)
@@ -554,8 +554,8 @@ sections:
       - {key: action,      label: "Akce",       type: text,   editable: true}
       - {key: cooperation, label: "Součinnost",  type: text,   editable: true}
       - {key: status,      label: "Stav",        type: select, editable: true, options: ["Provedeno", "Probíhá", "Čeká", "N/A", "Není nutné provést"]}
-    allow_append: true
-    allow_delete: true
+    allow_append_row: true
+    allow_delete_row: true
     rows: []
 
   - id: communication
