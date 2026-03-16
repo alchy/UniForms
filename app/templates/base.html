@@ -76,9 +76,6 @@ const TERM = {
 </script>
 <script src="/static/js/main.js"></script>
 <script src="/static/js/uniforms.js"></script>
-{% for js_url in extension_js | default([]) %}
-<script src="{{ js_url }}"></script>
-{% endfor %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

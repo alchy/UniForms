@@ -4,12 +4,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pathlib import Path
 
 from app.config import uniforms, settings as app_settings
 from app.core.database import get_db
 from app.core.security import COOKIE_NAME, WebAdminRequired, WebLoginRequired, decode_token
-from app.extensions.loader import get_extensions
 from app.models.user import TokenPayload
 from app.services import collection_service
 from app.services.settings_service import get_all_settings, get_setting
@@ -44,15 +42,6 @@ def _get_user_from_cookie(request: Request) -> TokenPayload | None:
 # Prevede TokenPayload na slovnik pro Jinja2 kontext
 def _user_ctx(user: TokenPayload) -> dict:
     return {"username": user.sub, "role": user.role}
-
-
-# Sestavi seznam URL extension JS souboru pro vlozeni do stranek
-def _extension_js(request: Request) -> list[str]:
-    js_urls = []
-    for ext in get_extensions():
-        for js_file in ext.js_files:
-            js_urls.append(f"/extensions/{ext.id}/js/{Path(js_file).name}")
-    return js_urls
 
 
 # Nacte kolekce pristupne uzivateli pro sidebar; volitelne rozlisi aktualni kolekci
@@ -139,7 +128,6 @@ async def dashboard(
         "collections": sidebar["accessible_collections"],
         "active_section": "dashboard",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -158,7 +146,6 @@ async def records_list(
         "collection_id": collection_id,
         "active_section": "records",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -180,7 +167,6 @@ async def record_print(
         "print_mode": True,
         "active_section": "records",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -201,7 +187,6 @@ async def record_detail(
         "record_id": record_id,
         "active_section": "records",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -230,7 +215,6 @@ async def settings_page(
         "init_settings": init_settings,
         "active_section": "settings",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -247,7 +231,6 @@ async def admin_users_page(
         "user": _user_ctx(user),
         "active_section": "users",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -269,7 +252,6 @@ async def templates_list(
         "templates": tmpl_list,
         "active_section": "templates",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -292,7 +274,6 @@ async def template_editor_new(
         "clone_from": clone,
         "active_section": "templates",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -314,7 +295,6 @@ async def template_editor_edit(
         "template_id": template_id,
         "active_section": "templates",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -331,7 +311,6 @@ async def admin_collections_page(
         "user": _user_ctx(user),
         "active_section": "collections",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -350,7 +329,6 @@ async def admin_collection_editor_new(
         "collection_id": None,
         "active_section": "collections",
         **sidebar,
-        "extension_js": _extension_js(request),
     })
 
 
@@ -370,5 +348,4 @@ async def admin_collection_editor_edit(
         "collection_id": collection_id,
         "active_section": "collections",
         **sidebar,
-        "extension_js": _extension_js(request),
     })

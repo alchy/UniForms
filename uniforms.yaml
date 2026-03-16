@@ -99,6 +99,3 @@ workflow:
       color: success
   initial_state: new
 
-extensions:
-  - id: soc
-    path: extensions/soc

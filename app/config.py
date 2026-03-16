@@ -109,17 +109,11 @@ class IdConfig(BaseModel):
     format: str = "{prefix}-{YYYYMM}-{rand:04d}"
 
 
-class ExtensionRef(BaseModel):
-    id: str
-    path: str
-
-
 class UniformsConfig(BaseModel):
     app: AppConfig = AppConfig()
     terminology: TerminologyConfig = TerminologyConfig()
     id: IdConfig = IdConfig()
     workflow: WorkflowConfig = WorkflowConfig()
-    extensions: list[ExtensionRef] = []
 
 
 def _load_uniforms_config() -> UniformsConfig:

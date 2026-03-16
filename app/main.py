@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
@@ -10,7 +9,6 @@ from app.config import settings as app_settings, uniforms
 from app.core.database import init_db
 from app.core.security import WebAdminRequired, WebLoginRequired
 from app.core.security_middleware import SecurityMiddleware
-from app.extensions.loader import load_extensions
 from app.web import routes as web_routes
 
 
@@ -18,18 +16,6 @@ from app.web import routes as web_routes
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     await init_db()
-    extensions = load_extensions(uniforms.extensions)
-
-    # Mount static files for each extension so their JS is served at
-    # /extensions/{ext_id}/static/
-    for ext in extensions:
-        static_dir = ext.path / "js"
-        if static_dir.exists():
-            app.mount(
-                f"/extensions/{ext.id}/js",
-                StaticFiles(directory=str(static_dir)),
-                name=f"ext_{ext.id}_js",
-            )
     yield
 
 
