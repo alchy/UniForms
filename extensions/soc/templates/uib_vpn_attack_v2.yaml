@@ -1,12 +1,12 @@
-# UIB – PLAYBOOK CSIRT: ÚTOK NA VPN / REMOTE ACCESS THREAT – v1.0
+# UIB – v2.0
+# PLAYBOOK CSIRT: ÚTOK NA VPN / REMOTE ACCESS THREAT
 # Zpracováno dle CSIRT Playbook Útok na VPN v1.2 / SM/25/0100/P5
-# Terminologie a postup odpovídají interním playbookům CSIRT.
 # Poznámka: tento workbook pokrývá neoprávněný přístup přes VPN (brute-force, zranitelnost, lateral movement).
 # Volumetrické DDoS útoky na VPN infrastrukturu řeší workbook ddos_vpn_v1 (DDoS útok na VPN).
 
-template_id: uib-vpn-attack-v1
+template_id: uib-vpn-attack-v2
 name: 'Útok na VPN / Remote Access Threat'
-version: '1.0'
+version: '2.0'
 category: Network
 status: active
 description: >
@@ -31,27 +31,29 @@ data_sources:
 sections:
 
   - id: header
-    type: workbook_header
+    type: header
     title: Hlavička
     fields:
       - key: case_title
         label: Stručný popis události
         hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
-        example: 'VPN brute-force – 4 800 neúspěšných pokusů z RU/CN IP za 2 h · 1 úspěšné přihlášení – servisní účet svc-backup'
+        placeholder: 'VPN brute-force – 4 800 neúspěšných pokusů z RU/CN IP za 2 h · 1 úspěšné přihlášení – servisní účet svc-backup'
       - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
       - key: incident_coordinator
         label: Koordinátor incidentu (CSIRT – L2)
         hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
 
   - id: classification
-    type: classification
+    type: form
     title: Klasifikace
     fields:
-      - {key: mitre_tactic, label: MITRE Tactic, editable: false, auto_value: template_mitre_tactic}
-      - {key: mitre_technique, label: MITRE Technique, editable: false, auto_value: template_mitre_technique}
+      - {key: mitre_tactic, label: MITRE Tactic, type: text, editable: false, auto_value: meta.mitre_tactic}
+      - {key: mitre_technique, label: MITRE Technique, type: text, editable: false, auto_value: meta.mitre_technique}
       - key: mitre_subtechnique
         label: MITRE Sub-technique / Typ útoku
         type: select
+        editable: true
+        value: null
         options:
           - T1110.001 – Password Guessing (cílený útok na konkrétní účty)
           - T1110.003 – Password Spraying (útok slabým heslem na velký počet účtů)
@@ -64,38 +66,26 @@ sections:
         hint: >
           Vyplň po Posouzení, až je znám typ útoku.
           Zneužití zranitelnosti VPN zařízení (T1190) nebo privilegovaný účet → ihned eskaluj na P1/P2 a aktivuj L3/S1.
-      - {key: data_sources, label: Doporučené zdroje dat pro investigaci, editable: false, auto_value: template_data_sources}
+      - key: data_sources
+        label: Doporučené zdroje dat pro investigaci
+        type: textarea
+        editable: false
+        auto_value: meta.data_sources
 
   - id: contacts
+    type: table
     title: Kontaktní matice
-    type: contact_table
     description: >
       Kontakty pro investigaci a eskalaci. Vyplň dle aktuální struktury organizace.
       L1 ITS předává Koordinátorovi CSIRT (L2) telefonicky nebo e-mailem.
       L1 neprovádí žádné technické zásahy, analýzy VPN logů, blokace IP ani odpojení spojení.
     columns:
-      - system_role
-      - name
-      - email
-      - phone
-      - when_to_contact
-    column_labels:
-      system_role: Systém / role
-      name: Jméno
-      email: E-mail
-      phone: Telefon
-      when_to_contact: Kdy kontaktovat
-    editable_columns:
-      - name
-      - email
-      - phone
+      - {key: system_role,     label: "Systém / role",   type: text, editable: false}
+      - {key: name,            label: "Jméno",           type: text, editable: true}
+      - {key: email,           label: "E-mail",          type: text, editable: true}
+      - {key: phone,           label: "Telefon",         type: text, editable: true}
+      - {key: when_to_contact, label: "Kdy kontaktovat", type: text, editable: false}
     allow_append: true
-    append_row_template:
-      system_role: null
-      name: null
-      email: null
-      phone: null
-      when_to_contact: null
     rows:
       - system_role: L1 ITS (Service Desk H24)
         name: ITS Service Desk
@@ -160,72 +150,71 @@ sections:
     title: 'Detekce a hlášení (L1 ITS)'
     type: section_group
     subsections:
-      - id: reported_by_person
-        title: Hlášeno zaměstnancem / osobou
+      - id: detection_report
+        title: Zdroj detekce a hlášení
         type: form
         note: 'L1 ITS – záznam dle SM/25/0100/P5'
-        condition: source_type == 'person'
         fields:
-          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, example: '2026-03-10T14:05'}
-          - {key: reporter_name, label: Jméno oznamovatele, example: Petr Marek}
-          - {key: reporter_department, label: Oddělení / organizační jednotka, example: Správa sítí}
-          - {key: reporter_contact, label: Kontakt (e-mail / telefon), example: 'marek@firma.cz / +420 XXX XXX XXX'}
+          - key: source_type
+            label: Zdroj detekce
+            type: select
+            options:
+              - Hlášení zaměstnancem / osobou
+              - Automatizovaná detekce
+          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, placeholder: '2026-03-10T14:05', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: reporter_name, label: Jméno oznamovatele, placeholder: 'Petr Marek', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: reporter_department, label: Oddělení / organizační jednotka, placeholder: 'Správa sítí', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: reporter_contact, label: Kontakt (e-mail / telefon), placeholder: 'marek@firma.cz / +420 XXX XXX XXX', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
           - key: description_by_reporter
             label: Popis události slovy oznamovatele
             type: textarea
-            example: >
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            placeholder: >
               SIEM vyhlásil alert na masivní počet neúspěšných VPN přihlášení ze zahraničních IP adres.
               Ve VPN logu vidím tisíce pokusů za poslední hodinu. Jeden účet se zdá, že se přihlásil úspěšně.
-      - id: automated_detection
-        title: Automatizovaná detekce
-        type: form
-        note: 'L1 ITS – záznam dle SM/25/0100/P5'
-        condition: source_type == 'automated'
-        fields:
-          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, example: '2026-03-10T13:58'}
-          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, example: 'SIEM – pravidlo VPN_BRUTEFORCE_THRESHOLD (>500 failed/h)'}
-          - {key: alert_id, label: ID alertu / Identifikace pravidla}
-          - {key: affected_asset_auto, label: 'Postižené aktivum (VPN GW hostname / IP)', example: 'vpn-gw.firma.cz · 203.0.113.10'}
+          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, placeholder: '2026-03-10T13:58', visible_if: "source_type == 'Automatizovaná detekce'"}
+          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, placeholder: 'SIEM – pravidlo VPN_BRUTEFORCE_THRESHOLD (>500 failed/h)', visible_if: "source_type == 'Automatizovaná detekce'"}
+          - {key: alert_id, label: ID alertu / Identifikace pravidla, visible_if: "source_type == 'Automatizovaná detekce'"}
+          - {key: affected_asset_auto, label: 'Postižené aktivum (VPN GW hostname / IP)', placeholder: 'vpn-gw.firma.cz · 203.0.113.10', visible_if: "source_type == 'Automatizovaná detekce'"}
           - key: alert_description
             label: Popis alertu
             type: textarea
-            example: >
+            visible_if: "source_type == 'Automatizovaná detekce'"
+            placeholder: >
               4 820 neúspěšných pokusů o VPN přihlášení za 2 hodiny ze zdrojových IP v RU, CN a UA.
               1 úspěšné přihlášení servisního účtu svc-backup z IP 185.xxx.xxx.xxx (RU) v 13:47.
       - id: affected_assets
         title: Dotčená aktiva
-        type: assets_table
+        type: table
         note: 'Průběžně doplňuj při každém rozšíření scope'
         hint: >
           Pokud je VPN brána nebo infrastruktura za ní součástí regulované služby → ihned informuj CISO.<br><br>
           Do pole Poznámky uveď klíčová zjištění (zdrojové IP, dotčený účet, stav VPN session, CVE číslo).
         always_expanded: true
         columns:
-          - asset_name
-          - fqdn
-          - asset_ip
-          - asset_type
-          - regulated_service
-          - notes
-        column_labels:
-          asset_name: Název aktiva
-          fqdn: FQDN
-          asset_ip: IP / Netmask
-          asset_type: Typ aktiva
-          regulated_service: Regulovaná služba
-          notes: Poznámky
-        column_options:
-          asset_type:
-            - VPN brána
-            - Firewall / NGFW
-            - Síťový prvek
-            - Server
-            - Endpoint
-            - Informační systém
-            - Jiné aktivum
-          regulated_service:
-            - Ne
-            - Ano
+          - {key: asset_name,       label: "Název aktiva",       type: text,   editable: true}
+          - {key: fqdn,             label: "FQDN",               type: text,   editable: true}
+          - {key: asset_ip,         label: "IP / Netmask",       type: text,   editable: true}
+          - key: asset_type
+            label: "Typ aktiva"
+            type: select
+            editable: true
+            options:
+              - VPN brána
+              - Firewall / NGFW
+              - Síťový prvek
+              - Server
+              - Endpoint
+              - Informační systém
+              - Jiné aktivum
+          - key: regulated_service
+            label: "Regulovaná služba"
+            type: select
+            editable: true
+            options:
+              - Ne
+              - Ano
+          - {key: notes,            label: "Poznámky",           type: text,   editable: true}
         editable: true
         rows: []
 
@@ -252,7 +241,7 @@ sections:
             hint: >
               Zneužití zranitelnosti VPN zařízení → ihned aktivuj L3/S1 a eskaluj MKB / CISO.
               Úspěšné přihlášení privilegovaného účtu → P1/P2.
-          - key: successful_login_confirmed
+          - key: access_confirmed
             label: Bylo potvrzeno úspěšné přihlášení útočníkem?
             type: select
             options:
@@ -541,30 +530,25 @@ sections:
 
   - id: containment_remediation
     title: 'Odezva – checklist'
-    type: action_table
+    type: table
     description: >
       Zaznamenej u každé akce zodpovědnou roli a aktuální stav. Pokud akce není relevantní, napiš N/A.
       Technické zásahy provádí administrátoři výhradně na pokyn Koordinátora CSIRT.
     columns:
-      - phase
-      - action
-      - responsible_role
-      - cooperation
-      - status
-    column_labels:
-      phase: Fáze
-      action: Akce
-      responsible_role: Zodpovědná role
-      cooperation: Součinnost
-      status: Stav
-    status_options:
-      - Provedeno
-      - Probíhá
-      - Čeká
-      - N/A
-      - Není nutné provést
-    editable_columns:
-      - status
+      - {key: phase,            label: "Fáze",             type: text,   editable: false}
+      - {key: action,           label: "Akce",             type: text,   editable: false}
+      - {key: responsible_role, label: "Zodpovědná role",  type: text,   editable: false}
+      - {key: cooperation,      label: "Součinnost",       type: text,   editable: false}
+      - key: status
+        label: "Stav"
+        type: select
+        editable: true
+        options:
+          - Provedeno
+          - Probíhá
+          - Čeká
+          - N/A
+          - Není nutné provést
     allow_append: false
     rows:
       - phase: A
@@ -635,53 +619,39 @@ sections:
 
   - id: additional_actions
     title: 'Odezva – dodatečné kroky'
-    type: action_table
+    type: table
     description: >
       Prostor pro zaznamenání kroků nad rámec standardního checklistu.
       Vyplní Koordinátor CSIRT nebo analytik dle potřeby.
     columns:
-      - action
-      - cooperation
-      - status
-    column_labels:
-      action: Akce
-      cooperation: Součinnost
-      status: Stav
-    status_options:
-      - Provedeno
-      - Probíhá
-      - Čeká
-      - N/A
-      - Není nutné provést
-    editable_columns:
-      - status
+      - {key: action,      label: "Akce",       type: text, editable: true}
+      - {key: cooperation, label: "Součinnost",  type: text, editable: true}
+      - key: status
+        label: "Stav"
+        type: select
+        editable: true
+        options:
+          - Provedeno
+          - Probíhá
+          - Čeká
+          - N/A
+          - Není nutné provést
     allow_append: true
     allow_delete: true
-    append_row_template:
-      action: null
-      cooperation: null
-      status: null
     rows: []
 
   - id: communication
     title: Komunikace a notifikace
-    type: action_table
+    type: table
+    hint: >
+      SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.
+      Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.
+      Zranitelnost VPN zařízení nebo lateral movement → ihned informuj CISO bez ohledu na Severity.
     columns:
-      - recipient
-      - communication_method
-      - sla
-      - note
-    column_labels:
-      recipient: Příjemce
-      communication_method: Způsob komunikace
-      sla: SLA pro notifikaci
-      note: Poznámka / stav
-    editable_columns:
-      - note
-    hints:
-      - 'SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.'
-      - 'Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.'
-      - 'Zranitelnost VPN zařízení nebo lateral movement → ihned informuj CISO bez ohledu na Severity.'
+      - {key: recipient,             label: "Příjemce",             type: text, editable: false}
+      - {key: communication_method,  label: "Způsob komunikace",    type: text, editable: false}
+      - {key: sla,                   label: "SLA pro notifikaci",   type: text, editable: false}
+      - {key: note,                  label: "Poznámka / stav",      type: text, editable: true}
     rows:
       - recipient: Vlastník dotčeného aktiva (VPN GW)
         communication_method: E-mail / telefon
@@ -710,193 +680,184 @@ sections:
 
   - id: closure
     title: Klasifikace a uzavření
-    type: form
+    type: section_group
     description: >
       Uzavření provádí Koordinátor CSIRT po ověření integrity VPN infrastruktury, čistoty účtů a dokončení Odezvy,
       nebo ihned po Posouzení u False Positive. Garant aktiva schvaluje ukončení. Koordinátor uzavírá záznam v TIS.
-    hint: >
-      Před uzavřením ověř: (1) VPN infrastruktura je funkční a bez kompromitace, (2) dotčené účty
-      mají resetovaná hesla a MFA, (3) žádné aktivní sessions útočníka, (4) dočasné blokace jsou
-      zrušeny nebo ponechány dle doporučení, (5) logy 48–72 h zpět jsou analyzovány,
-      (6) garant aktiva schválil ukončení, (7) důkazy uloženy v IKB.<br><br>
-      <b>Metodika klasifikace – Úroveň dopadu:</b><br>
-      <b>Nízká</b> – pouze neúspěšné pokusy, bez úspěšného přihlášení, žádný dopad na regulovanou službu.<br>
-      <b>Střední</b> – úspěšné přihlášení běžného uživatele bez laterálního pohybu nebo exfiltrace.<br>
-      <b>Vysoká</b> – privilegovaný účet nebo lateral movement; při zasažení reg. infrastruktury splňuje KBI dle ZKB.<br>
-      <b>Kritická</b> – zranitelnost VPN zařízení nebo APT s rozsáhlým dopadem; zasažena reg. infrastruktura; vždy KBI.
-    fields:
-      - key: final_classification
-        label: Klasifikace výsledku
-        type: select
-        options:
-          - True Positive
-          - False Positive
-          - Benign True Positive
-        hint: 'False Positive: neúspěšné pokusy byly legitimní testování nebo síťový šum.'
-        example: True Positive
-      - key: impact_level
-        label: Úroveň dopadu
-        type: select
-        options:
-          - Nízká
-          - Střední
-          - Vysoká
-          - Kritická
-        option_hints:
-          Nízká: Pouze neúspěšné pokusy, bez úspěšného přihlášení. Žádný dopad na regulovanou službu.
-          Střední: Úspěšné přihlášení běžného uživatele bez laterálního pohybu nebo exfiltrace.
-          Vysoká: Privilegovaný účet nebo lateral movement. Při zasažení reg. infrastruktury splňuje KBI dle ZKB.
-          Kritická: Zneužití CVE nebo APT s rozsáhlým dopadem. Zasažena regulovaná infrastruktura. Vždy KBI.
-        hint: Úroveň Vysoká a Kritická při zasažení regulované infrastruktury zakládají povinnost hlášení NÚKIB a ÚCL.
-      - key: nukib_notification_required
-        label: Povinnost hlášení NÚKIB
-        type: select
-        options:
-          - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
-          - Zvážit – hraniční případ
-          - Není vyžadována
-        hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
-      - key: ucl_notification_required
-        label: Povinnost hlášení ÚCL
-        type: select
-        options:
-          - Povinná – Regulovaná letecká služba + Vysoká/Kritická
-          - Zvážit – hraniční případ
-          - Není vyžadována
-        hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
-      - key: impact_primary_service
-        label: Dostupnost primárních služeb organizace
-        type: select
-        options:
-          - Zcela nedostupné
-          - Částečně nedostupné / degradované
-          - Dostupné bez omezení
-          - Netýká se
-        hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
-      - key: impact_scope
-        label: Rozsah zasažených uživatelů / systémů
-        type: select
-        options:
-          - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
-          - Významný (10–50 %)
-          - 'Omezený (< 10 %)'
-          - Individuální (1 uživatel / 1 systém)
-      - key: impact_duration
-        label: Doba výpadku / narušení (dostupnost)
-        type: select
-        options:
-          - '> 4 hodiny'
-          - 1–4 hodiny
-          - 15 min – 1 hodina
-          - < 15 min
-          - Žádný výpadek / narušení
-      - key: impact_data
-        label: Dopad na data (důvěrnost / integrita)
-        type: select
-        options:
-          - Exfiltrace dat potvrzena
-          - Neoprávněný přístup k datům potvrzen
-          - Integrita dat narušena
-          - Žádný dopad na data
-          - Nelze určit
-      - key: attack_type_final
-        label: Typ útoku (finální)
-        type: select
-        options:
-          - Brute-force (cílené opakované pokusy)
-          - Password spraying (T1110.003)
-          - Credential stuffing (T1110.004)
-          - Úspěšné přihlášení – kompromitace účtu (T1078)
-          - Zneužití zranitelnosti VPN zařízení (T1190)
-          - Lateral movement po VPN přihlášení (T1021)
-          - Kombinace typů
-          - Nelze určit
-      - key: successful_access_confirmed
-        label: Úspěšné přihlášení útočníkem potvrzeno
-        type: select
-        options:
-          - Ano – přihlášení a aktivita v síti potvrzena
-          - Ano – přihlášení potvrzeno, žádná aktivita v síti
-          - Ne – pouze neúspěšné pokusy
-      - key: vpn_infrastructure_integrity
-        label: Integrita VPN infrastruktury ověřena
-        type: select
-        options:
-          - Ano – žádné kompromitace zařízení, firmware a konfigurace čistá
-          - Ano – po aplikaci patchů / mitigací
-          - Ne – stále vyšetřováno
-        hint: Před uzavřením musí být integrita VPN infrastruktury potvrzena.
-      - key: root_cause
-        label: Root Cause
-        type: textarea
-        example: >
-          Credential stuffing útok využil uniklé přihlašovací údaje z veřejné databáze (HIBP).
-          Servisní účet svc-backup neměl MFA a používal slabé heslo.
-          Útočník se přihlásil přes VPN a stáhl 3 soubory z HR sdíleného disku před detekcí.
-      - key: actions_taken
-        label: Popis přijatých opatření
-        type: textarea
-        example: >
-          Odpojení VPN session · geo-blocking RU/CN/UA · reset hesel 38 cílených účtů ·
-          MFA vynuceno na VPN pro servisní účty · lockout politika aktivována · logy uloženy do IKB
-      - key: recommendations
-        label: Doporučení pro zlepšení
-        type: textarea
-        example: >
-          Zavést phishing-resistant MFA (certifikát / FIDO2) pro VPN přihlašování servisních účtů.
-          Pravidelná rotace hesel servisních účtů. Monitorovat VPN přihlášení servisních účtů v SIEM.
-          Ověřit firmware VPN zařízení proti aktuálním CVE v rámci vulnerability managementu.
-      - key: related_service_requests
-        label: Související servisní požadavky
-        type: textarea
-        hint: Čísla nebo odkazy na servisní požadavky (MFA konfigurace VPN, lockout politika, FW pravidla, patch VPN GW apod.)
-        example: 'SR-2026-1200 – MFA enforcement VPN · SR-2026-1201 – lockout politika VPN · SR-2026-1202 – patch Cisco ASA'
-      - key: related_security_events
-        label: Navázané bezpečnostní události (UIB/IIB)
-        type: textarea
+    subsections:
+      - id: closure_base
+        title: Uzavření – společné položky
+        type: form
         hint: >
-          Reference na další šetřené bezpečnostní události otevřené v rámci nebo v souvislosti s tímto incidentem
-          (kompromitace účtu, malware na zařízení uživatele, phishingový e-mail jako vektor apod.)
-        example: 'UIB-10032026-1400-XXXX – Kompromitace účtu svc-backup (paralelně) · UIB-10032026-1455-YYYY – Malware lateral movement'
-      - key: reporter_notified
-        label: Oznamovatel informován
-        type: select
-        options:
-          - Ano
-          - Ne
-      - {key: closed_at, label: Datum uzavření, type: datetime}
+          Před uzavřením ověř: (1) VPN infrastruktura je funkční a bez kompromitace, (2) dotčené účty
+          mají resetovaná hesla a MFA, (3) žádné aktivní sessions útočníka, (4) dočasné blokace jsou
+          zrušeny nebo ponechány dle doporučení, (5) logy 48–72 h zpět jsou analyzovány,
+          (6) garant aktiva schválil ukončení, (7) důkazy uloženy v IKB.<br><br>
+          <b>Metodika klasifikace – Úroveň dopadu:</b><br>
+          <b>Nízká</b> – pouze neúspěšné pokusy, bez úspěšného přihlášení, žádný dopad na regulovanou službu.<br>
+          <b>Střední</b> – úspěšné přihlášení běžného uživatele bez laterálního pohybu nebo exfiltrace.<br>
+          <b>Vysoká</b> – privilegovaný účet nebo lateral movement; při zasažení reg. infrastruktury splňuje KBI dle ZKB.<br>
+          <b>Kritická</b> – zranitelnost VPN zařízení nebo APT s rozsáhlým dopadem; zasažena reg. infrastruktura; vždy KBI.
+        fields:
+          - key: final_classification
+            label: Klasifikace výsledku
+            type: select
+            options:
+              - True Positive
+              - False Positive
+              - Benign True Positive
+            hint: 'False Positive: neúspěšné pokusy byly legitimní testování nebo síťový šum.'
+            placeholder: True Positive
+          - key: impact_level
+            label: Úroveň dopadu
+            type: select
+            options:
+              - Nízká
+              - Střední
+              - Vysoká
+              - Kritická
+            option_hints:
+              Nízká: Pouze neúspěšné pokusy, bez úspěšného přihlášení. Žádný dopad na regulovanou službu.
+              Střední: Úspěšné přihlášení běžného uživatele bez laterálního pohybu nebo exfiltrace.
+              Vysoká: Privilegovaný účet nebo lateral movement. Při zasažení reg. infrastruktury splňuje KBI dle ZKB.
+              Kritická: Zneužití CVE nebo APT s rozsáhlým dopadem. Zasažena regulovaná infrastruktura. Vždy KBI.
+            hint: Úroveň Vysoká a Kritická při zasažení regulované infrastruktury zakládají povinnost hlášení NÚKIB a ÚCL.
+          - key: nukib_notification_required
+            label: Povinnost hlášení NÚKIB
+            type: select
+            options:
+              - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
+          - key: ucl_notification_required
+            label: Povinnost hlášení ÚCL
+            type: select
+            options:
+              - Povinná – Regulovaná letecká služba + Vysoká/Kritická
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
+          - key: impact_primary_service
+            label: Dostupnost primárních služeb organizace
+            type: select
+            options:
+              - Zcela nedostupné
+              - Částečně nedostupné / degradované
+              - Dostupné bez omezení
+              - Netýká se
+            hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
+          - key: impact_scope
+            label: Rozsah zasažených uživatelů / systémů
+            type: select
+            options:
+              - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
+              - Významný (10–50 %)
+              - 'Omezený (< 10 %)'
+              - Individuální (1 uživatel / 1 systém)
+          - key: impact_duration
+            label: Doba výpadku / narušení (dostupnost)
+            type: select
+            options:
+              - '> 4 hodiny'
+              - 1–4 hodiny
+              - 15 min – 1 hodina
+              - < 15 min
+              - Žádný výpadek / narušení
+          - key: impact_data
+            label: Dopad na data (důvěrnost / integrita)
+            type: select
+            options:
+              - Exfiltrace dat potvrzena
+              - Neoprávněný přístup k datům potvrzen
+              - Integrita dat narušena
+              - Žádný dopad na data
+              - Nelze určit
+          - key: root_cause
+            label: Root Cause
+            type: textarea
+            placeholder: >
+              Credential stuffing útok využil uniklé přihlašovací údaje z veřejné databáze (HIBP).
+              Servisní účet svc-backup neměl MFA a používal slabé heslo.
+              Útočník se přihlásil přes VPN a stáhl 3 soubory z HR sdíleného disku před detekcí.
+          - key: actions_taken
+            label: Popis přijatých opatření
+            type: textarea
+            placeholder: >
+              Odpojení VPN session · geo-blocking RU/CN/UA · reset hesel 38 cílených účtů ·
+              MFA vynuceno na VPN pro servisní účty · lockout politika aktivována · logy uloženy do IKB
+          - key: recommendations
+            label: Doporučení pro zlepšení
+            type: textarea
+            placeholder: >
+              Zavést phishing-resistant MFA (certifikát / FIDO2) pro VPN přihlašování servisních účtů.
+              Pravidelná rotace hesel servisních účtů. Monitorovat VPN přihlášení servisních účtů v SIEM.
+              Ověřit firmware VPN zařízení proti aktuálním CVE v rámci vulnerability managementu.
+          - key: related_service_requests
+            label: Související servisní požadavky
+            type: textarea
+            hint: Čísla nebo odkazy na servisní požadavky (MFA konfigurace VPN, lockout politika, FW pravidla, patch VPN GW apod.)
+            placeholder: 'SR-2026-1200 – MFA enforcement VPN · SR-2026-1201 – lockout politika VPN · SR-2026-1202 – patch Cisco ASA'
+          - key: related_security_events
+            label: Navázané bezpečnostní události (UIB/IIB)
+            type: textarea
+            hint: >
+              Reference na další šetřené bezpečnostní události otevřené v rámci nebo v souvislosti s tímto incidentem
+              (kompromitace účtu, malware na zařízení uživatele, phishingový e-mail jako vektor apod.)
+            placeholder: 'UIB-10032026-1400-XXXX – Kompromitace účtu svc-backup (paralelně) · UIB-10032026-1455-YYYY – Malware lateral movement'
+          - key: reporter_notified
+            label: Oznamovatel informován
+            type: select
+            options:
+              - Ano
+              - Ne
+          - {key: closed_at, label: Datum uzavření, type: datetime}
+      - id: closure_specific
+        title: Uzavření – specifika VPN útoku
+        type: form
+        fields:
+          - key: attack_vector_final
+            label: Vektor útoku (finální)
+            type: select
+            options:
+              - Brute-force (cílené opakované pokusy)
+              - Password spraying (T1110.003)
+              - Credential stuffing (T1110.004)
+              - Úspěšné přihlášení – kompromitace účtu (T1078)
+              - Zneužití zranitelnosti VPN zařízení (T1190)
+              - Lateral movement po VPN přihlášení (T1021)
+              - Kombinace typů
+              - Nelze určit
+          - key: lateral_movement_confirmed
+            label: Laterální pohyb potvrzen
+            type: select
+            options:
+              - Ano – laterální pohyb v síti potvrzen
+              - Pravděpodobně – indikátory bez jednoznačného potvrzení
+              - Ne – žádný laterální pohyb
+          - key: affected_systems_count
+            label: Počet zasažených systémů / účtů
+            type: text
 
   - id: raci
+    type: table
     title: RACI matice
-    type: raci_table
-    legend: >
+    hint: >
       R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) ·
       C = Consulted (poskytuje součinnost) · I = Informed (je informován) ·
       (Vysoká/Kritická) = podmínka pro aktivaci role
     columns:
-      - activity
-      - l1_its
-      - koordinator
-      - cirt
-      - r_dtech
-      - r_dplr
-      - garant
-      - delegat
-      - dpo
-      - nukib
-      - ucl
-    column_labels:
-      activity: Aktivita
-      l1_its: L1 (ITS)
-      koordinator: Koordinátor
-      cirt: CIRT
-      r_dtech: Ř-DTECH
-      r_dplr: Ř-DPLR
-      garant: Garant
-      delegat: Delegát
-      dpo: DPO
-      nukib: NÚKIB
-      ucl: ÚCL
+      - {key: activity,    label: "Aktivita",    type: text, editable: false}
+      - {key: l1_its,      label: "L1 (ITS)",    type: text, editable: false}
+      - {key: koordinator, label: "Koordinátor", type: text, editable: false}
+      - {key: cirt,        label: "CIRT",        type: text, editable: false}
+      - {key: r_dtech,     label: "Ř-DTECH",     type: text, editable: false}
+      - {key: r_dplr,      label: "Ř-DPLR",      type: text, editable: false}
+      - {key: garant,      label: "Garant",      type: text, editable: false}
+      - {key: delegat,     label: "Delegát",     type: text, editable: false}
+      - {key: dpo,         label: "DPO",         type: text, editable: false}
+      - {key: nukib,       label: "NÚKIB",       type: text, editable: false}
+      - {key: ucl,         label: "ÚCL",         type: text, editable: false}
     rows:
       - activity: Příjem UIB/IIB a evidence v TIS
         l1_its: R, A

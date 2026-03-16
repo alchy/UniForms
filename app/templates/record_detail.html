@@ -121,7 +121,7 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
         <div id="save-indicator" class="text-success small d-none">
             <i class="bi bi-check-circle me-1"></i>Saved
         </div>
-        <button class="btn btn-outline-success btn-sm" id="btn-takeover" onclick="takeover()" title="{{ term.take_over_btn }}">
+        <button class="btn btn-outline-success btn-sm d-none" id="btn-takeover" onclick="takeover()" title="{{ term.take_over_btn }}">
             <i class="bi bi-person-check me-1"></i>{{ term.take_over_btn }}
         </button>
         <div class="dropdown">
@@ -187,6 +187,7 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
     if (PRINT_MODE) document.body.classList.add('print-mode');
 
     let recordDocument = null;
+    let collectionConfig = null;
     let lockAcquired = false;
     let statusConfig = {};   // built dynamically from record's workflow_states
 
@@ -276,15 +277,50 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
     }
 
     // ---------------------------------------------------------------------------
-    // Record loading and rendering
+    // Collection config – drives title_field and take_over behaviour
     // ---------------------------------------------------------------------------
 
+    async function loadCollectionConfig() {
+        try {
+            const resp = await apiFetch(`/api/v1/collections/${COLLECTION_ID}`);
+            if (resp.ok) collectionConfig = await resp.json();
+        } catch (e) { /* non-fatal – falls back to defaults */ }
+    }
+
+    // Search for a field by key across all sections (including section_group children).
+    function findFieldInRecord(r, key) {
+        for (const sec of (r.data?.sections || [])) {
+            const f = (sec.fields || []).find(f => f.key === key);
+            if (f) return f;
+            for (const sub of (sec.sections || [])) {
+                const sf = (sub.fields || []).find(f => f.key === key);
+                if (sf) return sf;
+            }
+        }
+        return null;
+    }
+
+    // Show Take Over button only when collection config declares take_over AND
+    // the target field actually exists in the loaded record.
+    function updateTakeOverButton(r) {
+        const btn = document.getElementById('btn-takeover');
+        if (collectionConfig?.take_over) {
+            const field = findFieldInRecord(r, collectionConfig.take_over.field);
+            if (field) {
+                btn.classList.remove('d-none');
+                return;
+            }
+        }
+        btn.classList.add('d-none');
+    }
+
     function getRecordTitle(r) {
-        const headerSec = (r.data?.sections || []).find(
-            s => s.type === 'workbook_header' || s.type === 'playbook_header' || s.type === 'record_header'
-        );
-        const f = (headerSec?.fields || []).find(f => f.key === 'case_title' || f.key === 'title' || f.key === 'record_title');
-        return f?.value || null;
+        const key = collectionConfig?.title_field;
+        if (key) {
+            const f = findFieldInRecord(r, key);
+            if (f?.value) return f.value;
+        }
+        return null;
     }
 
     function renderRecordHeader(r) {
@@ -298,6 +334,7 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
             `<i class="bi bi-file-earmark-text me-1"></i>${r.data.template_name || r.template_id} &nbsp;·&nbsp; ` +
             `<i class="bi bi-person me-1"></i>${r.created_by} &nbsp;·&nbsp; ` +
             `<i class="bi bi-calendar me-1"></i>${new Date(r.created_at).toLocaleString()}`;
+        updateTakeOverButton(r);
     }
 
     function buildSectionNav(sections) {
@@ -310,6 +347,10 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
             list.appendChild(li);
         });
     }
+
+    // ---------------------------------------------------------------------------
+    // Record loading and rendering
+    // ---------------------------------------------------------------------------
 
     async function loadRecord() {
         try {
@@ -456,25 +497,25 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
         });
     }
 
-    // Take Over – fills the coordinator field with the current user
+    // Take Over – writes configured value into the take_over.field from collection config.
+    // value_type "username" → current user; "timestamp" → current UTC ISO string.
     async function takeover() {
-        if (!recordDocument) return;
-        const headerSec = recordDocument.data.sections.find(
-            s => s.type === 'workbook_header' || s.type === 'playbook_header' || s.type === 'record_header'
-        );
-        if (!headerSec) return;
-        // Convention: coordinator field has key 'coordinator' or 'incident_coordinator'
-        const field = (headerSec.fields || []).find(
-            f => f.key === 'coordinator' || f.key === 'incident_coordinator'
-        );
+        if (!recordDocument || !collectionConfig?.take_over) return;
+        const { field: fieldKey, value_type } = collectionConfig.take_over;
+        const value = (value_type === 'timestamp') ? new Date().toISOString() : CURRENT_USER;
+        const field = findFieldInRecord(recordDocument, fieldKey);
         if (!field) return;
-        field.value = CURRENT_USER;
-        const input = document.querySelector(`[data-field-key="${field.key}"]`);
-        if (input) input.value = CURRENT_USER;
+        field.value = value;
+        const input = document.querySelector(`[data-field-key="${fieldKey}"]`);
+        if (input) input.value = value;
         await saveRecord();
     }
 
-    loadRecord();
-    if (!PRINT_MODE) loadFilePath();
+    async function init() {
+        await loadCollectionConfig();
+        await loadRecord();
+        if (!PRINT_MODE) loadFilePath();
+    }
+    init();
 </script>
 {% endblock %}

@@ -31,3 +31,9 @@ roles:
     label: Admin
   - id: collection_user
     label: User
+
+title_field: title
+
+take_over:
+  field: coordinator
+  value_type: username

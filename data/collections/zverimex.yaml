@@ -36,3 +36,9 @@ roles:
     label: Vedoucí
   - id: collection_user
     label: Zaměstnanec
+
+title_field: jmeno
+
+take_over:
+  field: koordinator
+  value_type: username

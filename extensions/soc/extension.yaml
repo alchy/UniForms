@@ -1,29 +1,30 @@
 id: soc
 name: "Security Operations Center"
-version: "1.0"
+version: "2.0"
 
-# JS renderer files loaded after core uniforms.js
-# Paths are relative to this extension's js/ directory
+# JS soubory načítané po core uniforms.js
+# Cesty jsou relativní k adresáři js/ tohoto extension
 js:
-  - classification.js
-  - raci_table.js
+  - soc_renderers.js
 
-# Section types registered by this extension
-section_types:
-  - classification
-  - raci_table
+# Vlastní typy sekcí registrované tímto extension
+# V2 šablony používají universální typy (form, table, header, checklist)
+# – žádné custom sekce nejsou potřeba.
+section_types: []
 
-# auto_value keys provided by this extension (accessible as meta.* in templates)
+# auto_value klíče poskytované backendem pro SOC šablony
+# Přistupné v polích jako: auto_value: meta.mitre_tactic
+# nebo legacy formát: auto_value: template_mitre_tactic
 auto_values:
   - meta.mitre_tactic
   - meta.mitre_technique
   - meta.mitre_subtechnique
   - meta.data_sources
-  # Legacy backwards-compat keys
+  # Legacy klíče pro zpětnou kompatibilitu (v1 šablony)
   - template_mitre_tactic
   - template_mitre_technique
   - template_mitre_subtechnique
   - template_data_sources
 
-# Template directory (relative to this extension's path)
+# Adresář se šablonami (relativní k cestě tohoto extension)
 templates_dir: templates

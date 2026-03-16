@@ -1,10 +1,10 @@
-# UIB – PLAYBOOK CSIRT: KOMPROMITACE ÚČTU – v1.0
+# UIB – v2.0
+# PLAYBOOK CSIRT: KOMPROMITACE ÚČTU
 # Zpracováno dle CSIRT Playbook Kompromitace účtu v1.2 / SM/25/0100/P5
-# Terminologie a postup odpovídají interním playbookům CSIRT.
 
-template_id: uib-account-compromise-v1
+template_id: uib-account-compromise-v2
 name: 'Kompromitace účtu'
-version: '1.0'
+version: '2.0'
 category: Identity
 status: active
 description: >
@@ -27,27 +27,29 @@ data_sources:
 sections:
 
   - id: header
-    type: workbook_header
+    type: header
     title: Hlavička
     fields:
       - key: case_title
         label: Stručný popis události
         hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
-        example: 'Kompromitace účtu – přihlášení z neznámé IP (RU) · uživatel: novak@firma.cz · MFA změněno bez vědomí uživatele'
+        placeholder: 'Kompromitace účtu – přihlášení z neznámé IP (RU) · uživatel: novak@firma.cz · MFA změněno bez vědomí uživatele'
       - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
       - key: incident_coordinator
         label: Koordinátor incidentu (CSIRT – L2)
         hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
 
   - id: classification
-    type: classification
+    type: form
     title: Klasifikace
     fields:
-      - {key: mitre_tactic, label: MITRE Tactic, editable: false, auto_value: template_mitre_tactic}
-      - {key: mitre_technique, label: MITRE Technique, editable: false, auto_value: template_mitre_technique}
+      - {key: mitre_tactic, label: MITRE Tactic, type: text, editable: false, auto_value: meta.mitre_tactic}
+      - {key: mitre_technique, label: MITRE Technique, type: text, editable: false, auto_value: meta.mitre_technique}
       - key: mitre_subtechnique
         label: MITRE Sub-technique / Typ kompromitace
         type: select
+        editable: true
+        value: null
         options:
           - T1078.002 – Domain Accounts (kompromitace doménového účtu)
           - T1078.004 – Cloud Accounts (kompromitace M365 / AAD účtu)
@@ -60,39 +62,27 @@ sections:
         hint: >
           Vyplň po Posouzení, až je znám způsob útoku.
           Privilegovaný účet nebo účet s přístupem k regulované službě → ihned eskaluj na P1/P2.
-      - {key: data_sources, label: Doporučené zdroje dat pro investigaci, editable: false, auto_value: template_data_sources}
+      - key: data_sources
+        label: Doporučené zdroje dat pro investigaci
+        type: textarea
+        editable: false
+        auto_value: meta.data_sources
 
   - id: contacts
+    type: table
     title: Kontaktní matice
-    type: contact_table
     description: >
       Kontakty pro investigaci a eskalaci. Vyplň dle aktuální struktury organizace.
       L1 ITS předává Koordinátorovi CSIRT (L2) telefonicky nebo e-mailem.
       L1 nesmí resetovat hesla, MFA ani blokovat účty – veškeré technické kroky provádí
       administrátoři výhradně na pokyn Koordinátora CSIRT.
     columns:
-      - system_role
-      - name
-      - email
-      - phone
-      - when_to_contact
-    column_labels:
-      system_role: Systém / role
-      name: Jméno
-      email: E-mail
-      phone: Telefon
-      when_to_contact: Kdy kontaktovat
-    editable_columns:
-      - name
-      - email
-      - phone
+      - {key: system_role,     label: "Systém / role",   type: text, editable: false}
+      - {key: name,            label: "Jméno",           type: text, editable: true}
+      - {key: email,           label: "E-mail",          type: text, editable: true}
+      - {key: phone,           label: "Telefon",         type: text, editable: true}
+      - {key: when_to_contact, label: "Kdy kontaktovat", type: text, editable: false}
     allow_append: true
-    append_row_template:
-      system_role: null
-      name: null
-      email: null
-      phone: null
-      when_to_contact: null
     rows:
       - system_role: L1 ITS (Service Desk H24)
         name: ITS Service Desk
@@ -160,75 +150,111 @@ sections:
     title: 'Detekce a hlášení (L1 ITS)'
     type: section_group
     subsections:
-      - id: reported_by_person
-        title: Hlášeno zaměstnancem / osobou
+      - id: detection_report
         type: form
-        note: 'L1 ITS – záznam dle SM/25/0100/P5'
-        condition: source_type == 'person'
+        title: Hlášení a detekce
+        note: "L1 ITS – záznam dle SM/25/0100/P5"
         fields:
-          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, example: '2026-03-10T11:20'}
-          - {key: reporter_name, label: Jméno oznamovatele, example: Jan Novák}
-          - {key: reporter_department, label: Oddělení / organizační jednotka, example: IT oddělení}
-          - {key: reporter_contact, label: Kontakt (e-mail / telefon), example: 'novak@firma.cz / +420 XXX XXX XXX'}
-          - {key: affected_user, label: Postižený uživatel (UPN / e-mail), example: 'karel.dvorak@firma.cz'}
+          - key: source_type
+            label: Zdroj detekce
+            type: select
+            editable: true
+            value: null
+            options:
+              - Hlášení zaměstnancem / osobou
+              - Automatizovaná detekce
+            hint: Vyberte zdroj detekce a vyplňte odpovídající pole.
+          # --- Person-reported fields ---
+          - key: reported_at
+            label: Datum a čas nahlášení (UIB/IIB)
+            type: datetime
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: reporter_name
+            label: Jméno oznamovatele
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            placeholder: 'Jan Novák'
+          - key: reporter_department
+            label: Oddělení / organizační jednotka
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: reporter_contact
+            label: Kontakt (e-mail / telefon)
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+          - key: affected_user
+            label: Postižený uživatel nebo útvarový mailbox
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
           - key: description_by_reporter
             label: Popis události slovy oznamovatele
             type: textarea
-            example: >
+            editable: true
+            value: null
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            placeholder: >
               Uživatel hlásí, že dostal notifikaci o přihlášení z neznámého zařízení a heslo mu bylo změněno.
               Přišlo mu velké množství MFA žádostí o potvrzení, které neinicializoval.
-      - id: automated_detection
-        title: Automatizovaná detekce
-        type: form
-        note: 'L1 ITS – záznam dle SM/25/0100/P5'
-        condition: source_type == 'automated'
-        fields:
-          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, example: '2026-03-10T11:15'}
-          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, example: 'AAD Identity Protection – alert Impossible Travel · Risk level: High'}
-          - {key: alert_id, label: ID alertu / Identifikace pravidla}
-          - {key: affected_asset_auto, label: 'Postižený účet (UPN)', example: 'karel.dvorak@firma.cz'}
+          # --- Auto-detection fields ---
+          - key: alert_timestamp
+            label: Datum a čas alertu
+            type: datetime
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+          - key: detection_tool
+            label: Detekční nástroj / zdroj alertu
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+            placeholder: 'AAD Identity Protection – alert Impossible Travel · Risk level: High'
+          - key: alert_id
+            label: ID alertu / Identifikace pravidla
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+          - key: affected_asset_auto
+            label: Postižený účet (UPN)
+            type: text
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
           - key: alert_description
             label: Popis alertu
             type: textarea
-            example: >
-              AAD detekoval přihlášení z IP 185.xxx.xxx.xxx (geolokace: RU) ve 03:14 UTC –
-              5 minut po legitimním přihlášení z CZ. Impossible Travel detekován. Risk level: High.
+            editable: true
+            value: null
+            visible_if: "source_type == 'Automatizovaná detekce'"
+
       - id: affected_assets
+        type: table
         title: Dotčená aktiva
-        type: assets_table
-        note: 'Průběžně doplňuj při každém rozšíření scope'
+        always_expanded: true
         hint: >
           Pokud je kompromitovaný účet součástí regulované služby nebo má administrátorská oprávnění
           → ihned informuj CISO.<br><br>
           Do pole Poznámky uveď klíčová zjištění (IP útočníka, geolokace, typ aktivity, stav účtu).
-        always_expanded: true
         columns:
-          - asset_name
-          - fqdn
-          - asset_ip
-          - asset_type
-          - regulated_service
-          - notes
-        column_labels:
-          asset_name: Název aktiva / účtu
-          fqdn: UPN / FQDN
-          asset_ip: IP / Netmask
-          asset_type: Typ aktiva
-          regulated_service: Regulovaná služba
-          notes: Poznámky
-        column_options:
-          asset_type:
-            - Uživatelský účet (AAD / M365)
-            - Doménový účet (AD)
-            - Administrátorský účet
-            - Servisní účet
-            - Mailbox
-            - Endpoint
-            - Informační systém
-          regulated_service:
-            - Ne
-            - Ano
-        editable: true
+          - {key: asset_name,        label: "Název aktiva / účtu", type: text,   editable: true}
+          - {key: fqdn,              label: "UPN / FQDN",          type: text,   editable: true}
+          - {key: asset_ip,          label: "IP / Netmask",        type: text,   editable: true}
+          - {key: asset_type,        label: "Typ aktiva",          type: select, editable: true, options: ["Uživatelský účet (AAD / M365)", "Doménový účet (AD)", "Administrátorský účet", "Servisní účet", "Mailbox", "Endpoint", "Informační systém"]}
+          - {key: regulated_service, label: "Regulovaná služba",   type: select, editable: true, options: ["Ne", "Ano"]}
+          - {key: notes,             label: "Poznámky",            type: text,   editable: true}
+        allow_append: true
+        allow_delete: true
         rows: []
 
   - id: l2_assessment
@@ -243,6 +269,8 @@ sections:
           - key: account_type
             label: Typ kompromitovaného účtu
             type: select
+            editable: true
+            value: null
             options:
               - Běžný uživatel (bez zvýšených oprávnění)
               - Administrátor / privilegovaný účet
@@ -255,6 +283,8 @@ sections:
           - key: session_active
             label: Je účet / session stále aktivní (kompromitace probíhá)?
             type: select
+            editable: true
+            value: null
             options:
               - Ano – aktivní session potvrzena
               - Pravděpodobně – nelze okamžitě ověřit
@@ -265,6 +295,8 @@ sections:
           - key: l2_initial_priority
             label: Předběžná priorita (L2)
             type: select
+            editable: true
+            value: null
             options:
               - P1 – Kritická (privilegovaný účet / reg. služba / potvrzená exfiltrace)
               - P2 – Vysoká (admin účet / podezření na exfiltraci / kompromitace probíhá)
@@ -500,32 +532,18 @@ sections:
             example: 'TIS záznam UIB-XXXXXX: reset hesla 11:35 · MFA reset 11:36 · revokace sessions 11:37'
 
   - id: containment_remediation
-    title: 'Odezva – checklist'
-    type: action_table
+    type: table
+    title: Odezva – checklist
     description: >
       Zaznamenej u každé akce zodpovědnou roli a aktuální stav. Pokud akce není relevantní, napiš N/A.
       Technické zásahy provádí administrátoři výhradně na pokyn Koordinátora CSIRT.
       Stabilizace (A) může probíhat paralelně s analýzou (B) – nečekej na dokončení analýzy.
     columns:
-      - phase
-      - action
-      - responsible_role
-      - cooperation
-      - status
-    column_labels:
-      phase: Fáze
-      action: Akce
-      responsible_role: Zodpovědná role
-      cooperation: Součinnost
-      status: Stav
-    status_options:
-      - Provedeno
-      - Probíhá
-      - Čeká
-      - N/A
-      - Není nutné provést
-    editable_columns:
-      - status
+      - {key: phase,            label: "Fáze",            type: text,   editable: false}
+      - {key: action,           label: "Akce",            type: text,   editable: false}
+      - {key: responsible_role, label: "Zodpovědná role", type: text,   editable: false}
+      - {key: cooperation,      label: "Součinnost",      type: text,   editable: false}
+      - {key: status,           label: "Stav",            type: select, editable: true, options: ["Provedeno", "Probíhá", "Čeká", "N/A", "Není nutné provést"]}
     allow_append: false
     rows:
       - phase: A
@@ -595,54 +613,31 @@ sections:
         status: null
 
   - id: additional_actions
-    title: 'Odezva – dodatečné kroky'
-    type: action_table
+    type: table
+    title: Odezva – dodatečné kroky
     description: >
       Prostor pro zaznamenání kroků nad rámec standardního checklistu.
       Vyplní Koordinátor CSIRT nebo analytik dle potřeby.
     columns:
-      - action
-      - cooperation
-      - status
-    column_labels:
-      action: Akce
-      cooperation: Součinnost
-      status: Stav
-    status_options:
-      - Provedeno
-      - Probíhá
-      - Čeká
-      - N/A
-      - Není nutné provést
-    editable_columns:
-      - status
+      - {key: action,      label: "Akce",       type: text,   editable: true}
+      - {key: cooperation, label: "Součinnost",  type: text,   editable: true}
+      - {key: status,      label: "Stav",        type: select, editable: true, options: ["Provedeno", "Probíhá", "Čeká", "N/A", "Není nutné provést"]}
     allow_append: true
     allow_delete: true
-    append_row_template:
-      action: null
-      cooperation: null
-      status: null
     rows: []
 
   - id: communication
+    type: table
     title: Komunikace a notifikace
-    type: action_table
-    columns:
-      - recipient
-      - communication_method
-      - sla
-      - note
-    column_labels:
-      recipient: Příjemce
-      communication_method: Způsob komunikace
-      sla: SLA pro notifikaci
-      note: Poznámka / stav
-    editable_columns:
-      - note
     hints:
       - 'SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.'
       - 'Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.'
       - 'Privilegovaný účet nebo reg. služba → ihned informuj CISO bez ohledu na Severity.'
+    columns:
+      - {key: recipient,            label: "Příjemce",           type: text, editable: false}
+      - {key: communication_method, label: "Způsob komunikace",  type: text, editable: false}
+      - {key: sla,                  label: "SLA pro notifikaci", type: text, editable: false}
+      - {key: note,                 label: "Poznámka / stav",    type: text, editable: true}
     rows:
       - recipient: Dotčený uživatel
         communication_method: E-mail / telefon
@@ -670,194 +665,226 @@ sections:
         note: null
 
   - id: closure
+    type: section_group
     title: Klasifikace a uzavření
-    type: form
     description: >
       Uzavření provádí Koordinátor CSIRT po ověření čistoty prostředí a dokončení Odezvy,
-      nebo ihned po Posouzení u False Positive. Garant aktiva schvaluje ukončení pokud relevantní.
-      Koordinátor uzavírá záznam v TIS.
-    hint: >
-      Před uzavřením ověř: (1) žádné aktivní sessions útočníka, (2) žádná forwarding pravidla ani
-      OAuth aplikace útočníka, (3) žádné neoprávněné odesílání nebo sdílení, (4) MFA re-enrollment
-      dokončen, (5) důkazy uloženy v IKB, (6) DPO informován pokud relevantní.<br><br>
-      <b>Metodika klasifikace – Úroveň dopadu:</b><br>
-      <b>Nízká</b> – neobvyklé přihlášení bez potvrzené aktivity útočníka; žádný dopad na regulovanou službu.<br>
-      <b>Střední</b> – potvrzená kompromitace běžného uživatele; bez exfiltrace; bez dopadu na regulovanou službu.<br>
-      <b>Vysoká</b> – exfiltrace dat nebo privilegovaný účet; při zasažení reg. služby splňuje KBI dle ZKB.<br>
-      <b>Kritická</b> – kompromitace administrátora s rozsáhlým dopadem; zasažena regulovaná služba; vždy KBI.
-    fields:
-      - key: final_classification
-        label: Klasifikace výsledku
-        type: select
-        options:
-          - True Positive
-          - False Positive
-          - Benign True Positive
-        hint: 'False Positive: alert se ukázal jako legitimitní aktivita. Benign True Positive: neobvyklé přihlášení bez potvrzené škody.'
-        example: True Positive
-      - key: impact_level
-        label: Úroveň dopadu
-        type: select
-        options:
-          - Nízká
-          - Střední
-          - Vysoká
-          - Kritická
-        option_hints:
-          Nízká: Neobvyklé přihlášení bez potvrzené aktivity útočníka. Žádný dopad na regulovanou službu.
-          Střední: Potvrzená kompromitace běžného uživatele bez exfiltrace a bez dopadu na regulovanou službu.
-          Vysoká: Exfiltrace dat nebo privilegovaný účet. Při zasažení reg. služby splňuje KBI dle ZKB.
-          Kritická: Kompromitace administrátora s rozsáhlým dopadem. Zasažena regulovaná služba. Vždy KBI.
-        hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
-      - key: nukib_notification_required
-        label: Povinnost hlášení NÚKIB
-        type: select
-        options:
-          - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
-          - Zvážit – hraniční případ
-          - Není vyžadována
-        hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
-      - key: ucl_notification_required
-        label: Povinnost hlášení ÚCL
-        type: select
-        options:
-          - Povinná – Regulovaná letecká služba + Vysoká/Kritická
-          - Zvážit – hraniční případ
-          - Není vyžadována
-        hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
-      - key: impact_primary_service
-        label: Dostupnost primárních služeb organizace
-        type: select
-        options:
-          - Zcela nedostupné
-          - Částečně nedostupné / degradované
-          - Dostupné bez omezení
-          - Netýká se
-        hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
-      - key: impact_scope
-        label: Rozsah zasažených uživatelů / systémů
-        type: select
-        options:
-          - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
-          - Významný (10–50 %)
-          - 'Omezený (< 10 %)'
-          - Individuální (1 uživatel / 1 systém)
-      - key: impact_duration
-        label: Doba výpadku / narušení (dostupnost)
-        type: select
-        options:
-          - '> 4 hodiny'
-          - 1–4 hodiny
-          - 15 min – 1 hodina
-          - < 15 min
-          - Žádný výpadek / narušení
-      - key: impact_data
-        label: Dopad na data (důvěrnost / integrita)
-        type: select
-        options:
-          - Exfiltrace dat potvrzena
-          - Neoprávněný přístup k datům potvrzen
-          - Integrita dat narušena
-          - Žádný dopad na data
-          - Nelze určit
-      - key: compromise_type_final
-        label: Typ kompromitace (finální)
-        type: select
-        options:
-          - Odcizené heslo (phishing / password spray / credential reuse)
-          - Token hijack / Session hijack (T1539)
-          - MFA fatigue / MFA bypass (T1621)
-          - Privilegovaný účet / admin kompromitace
-          - Kombinace typů
-          - Nelze určit
-      - key: account_type_final
-        label: Typ kompromitovaného účtu (finální)
-        type: select
-        options:
-          - Běžný uživatel (bez zvýšených oprávnění)
-          - Administrátor / privilegovaný účet
-          - Servisní účet
-          - Účet s přístupem k regulované službě
-      - key: exfiltration_confirmed
-        label: Exfiltrace dat
-        type: select
-        options:
-          - Potvrzena – rozsah dokumentován
-          - Podezření – nelze vyloučit
-          - Vyloučena
-        hint: 'Při potvrzené nebo podezřelé exfiltraci osobních údajů → povinnost informovat DPO a posoudit hlášení ÚOOÚ.'
-      - key: root_cause
-        label: Root Cause
-        type: textarea
-        example: >
-          Uživatel zadal přihlašovací údaje na phishingové stránce napodobující M365 login.
-          Útočník se přihlásil z RU IP, obešel MFA pomocí session cookie z Infostealer malwaru
-          a exportoval kontakty z mailboxu před detekcí.
-      - key: actions_taken
-        label: Popis přijatých opatření
-        type: textarea
-        example: >
-          Reset hesla a MFA · revokace všech sessions · forwarding rule odstraněno ·
-          OAuth aplikace odebrána · CA politika zpřísněna · DPO informován · logy uloženy do IKB
-      - key: recommendations
-        label: Doporučení pro zlepšení
-        type: textarea
-        example: >
-          Zavést Token Protection pro kritické aplikace (Exchange, SharePoint).
-          Zpřísnit CA politiku – blokace non-compliant zařízení.
-          Phishing-resistant MFA (FIDO2 / Windows Hello) pro administrátorské účty.
-          Školení uživatelů zaměřené na MFA fatigue a session hijack.
-      - key: related_service_requests
-        label: Související servisní požadavky
-        type: textarea
-        hint: Čísla nebo odkazy na servisní požadavky (CA politiky, MFA konfigurace, IAM změny apod.)
-        example: 'SR-2026-1180 – zpřísnění CA politiky · SR-2026-1181 – aktivace Token Protection'
-      - key: related_security_events
-        label: Navázané bezpečnostní události (UIB/IIB)
-        type: textarea
+      nebo ihned po Posouzení u False Positive. Koordinátor uzavírá záznam v TIS.
+    subsections:
+      - id: closure_base
+        type: form
+        title: Klasifikace a dopad
+        always_expanded: true
         hint: >
-          Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
-          (phishingový e-mail jako vektor, Malware na zařízení uživatele, BEC navazující na kompromitaci apod.)
-        example: 'UIB-10032026-1045-XXXX – Phishing (vektor kompromitace) · UIB-10032026-1220-YYYY – Malware Infostealer na PC uživatele'
-      - key: reporter_notified
-        label: Oznamovatel informován
-        type: select
-        options:
-          - Ano
-          - Ne
-      - {key: closed_at, label: Datum uzavření, type: datetime}
+          Před uzavřením ověř: (1) žádné aktivní sessions útočníka, (2) žádná forwarding pravidla ani
+          OAuth aplikace útočníka, (3) žádné neoprávněné odesílání nebo sdílení, (4) MFA re-enrollment
+          dokončen, (5) důkazy uloženy v IKB, (6) DPO informován pokud relevantní.<br><br>
+          <b>Metodika klasifikace – Úroveň dopadu:</b><br>
+          <b>Nízká</b> – neobvyklé přihlášení bez potvrzené aktivity útočníka; žádný dopad na regulovanou službu.<br>
+          <b>Střední</b> – potvrzená kompromitace běžného uživatele; bez exfiltrace; bez dopadu na regulovanou službu.<br>
+          <b>Vysoká</b> – exfiltrace dat nebo privilegovaný účet; při zasažení reg. služby splňuje KBI dle ZKB.<br>
+          <b>Kritická</b> – kompromitace administrátora s rozsáhlým dopadem; zasažena regulovaná služba; vždy KBI.
+        fields:
+          - key: final_classification
+            label: Klasifikace výsledku
+            type: select
+            editable: true
+            value: null
+            options:
+              - True Positive
+              - False Positive
+              - Benign True Positive
+            hint: 'False Positive: alert se ukázal jako legitimitní aktivita. Benign True Positive: neobvyklé přihlášení bez potvrzené škody.'
+          - key: impact_level
+            label: Úroveň dopadu
+            type: select
+            editable: true
+            value: null
+            options:
+              - Nízká
+              - Střední
+              - Vysoká
+              - Kritická
+            option_hints:
+              Nízká: Neobvyklé přihlášení bez potvrzené aktivity útočníka. Žádný dopad na regulovanou službu.
+              Střední: Potvrzená kompromitace běžného uživatele bez exfiltrace a bez dopadu na regulovanou službu.
+              Vysoká: Exfiltrace dat nebo privilegovaný účet. Při zasažení reg. služby splňuje KBI dle ZKB.
+              Kritická: Kompromitace administrátora s rozsáhlým dopadem. Zasažena regulovaná služba. Vždy KBI.
+            hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
+          - key: nukib_notification_required
+            label: Povinnost hlášení NÚKIB
+            type: select
+            editable: true
+            value: null
+            options:
+              - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
+          - key: ucl_notification_required
+            label: Povinnost hlášení ÚCL
+            type: select
+            editable: true
+            value: null
+            options:
+              - Povinná – Regulovaná letecká služba + Vysoká/Kritická
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
+          - key: impact_primary_service
+            label: Dostupnost primárních služeb organizace
+            type: select
+            editable: true
+            value: null
+            options:
+              - Zcela nedostupné
+              - Částečně nedostupné / degradované
+              - Dostupné bez omezení
+              - Netýká se
+            hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
+          - key: impact_scope
+            label: Rozsah zasažených uživatelů / systémů
+            type: select
+            editable: true
+            value: null
+            options:
+              - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
+              - Významný (10–50 %)
+              - 'Omezený (< 10 %)'
+              - Individuální (1 uživatel / 1 systém)
+          - key: impact_duration
+            label: Doba výpadku / narušení (dostupnost)
+            type: select
+            editable: true
+            value: null
+            options:
+              - '> 4 hodiny'
+              - 1–4 hodiny
+              - 15 min – 1 hodina
+              - < 15 min
+              - Žádný výpadek / narušení
+          - key: impact_data
+            label: Dopad na data (důvěrnost / integrita)
+            type: select
+            editable: true
+            value: null
+            options:
+              - Exfiltrace dat potvrzena
+              - Neoprávněný přístup k datům potvrzen
+              - Integrita dat narušena
+              - Žádný dopad na data
+              - Nelze určit
+          - key: root_cause
+            label: Root Cause
+            type: textarea
+            editable: true
+            value: null
+            placeholder: >
+              Uživatel zadal přihlašovací údaje na phishingové stránce napodobující M365 login.
+              Útočník se přihlásil z RU IP, obešel MFA pomocí session cookie z Infostealer malwaru
+              a exportoval kontakty z mailboxu před detekcí.
+          - key: actions_taken
+            label: Popis přijatých opatření
+            type: textarea
+            editable: true
+            value: null
+            placeholder: >
+              Reset hesla a MFA · revokace všech sessions · forwarding rule odstraněno ·
+              OAuth aplikace odebrána · CA politika zpřísněna · DPO informován · logy uloženy do IKB
+          - key: recommendations
+            label: Doporučení pro zlepšení
+            type: textarea
+            editable: true
+            value: null
+            placeholder: >
+              Zavést Token Protection pro kritické aplikace (Exchange, SharePoint).
+              Zpřísnit CA politiku – blokace non-compliant zařízení.
+              Phishing-resistant MFA (FIDO2 / Windows Hello) pro administrátorské účty.
+              Školení uživatelů zaměřené na MFA fatigue a session hijack.
+          - key: related_service_requests
+            label: Související servisní požadavky
+            type: textarea
+            editable: true
+            value: null
+            hint: Čísla nebo odkazy na servisní požadavky (CA politiky, MFA konfigurace, IAM změny apod.)
+            placeholder: 'SR-2026-1180 – zpřísnění CA politiky · SR-2026-1181 – aktivace Token Protection'
+          - key: related_security_events
+            label: Navázané bezpečnostní události (UIB/IIB)
+            type: textarea
+            editable: true
+            value: null
+            hint: >
+              Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
+              (phishingový e-mail jako vektor, Malware na zařízení uživatele, BEC navazující na kompromitaci apod.)
+            placeholder: 'UIB-10032026-1045-XXXX – Phishing (vektor kompromitace) · UIB-10032026-1220-YYYY – Malware Infostealer na PC uživatele'
+          - key: reporter_notified
+            label: Oznamovatel informován
+            type: select
+            editable: true
+            value: null
+            options:
+              - Ano
+              - Ne
+          - key: closed_at
+            label: Datum uzavření
+            type: datetime
+            editable: true
+            value: null
+
+      - id: closure_specific
+        type: form
+        title: Specifika incidentu
+        always_expanded: true
+        fields:
+          - key: compromise_type_final
+            label: Typ kompromitace (finální)
+            type: select
+            editable: true
+            value: null
+            options:
+              - Odcizené heslo (phishing / password spray / credential reuse)
+              - Token hijack / Session hijack (T1539)
+              - MFA fatigue / MFA bypass (T1621)
+              - Privilegovaný účet / admin kompromitace
+              - Kombinace typů
+              - Nelze určit
+          - key: account_type_final
+            label: Typ kompromitovaného účtu (finální)
+            type: select
+            editable: true
+            value: null
+            options:
+              - Běžný uživatel (bez zvýšených oprávnění)
+              - Administrátor / privilegovaný účet
+              - Servisní účet
+              - Účet s přístupem k regulované službě
+          - key: exfiltration_confirmed
+            label: Exfiltrace dat
+            type: select
+            editable: true
+            value: null
+            options:
+              - Potvrzena – rozsah dokumentován
+              - Podezření – nelze vyloučit
+              - Vyloučena
+            hint: 'Při potvrzené nebo podezřelé exfiltraci osobních údajů → povinnost informovat DPO a posoudit hlášení ÚOOÚ.'
 
   - id: raci
+    type: table
     title: RACI matice
-    type: raci_table
-    legend: >
-      R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) ·
-      C = Consulted (poskytuje součinnost) · I = Informed (je informován) ·
-      (Vysoká/Kritická) = podmínka pro aktivaci role
+    hint: "R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) · C = Consulted (poskytuje součinnost) · I = Informed (je informován) · (Vysoká/Kritická) = podmínka pro aktivaci role"
     columns:
-      - activity
-      - l1_its
-      - koordinator
-      - cirt
-      - r_dtech
-      - r_dplr
-      - garant
-      - delegat
-      - dpo
-      - nukib
-      - ucl
-    column_labels:
-      activity: Aktivita
-      l1_its: L1 (ITS)
-      koordinator: Koordinátor
-      cirt: CIRT
-      r_dtech: Ř-DTECH
-      r_dplr: Ř-DPLR
-      garant: Garant
-      delegat: Delegát
-      dpo: DPO
-      nukib: NÚKIB
-      ucl: ÚCL
+      - {key: activity,    label: "Aktivita",    type: text, editable: false}
+      - {key: l1_its,      label: "L1 (ITS)",    type: text, editable: false}
+      - {key: koordinator, label: "Koordinátor", type: text, editable: false}
+      - {key: cirt,        label: "CIRT",        type: text, editable: false}
+      - {key: r_dtech,     label: "Ř-DTECH",     type: text, editable: false}
+      - {key: r_dplr,      label: "Ř-DPLR",      type: text, editable: false}
+      - {key: garant,      label: "Garant",      type: text, editable: false}
+      - {key: delegat,     label: "Delegát",     type: text, editable: false}
+      - {key: dpo,         label: "DPO",         type: text, editable: false}
+      - {key: nukib,       label: "NÚKIB",       type: text, editable: false}
+      - {key: ucl,         label: "ÚCL",         type: text, editable: false}
     rows:
       - activity: Příjem UIB/IIB a evidence v TIS
         l1_its: R, A

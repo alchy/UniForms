@@ -44,6 +44,10 @@ data/events/*.json
 data/events/*.lock
 data/tisk/*.pdf
 data/templates/*.yaml
+data/workbooks/
+
+# ── Working / conversion directories (not part of the app) ────────────────
+4conversion/
 
 # ── Vendor JS/CSS (downloaded via scripts/download_vendors.py) ────────────
-app/static/vendor/
+#app/static/vendor/

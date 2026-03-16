@@ -63,11 +63,3 @@ roles:
     label: "CSIRT Lead"
   - id: collection_user
     label: "CSIRT Analytik"
-
-# Field key used as the record title in the detail page header
-title_field: case_title
-
-# Take Over button – writes the current user's username into this field
-take_over:
-  field: incident_coordinator
-  value_type: username

@@ -1,10 +1,10 @@
-# UIB – PLAYBOOK CSIRT: PHISHING / PODEZŘELÝ E‑MAIL – v1.0
+# UIB – v2.0
+# PLAYBOOK CSIRT: PHISHING / PODEZŘELÝ E-MAIL
 # Zpracováno dle CSIRT Playbook Phishing v1.2 / SM/25/0100/P5
-# Terminologie a postup odpovídají interním playbookům CSIRT.
 
-template_id: uib-phishing-v1
+template_id: uib-phishing-v2
 name: 'Phishing / Podezřelý e-mail'
-version: '1.0'
+version: '2.0'
 category: Phishing
 status: active
 description: >
@@ -28,27 +28,29 @@ data_sources:
 sections:
 
   - id: header
-    type: workbook_header
+    type: header
     title: Hlavička
     fields:
       - key: case_title
         label: Stručný popis události
         hint: Výstižný popis pro odlišení od ostatních případů stejné šablony
-        example: 'Phishing – podezřelý e-mail s odkazem na fake přihlašovací stránku M365 · odesílatel: helpdesk@firma-support[.]com'
+        placeholder: 'Phishing – podezřelý e-mail s odkazem na fake přihlašovací stránku M365 · odesílatel: helpdesk@firma-support[.]com'
       - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
       - key: incident_coordinator
         label: Koordinátor incidentu (CSIRT – L2)
         hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
 
   - id: classification
-    type: classification
+    type: form
     title: Klasifikace
     fields:
-      - {key: mitre_tactic, label: MITRE Tactic, editable: false, auto_value: template_mitre_tactic}
-      - {key: mitre_technique, label: MITRE Technique, editable: false, auto_value: template_mitre_technique}
+      - {key: mitre_tactic, label: MITRE Tactic, type: text, editable: false, auto_value: meta.mitre_tactic}
+      - {key: mitre_technique, label: MITRE Technique, type: text, editable: false, auto_value: meta.mitre_technique}
       - key: mitre_subtechnique
         label: MITRE Sub-technique / Typ phishingu
         type: select
+        editable: true
+        value: null
         options:
           - T1566.002 – Spearphishing Link (phishingový odkaz)
           - T1566.001 – Spearphishing Attachment (škodlivá příloha)
@@ -60,38 +62,26 @@ sections:
           Vyplň po Posouzení, až je znám způsob útoku.
           Pokud uživatel zadal heslo → zvaž eskalaci dle workbooku Kompromitace účtu (uib-account-compromise-v1).
           Pokud otevřel podezřelou přílohu → zvaž eskalaci dle workbooku Malware (uib-malware-v1).
-      - {key: data_sources, label: Doporučené zdroje dat pro investigaci, editable: false, auto_value: template_data_sources}
+      - key: data_sources
+        label: Doporučené zdroje dat pro investigaci
+        type: textarea
+        editable: false
+        auto_value: meta.data_sources
 
   - id: contacts
+    type: table
     title: Kontaktní matice
-    type: contact_table
     description: >
       Kontakty pro investigaci a eskalaci. Vyplň dle aktuální struktury organizace.
       Koordinátor CSIRT řídí celou technickou reakci – administrátoři jednají výhradně na jeho pokyn.
       L1 ITS předává incident Koordinátorovi CSIRT telefonicky nebo e-mailem ihned po zaevidování v TIS.
     columns:
-      - system_role
-      - name
-      - email
-      - phone
-      - when_to_contact
-    column_labels:
-      system_role: Systém / role
-      name: Jméno
-      email: E-mail
-      phone: Telefon
-      when_to_contact: Kdy kontaktovat
-    editable_columns:
-      - name
-      - email
-      - phone
+      - {key: system_role,     label: "Systém / role",   type: text, editable: false}
+      - {key: name,            label: "Jméno",           type: text, editable: true}
+      - {key: email,           label: "E-mail",          type: text, editable: true}
+      - {key: phone,           label: "Telefon",         type: text, editable: true}
+      - {key: when_to_contact, label: "Kdy kontaktovat", type: text, editable: false}
     allow_append: true
-    append_row_template:
-      system_role: null
-      name: null
-      email: null
-      phone: null
-      when_to_contact: null
     rows:
       - system_role: L1 ITS (Service Desk H24)
         name: ITS Service Desk
@@ -148,19 +138,26 @@ sections:
     title: 'Detekce a hlášení (L1 ITS)'
     type: section_group
     subsections:
-      - id: reported_by_person
-        title: Hlášeno zaměstnancem / osobou
+      - id: detection_report
+        title: Zdroj detekce a hlášení
         type: form
         note: 'L1 ITS – záznam dle SM/25/0100/P5'
         fields:
-          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, example: '2026-03-10T09:30'}
-          - {key: reporter_name, label: Jméno oznamovatele, example: Bc. Pavel Kratochvíl}
-          - {key: reporter_department, label: Oddělení / organizační jednotka, example: 'Provozní oddělení – MIS'}
-          - {key: reporter_contact, label: Kontakt (e-mail / telefon), example: 'kratochvil@firma.cz / +420 XXX XXX XXX'}
-          - {key: affected_user, label: Postižený uživatel nebo útvarový mailbox, example: 'kratochvil@firma.cz / sdilena@firma.cz'}
+          - key: source_type
+            label: Zdroj detekce
+            type: select
+            options:
+              - Hlášení zaměstnancem / osobou
+              - Automatizovaná detekce
+          - {key: reported_at, label: Datum a čas nahlášení (UIB/IIB), type: datetime, placeholder: '2026-03-10T09:30', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: reporter_name, label: Jméno oznamovatele, placeholder: 'Bc. Pavel Kratochvíl', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: reporter_department, label: Oddělení / organizační jednotka, placeholder: 'Provozní oddělení – MIS', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: reporter_contact, label: Kontakt (e-mail / telefon), placeholder: 'kratochvil@firma.cz / +420 XXX XXX XXX', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
+          - {key: affected_user, label: Postižený uživatel nebo útvarový mailbox, placeholder: 'kratochvil@firma.cz / sdilena@firma.cz', visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"}
           - key: user_action
             label: Co uživatel provedl?
             type: select
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
             options:
               - Neotevřel odkaz ani přílohu – nahlásil podezřelý e-mail
               - Klikl na odkaz, ale nezadal žádné údaje
@@ -169,62 +166,73 @@ sections:
               - Otevřel přílohu a zadal údaje
               - Nelze zjistit
             hint: Tato informace je klíčová pro výběr scénáře odezvy (A / B / C / D) – zjistí L1 ITS od uživatele.
+          - key: attachment_or_link
+            label: E-mail obsahoval přílohu nebo odkaz?
+            type: select
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            options:
+              - Odkaz (URL)
+              - Přílohu
+              - Obojí
+              - Ani jedno / nelze zjistit
+          - key: url_clicked
+            label: Uživatel klikl na odkaz?
+            type: select
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            options:
+              - Ano – klikl
+              - Ne – neklikl
+              - Nelze zjistit
           - key: description_by_reporter
             label: Popis události slovy oznamovatele
             type: textarea
-            example: >
+            visible_if: "source_type == 'Hlášení zaměstnancem / osobou'"
+            placeholder: >
               Obdržel jsem e-mail od „helpdesk@firma-support.com" s výzvou k ověření přístupu do M365.
               Klikl jsem na odkaz a přihlašovací stránka vypadala jako Microsoft – možná jsem zadal heslo.
-      - id: automated_detection
-        title: Automatizovaná detekce
-        type: form
-        note: 'L1 ITS – záznam dle SM/25/0100/P5'
-        condition: source_type == 'automated'
-        fields:
-          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, example: '2026-03-10T09:22'}
-          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, example: 'M365 Defender – Phishing simulation alert / Safe Links detonation'}
-          - {key: alert_id, label: ID alertu / Identifikace pravidla}
-          - {key: affected_asset_auto, label: Postižený mailbox / uživatel, example: 'kratochvil@firma.cz'}
+          - {key: alert_timestamp, label: Datum a čas alertu, type: datetime, placeholder: '2026-03-10T09:22', visible_if: "source_type == 'Automatizovaná detekce'"}
+          - {key: detection_tool, label: Detekční nástroj / zdroj alertu, placeholder: 'M365 Defender – Phishing simulation alert / Safe Links detonation', visible_if: "source_type == 'Automatizovaná detekce'"}
+          - {key: alert_id, label: ID alertu / Identifikace pravidla, visible_if: "source_type == 'Automatizovaná detekce'"}
+          - {key: affected_asset_auto, label: Postižený mailbox / uživatel, placeholder: 'kratochvil@firma.cz', visible_if: "source_type == 'Automatizovaná detekce'"}
           - key: alert_description
             label: Popis alertu
             type: textarea
-            example: >
+            visible_if: "source_type == 'Automatizovaná detekce'"
+            placeholder: >
               M365 Defender – Safe Links zablokoval přístup na URL hxxps://firma-support[.]com/login
               (kategorie: Phishing, reputace: Malicious). Uživatel proklikl odkaz z e-mailu doručeného v 09:18.
       - id: affected_assets
         title: Dotčená aktiva
-        type: assets_table
+        type: table
         note: 'Průběžně doplňuj při každém rozšíření scope'
         hint: >
           Pokud je dotčený mailbox nebo systém součástí prostředí MIS nebo regulované služby → ihned informuj CISO.<br><br>
           Do pole Poznámky uveď důležitá zjištění (podezřelá URL, hash přílohy, IP útočníka, počet zasažených uživatelů).
         always_expanded: true
         columns:
-          - asset_name
-          - fqdn
-          - asset_ip
-          - asset_type
-          - regulated_service
-          - notes
-        column_labels:
-          asset_name: Název aktiva
-          fqdn: FQDN / doména
-          asset_ip: IP / Netmask
-          asset_type: Typ aktiva
-          regulated_service: Regulovaná služba
-          notes: Poznámky
-        column_options:
-          asset_type:
-            - Mailbox
-            - Endpoint (pracovní stanice)
-            - Endpoint (MIS)
-            - Informační systém
-            - Server
-            - Sdílené úložiště
-            - Jiné aktivum
-          regulated_service:
-            - Ne
-            - Ano
+          - {key: asset_name,       label: "Název aktiva",       type: text,   editable: true}
+          - {key: fqdn,             label: "FQDN / doména",      type: text,   editable: true}
+          - {key: asset_ip,         label: "IP / Netmask",       type: text,   editable: true}
+          - key: asset_type
+            label: "Typ aktiva"
+            type: select
+            editable: true
+            options:
+              - Mailbox
+              - Endpoint (pracovní stanice)
+              - Endpoint (MIS)
+              - Informační systém
+              - Server
+              - Sdílené úložiště
+              - Jiné aktivum
+          - key: regulated_service
+            label: "Regulovaná služba"
+            type: select
+            editable: true
+            options:
+              - Ne
+              - Ano
+          - {key: notes,            label: "Poznámky",           type: text,   editable: true}
         editable: true
         rows: []
 
@@ -502,36 +510,30 @@ sections:
 
   - id: containment_remediation
     title: 'Odezva – checklist'
-    type: action_table
+    type: table
     description: >
       Zaznamenej u každé akce zodpovědnou roli a aktuální stav. Pokud akce není relevantní pro daný scénář, napiš N/A.
       Technické zásahy provádí administrátoři výhradně na pokyn Koordinátora CSIRT.
       Scénáře C a D vyžadují paralelní aktivaci workbooků Kompromitace účtu a/nebo Malware.
+    hint: >
+      Scénář C → zahaj paralelní Odezvu dle workbooku Kompromitace účtu (uib-account-compromise-v1).
+      Scénář D → zahaj paralelní Odezvu dle workbooku Malware (uib-malware-v1).
     columns:
-      - phase
-      - action
-      - responsible_role
-      - cooperation
-      - status
-    column_labels:
-      phase: Fáze
-      action: Akce
-      responsible_role: Zodpovědná role
-      cooperation: Součinnost
-      status: Stav
-    status_options:
-      - Provedeno
-      - Probíhá
-      - Čeká
-      - N/A
-      - Není nutné provést
-    editable_columns:
-      - status
+      - {key: phase,            label: "Fáze",             type: text,   editable: false}
+      - {key: action,           label: "Akce",             type: text,   editable: false}
+      - {key: responsible_role, label: "Zodpovědná role",  type: text,   editable: false}
+      - {key: cooperation,      label: "Součinnost",       type: text,   editable: false}
+      - key: status
+        label: "Stav"
+        type: select
+        editable: true
+        options:
+          - Provedeno
+          - Probíhá
+          - Čeká
+          - N/A
+          - Není nutné provést
     allow_append: false
-    hints:
-      - >
-        Scénář C → zahaj paralelní Odezvu dle workbooku Kompromitace účtu (uib-account-compromise-v1).
-        Scénář D → zahaj paralelní Odezvu dle workbooku Malware (uib-malware-v1).
     rows:
       - phase: A
         action: Blokace odesílající domény a e-mailové adresy na M365 (Transport rule / Tenant Block List)
@@ -606,53 +608,39 @@ sections:
 
   - id: additional_actions
     title: 'Odezva – dodatečné kroky'
-    type: action_table
+    type: table
     description: >
       Prostor pro zaznamenání kroků nad rámec standardního checklistu.
       Vyplní Koordinátor CSIRT nebo analytik dle potřeby.
     columns:
-      - action
-      - cooperation
-      - status
-    column_labels:
-      action: Akce
-      cooperation: Součinnost
-      status: Stav
-    status_options:
-      - Provedeno
-      - Probíhá
-      - Čeká
-      - N/A
-      - Není nutné provést
-    editable_columns:
-      - status
+      - {key: action,      label: "Akce",       type: text, editable: true}
+      - {key: cooperation, label: "Součinnost",  type: text, editable: true}
+      - key: status
+        label: "Stav"
+        type: select
+        editable: true
+        options:
+          - Provedeno
+          - Probíhá
+          - Čeká
+          - N/A
+          - Není nutné provést
     allow_append: true
     allow_delete: true
-    append_row_template:
-      action: null
-      cooperation: null
-      status: null
     rows: []
 
   - id: communication
     title: Komunikace a notifikace
-    type: action_table
+    type: table
+    hint: >
+      SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.
+      Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.
+      Při zadání přihlašovacích údajů (Scénář C) upřednos komunikaci se Správcem IAM před ostatními.
     columns:
-      - recipient
-      - communication_method
-      - sla
-      - note
-    column_labels:
-      recipient: Příjemce
-      communication_method: Způsob komunikace
-      sla: SLA pro notifikaci
-      note: Poznámka / stav
-    editable_columns:
-      - note
-    hints:
-      - 'SLA je orientační. Vždy ověř požadavky dle platné legislativy (NIS2, GDPR) a interních předpisů.'
-      - 'Oznamovatele informuj vždy – bez ohledu na výsledek klasifikace.'
-      - 'Při zadání přihlašovacích údajů (Scénář C) upřednos komunikaci se Správcem IAM před ostatními.'
+      - {key: recipient,             label: "Příjemce",             type: text, editable: false}
+      - {key: communication_method,  label: "Způsob komunikace",    type: text, editable: false}
+      - {key: sla,                   label: "SLA pro notifikaci",   type: text, editable: false}
+      - {key: note,                  label: "Poznámka / stav",      type: text, editable: true}
     rows:
       - recipient: Oznamovatel / dotčený uživatel
         communication_method: E-mail / telefon
@@ -685,199 +673,199 @@ sections:
 
   - id: closure
     title: Klasifikace a uzavření
-    type: form
+    type: section_group
     description: >
       Uzavření provádí Koordinátor CSIRT po dokončení Odezvy, nebo ihned po Posouzení u False Positive.
       Klasifikace a Severity vyjadřují finální stav. Koordinátor uzavírá záznam v TIS.
-    hint: >
-      Před uzavřením ověř: (1) phishingová doména je zablokována a Search & Purge dokončen,
-      (2) při Scénáři C – heslo resetováno, MFA obnoveno, forwarding rules odstraněny,
-      (3) při Scénáři D – Workbook Malware aktivován, stanice v izolaci nebo čistá,
-      (4) oznamovatel informován o výsledku, (5) důkazy uloženy v IKB.<br><br>
-      <b>Metodika klasifikace – Úroveň dopadu:</b><br>
-      <b>Nízká</b> – phishingový e-mail odhalen bez interakce uživatele; žádný dopad na systémy nebo data.<br>
-      <b>Střední</b> – uživatel klikl nebo otevřel přílohu bez zadání údajů; bez potvrzeného dopadu na účet.<br>
-      <b>Vysoká</b> – zadány přihlašovací údaje (Scénář C) nebo spuštěn malware (Scénář D);
-      při zasažení regulované služby splňuje kritéria KBI dle ZKB.<br>
-      <b>Kritická</b> – rozsáhlá kampaň, kompromitace kritického účtu nebo regulované služby; jde vždy o KBI.
-    fields:
-      - key: final_classification
-        label: Klasifikace výsledku
-        type: select
-        options:
-          - True Positive
-          - False Positive
-          - Benign True Positive
+    subsections:
+      - id: closure_base
+        title: Uzavření – společné položky
+        type: form
         hint: >
-          False Positive: e-mail byl legitimní, podezření se nepotvrdilo.
-          Benign True Positive: phishing pokus odhalen včas, žádná škoda nevznikla.
-        example: True Positive
-      - key: impact_level
-        label: Úroveň dopadu
-        type: select
-        options:
-          - Nízká
-          - Střední
-          - Vysoká
-          - Kritická
-        option_hints:
-          Nízká: Phishing odhalen bez interakce uživatele. Žádný dopad na účty, systémy nebo data.
-          Střední: Uživatel klikl nebo otevřel přílohu bez potvrzeného zadání údajů nebo spuštění kódu.
-          Vysoká: Zadány přihlašovací údaje nebo spuštěn malware. Při zasažení regulované služby → KBI.
-          Kritická: Rozsáhlá kampaň nebo kompromitace kritického účtu / regulované služby. Vždy KBI.
-        hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
-      - key: nukib_notification_required
-        label: Povinnost hlášení NÚKIB
-        type: select
-        options:
-          - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
-          - Zvážit – hraniční případ
-          - Není vyžadována
-        hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
-      - key: ucl_notification_required
-        label: Povinnost hlášení ÚCL
-        type: select
-        options:
-          - Povinná – Regulovaná letecká služba + Vysoká/Kritická
-          - Zvážit – hraniční případ
-          - Není vyžadována
-        hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
-      - key: impact_primary_service
-        label: Dostupnost primárních služeb organizace
-        type: select
-        options:
-          - Zcela nedostupné
-          - Částečně nedostupné / degradované
-          - Dostupné bez omezení
-          - Netýká se
-        hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
-      - key: impact_scope
-        label: Rozsah zasažených uživatelů / systémů
-        type: select
-        options:
-          - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
-          - Významný (10–50 %)
-          - 'Omezený (< 10 %)'
-          - Individuální (1 uživatel / 1 systém)
-      - key: impact_duration
-        label: Doba výpadku / narušení (dostupnost)
-        type: select
-        options:
-          - '> 4 hodiny'
-          - 1–4 hodiny
-          - 15 min – 1 hodina
-          - < 15 min
-          - Žádný výpadek / narušení
-      - key: impact_data
-        label: Dopad na data (důvěrnost / integrita)
-        type: select
-        options:
-          - Exfiltrace dat potvrzena
-          - Neoprávněný přístup k datům potvrzen
-          - Integrita dat narušena
-          - Žádný dopad na data
-          - Nelze určit
-      - key: phishing_type_final
-        label: Typ phishingu (finální)
-        type: select
-        options:
-          - Spearphishing Link – krádež přihlašovacích údajů (T1566.002)
-          - Spearphishing Attachment – škodlivá příloha (T1566.001)
-          - Spearphishing via Service – zneužití legitimní služby (T1566.003)
-          - Masový phishing – hromadná kampaň
-          - Kombinace typů
-          - Nelze určit
-      - key: credential_submitted_final
-        label: Byly zadány přihlašovací údaje?
-        type: select
-        options:
-          - Ano – potvrzeno (Scénář C – aktivován Workbook Kompromitace účtu)
-          - Pravděpodobně – nelze vyloučit
-          - Ne – potvrzeno
-        hint: 'Pokud Ano nebo Pravděpodobně → workbook Kompromitace účtu (uib-account-compromise-v1) musí být aktivován.'
-      - key: malware_suspected_final
-        label: Podezření na spuštění malwaru
-        type: select
-        options:
-          - Ano – příloha otevřena a malware potvrzen (Scénář D – aktivován Workbook Malware)
-          - Pravděpodobně – příloha otevřena, výsledek analýzy čeká
-          - Ne – příloha neotevřena nebo analýzou vyloučena
-        hint: 'Pokud Ano nebo Pravděpodobně → workbook Malware (uib-malware-v1) musí být aktivován.'
-      - key: root_cause
-        label: Root Cause
-        type: textarea
-        example: >
-          Útočník registroval typo-squatting doménu firma-support[.]com a odesílal e-maily napodobující
-          interní helpdesk. Uživatel klikl na odkaz a zadal přihlašovací údaje na podvržené stránce.
-          Útočník získal přístup k mailboxu a nastavil forwarding pravidlo.
-      - key: actions_taken
-        label: Popis přijatých opatření
-        type: textarea
-        example: >
-          Blokace domény firma-support[.]com na M365 · Search & Purge (12 mailboxů) ·
-          reset hesla a MFA (Správce IAM) · forwarding pravidlo odstraněno ·
-          Workbook Kompromitace účtu aktivován · logy uloženy do IKB
-      - key: recommendations
-        label: Doporučení pro zlepšení
-        type: textarea
-        example: >
-          Zpřísnit antiphishing politiky v M365 Defender (impersonation protection, lookalike domain detection).
-          Zavést pravidelná phishingová cvičení (simulace) pro uživatele v MIS a finančním oddělení.
-          Zvážit FIDO2 / hardware token MFA pro privilegované účty a uživatele v MIS.
-          Aktualizovat postup pro nahlašování podezřelých e-mailů – jeden klik přes Outlook Report Message doplněk.
-      - key: related_service_requests
-        label: Související servisní požadavky
-        type: textarea
-        hint: >
-          Čísla nebo odkazy na servisní požadavky vytvořené v průběhu řešení
-          (blokace domény, úpravy antiphishing politik, požadavky na reset hesla apod.)
-        example: 'SR-2026-2210 – blokace domény na M365 · SR-2026-2211 – reset hesla a MFA uživatele'
-      - key: related_security_events
-        label: Navázané bezpečnostní události (UIB/IIB)
-        type: textarea
-        hint: >
-          Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
-          (např. navázaný incident Kompromitace účtu při Scénáři C, Malware při Scénáři D, phishingová kampaň apod.)
-        example: 'UIB-10032026-1000-XXXX – Kompromitace účtu (Scénář C – paralelně šetřeno) · UIB-10032026-0945-YYYY – Malware (Scénář D)'
-      - key: reporter_notified
-        label: Oznamovatel informován
-        type: select
-        options:
-          - Ano
-          - Ne
-      - {key: closed_at, label: Datum uzavření, type: datetime}
+          Před uzavřením ověř: (1) phishingová doména je zablokována a Search & Purge dokončen,
+          (2) při Scénáři C – heslo resetováno, MFA obnoveno, forwarding rules odstraněny,
+          (3) při Scénáři D – Workbook Malware aktivován, stanice v izolaci nebo čistá,
+          (4) oznamovatel informován o výsledku, (5) důkazy uloženy v IKB.<br><br>
+          <b>Metodika klasifikace – Úroveň dopadu:</b><br>
+          <b>Nízká</b> – phishingový e-mail odhalen bez interakce uživatele; žádný dopad na systémy nebo data.<br>
+          <b>Střední</b> – uživatel klikl nebo otevřel přílohu bez zadání údajů; bez potvrzeného dopadu na účet.<br>
+          <b>Vysoká</b> – zadány přihlašovací údaje (Scénář C) nebo spuštěn malware (Scénář D);
+          při zasažení regulované služby splňuje kritéria KBI dle ZKB.<br>
+          <b>Kritická</b> – rozsáhlá kampaň, kompromitace kritického účtu nebo regulované služby; jde vždy o KBI.
+        fields:
+          - key: final_classification
+            label: Klasifikace výsledku
+            type: select
+            options:
+              - True Positive
+              - False Positive
+              - Benign True Positive
+            hint: >
+              False Positive: e-mail byl legitimní, podezření se nepotvrdilo.
+              Benign True Positive: phishing pokus odhalen včas, žádná škoda nevznikla.
+            placeholder: True Positive
+          - key: impact_level
+            label: Úroveň dopadu
+            type: select
+            options:
+              - Nízká
+              - Střední
+              - Vysoká
+              - Kritická
+            option_hints:
+              Nízká: Phishing odhalen bez interakce uživatele. Žádný dopad na účty, systémy nebo data.
+              Střední: Uživatel klikl nebo otevřel přílohu bez potvrzeného zadání údajů nebo spuštění kódu.
+              Vysoká: Zadány přihlašovací údaje nebo spuštěn malware. Při zasažení regulované služby → KBI.
+              Kritická: Rozsáhlá kampaň nebo kompromitace kritického účtu / regulované služby. Vždy KBI.
+            hint: Úroveň Vysoká a Kritická při zasažení regulované služby zakládají povinnost hlášení NÚKIB a ÚCL.
+          - key: nukib_notification_required
+            label: Povinnost hlášení NÚKIB
+            type: select
+            options:
+              - 'Povinná – Regulovaná služba + Vysoká/Kritická (ZOKB §8, vyhl. 82/2018 Sb.)'
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: 'Lhůty: do 24 h (první hlášení) · do 72 h (detailní hlášení) · do 30 dní (závěrečná zpráva) – dle vyhlášky č. 82/2018 Sb.'
+          - key: ucl_notification_required
+            label: Povinnost hlášení ÚCL
+            type: select
+            options:
+              - Povinná – Regulovaná letecká služba + Vysoká/Kritická
+              - Zvážit – hraniční případ
+              - Není vyžadována
+            hint: ÚCL (Úřad pro civilní letectví) – hlášení povinné při Vysokém nebo Kritickém dopadu na regulovanou leteckou službu.
+          - key: impact_primary_service
+            label: Dostupnost primárních služeb organizace
+            type: select
+            options:
+              - Zcela nedostupné
+              - Částečně nedostupné / degradované
+              - Dostupné bez omezení
+              - Netýká se
+            hint: Primární = služby poskytované organizací klientům / uživatelům nebo klíčové interní provozní procesy.
+          - key: impact_scope
+            label: Rozsah zasažených uživatelů / systémů
+            type: select
+            options:
+              - 'Celoplošný (> 50 % uživatelů nebo klíčových systémů)'
+              - Významný (10–50 %)
+              - 'Omezený (< 10 %)'
+              - Individuální (1 uživatel / 1 systém)
+          - key: impact_duration
+            label: Doba výpadku / narušení (dostupnost)
+            type: select
+            options:
+              - '> 4 hodiny'
+              - 1–4 hodiny
+              - 15 min – 1 hodina
+              - < 15 min
+              - Žádný výpadek / narušení
+          - key: impact_data
+            label: Dopad na data (důvěrnost / integrita)
+            type: select
+            options:
+              - Exfiltrace dat potvrzena
+              - Neoprávněný přístup k datům potvrzen
+              - Integrita dat narušena
+              - Žádný dopad na data
+              - Nelze určit
+          - key: root_cause
+            label: Root Cause
+            type: textarea
+            placeholder: >
+              Útočník registroval typo-squatting doménu firma-support[.]com a odesílal e-maily napodobující
+              interní helpdesk. Uživatel klikl na odkaz a zadal přihlašovací údaje na podvržené stránce.
+              Útočník získal přístup k mailboxu a nastavil forwarding pravidlo.
+          - key: actions_taken
+            label: Popis přijatých opatření
+            type: textarea
+            placeholder: >
+              Blokace domény firma-support[.]com na M365 · Search & Purge (12 mailboxů) ·
+              reset hesla a MFA (Správce IAM) · forwarding pravidlo odstraněno ·
+              Workbook Kompromitace účtu aktivován · logy uloženy do IKB
+          - key: recommendations
+            label: Doporučení pro zlepšení
+            type: textarea
+            placeholder: >
+              Zpřísnit antiphishing politiky v M365 Defender (impersonation protection, lookalike domain detection).
+              Zavést pravidelná phishingová cvičení (simulace) pro uživatele v MIS a finančním oddělení.
+              Zvážit FIDO2 / hardware token MFA pro privilegované účty a uživatele v MIS.
+              Aktualizovat postup pro nahlašování podezřelých e-mailů – jeden klik přes Outlook Report Message doplněk.
+          - key: related_service_requests
+            label: Související servisní požadavky
+            type: textarea
+            hint: >
+              Čísla nebo odkazy na servisní požadavky vytvořené v průběhu řešení
+              (blokace domény, úpravy antiphishing politik, požadavky na reset hesla apod.)
+            placeholder: 'SR-2026-2210 – blokace domény na M365 · SR-2026-2211 – reset hesla a MFA uživatele'
+          - key: related_security_events
+            label: Navázané bezpečnostní události (UIB/IIB)
+            type: textarea
+            hint: >
+              Reference na další šetřené bezpečnostní události otevřené v rámci tohoto incidentu nebo s ním související
+              (např. navázaný incident Kompromitace účtu při Scénáři C, Malware při Scénáři D, phishingová kampaň apod.)
+            placeholder: 'UIB-10032026-1000-XXXX – Kompromitace účtu (Scénář C – paralelně šetřeno) · UIB-10032026-0945-YYYY – Malware (Scénář D)'
+          - key: reporter_notified
+            label: Oznamovatel informován
+            type: select
+            options:
+              - Ano
+              - Ne
+          - {key: closed_at, label: Datum uzavření, type: datetime}
+      - id: closure_specific
+        title: Uzavření – specifika phishingového incidentu
+        type: form
+        fields:
+          - key: phishing_scenario_final
+            label: Scénář odezvy (finální)
+            type: select
+            options:
+              - 'Scénář A – phishing odhalen bez interakce uživatele'
+              - 'Scénář B – uživatel klikl nebo otevřel přílohu, bez potvrzeného zadání údajů'
+              - 'Scénář C – zadány přihlašovací údaje, aktivován Workbook Kompromitace účtu'
+              - 'Scénář D – spuštěn malware z přílohy, aktivován Workbook Malware'
+              - Kombinace scénářů
+              - Nelze určit
+          - key: user_action_final
+            label: Prokázaná akce uživatele (finální)
+            type: select
+            options:
+              - Neotevřel odkaz ani přílohu
+              - Klikl na odkaz, nezadal údaje
+              - Otevřel přílohu bez zadání údajů
+              - Zadal přihlašovací údaje (heslo / MFA kód)
+              - Otevřel přílohu a zadal údaje
+              - Nelze prokázat
+          - key: email_vector_final
+            label: Vektor phishingového e-mailu (finální)
+            type: select
+            options:
+              - Spearphishing Link (phishingový odkaz)
+              - Spearphishing Attachment (škodlivá příloha)
+              - Spearphishing via Service (zneužití legitimní služby)
+              - Masový phishing – hromadná kampaň
+              - Kombinace vektorů
+              - Nelze určit
 
   - id: raci
+    type: table
     title: RACI matice
-    type: raci_table
-    legend: >
+    hint: >
       R = Responsible (provádí) · A = Accountable (zodpovídá za výsledek) ·
       C = Consulted (poskytuje součinnost) · I = Informed (je informován) ·
       (Vysoká/Kritická) = podmínka pro aktivaci role
     columns:
-      - activity
-      - l1_its
-      - koordinator
-      - cirt
-      - r_dtech
-      - r_dplr
-      - garant
-      - delegat
-      - dpo
-      - nukib
-      - ucl
-    column_labels:
-      activity: Aktivita
-      l1_its: L1 (ITS)
-      koordinator: Koordinátor
-      cirt: CIRT
-      r_dtech: Ř-DTECH
-      r_dplr: Ř-DPLR
-      garant: Garant
-      delegat: Delegát
-      dpo: DPO
-      nukib: NÚKIB
-      ucl: ÚCL
+      - {key: activity,    label: "Aktivita",    type: text, editable: false}
+      - {key: l1_its,      label: "L1 (ITS)",    type: text, editable: false}
+      - {key: koordinator, label: "Koordinátor", type: text, editable: false}
+      - {key: cirt,        label: "CIRT",        type: text, editable: false}
+      - {key: r_dtech,     label: "Ř-DTECH",     type: text, editable: false}
+      - {key: r_dplr,      label: "Ř-DPLR",      type: text, editable: false}
+      - {key: garant,      label: "Garant",      type: text, editable: false}
+      - {key: delegat,     label: "Delegát",     type: text, editable: false}
+      - {key: dpo,         label: "DPO",         type: text, editable: false}
+      - {key: nukib,       label: "NÚKIB",       type: text, editable: false}
+      - {key: ucl,         label: "ÚCL",         type: text, editable: false}
     rows:
       - activity: Příjem UIB/IIB a evidence v TIS
         l1_its: R, A

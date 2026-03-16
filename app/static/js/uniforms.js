@@ -505,9 +505,24 @@ function renderTable(section) {
     table.appendChild(tbody);
 
     const wrap = el('div');
+
+    // Optional single hint above the table (blue info box, same as form sections)
+    if (section.hint) {
+        wrap.appendChild(el('div', 'alert alert-info py-2 small mb-3',
+            `<i class="bi bi-info-circle me-1"></i>${section.hint}`));
+    }
+
     const tableWrap = el('div', 'table-responsive');
     tableWrap.appendChild(table);
     wrap.appendChild(tableWrap);
+
+    // Optional hint lines below the table (gray text, e.g. for action tables with role notes)
+    if (section.hints) {
+        section.hints.forEach(hint => {
+            wrap.appendChild(el('div', 'form-text text-secondary small mt-2',
+                `<i class="bi bi-info-circle me-1"></i>${hint}`));
+        });
+    }
 
     if (section.allow_append) {
         const addLabel = section.add_row_label || 'Add row';

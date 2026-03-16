@@ -36,3 +36,9 @@ roles:
     label: Vedoucí
   - id: collection_user
     label: Obchodník
+
+title_field: znacka
+
+take_over:
+  field: obchodnik
+  value_type: username
