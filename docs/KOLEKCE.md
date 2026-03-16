@@ -325,16 +325,12 @@ Přepisovatelné klíče:
 
 | Klíč | Výchozí hodnota | Popis |
 |------|-----------------|-------|
-| `record` | `record` | Název záznamu v jednotném čísle. |
-| `records` | `records` | Název záznamu v množném čísle. |
 | `record_id_label` | `Record ID` | Záhlaví sloupce ID v seznamu záznamů. |
-| `template` | `template` | Název šablony v jednotném čísle. |
-| `templates` | `templates` | Název šablony v množném čísle. |
 | `records_subtitle` | `All records` | Podtitulek stránky seznamu záznamů. |
 | `templates_subtitle` | `Available templates` | Podtitulek stránky seznamu šablon. |
 | `dashboard_subtitle` | `Overview` | Podtitulek dashboardu. |
 | `new_record_btn` | `New Record` | Text tlačítka pro vytvoření nového záznamu. |
-| `record_owner_label` | `Coordinator` | Záhlaví sloupce koordinátora. |
+| `record_owner_label` | `Record Owner` | Popisek pole vlastníka záznamu (take_over). |
 | `take_over_btn` | `Take Over` | Text tlačítka Převzít. |
 | `status_active` | `Active` | Název stavu šablony „aktivní". |
 | `status_draft` | `Draft` | Název stavu šablony „rozpracovaná". |
@@ -342,11 +338,7 @@ Přepisovatelné klíče:
 
 ```yaml
 terminology:
-  record: incident
-  records: incidenty
   record_id_label: "ID incidentu"
-  template: playbook
-  templates: playbooks
   records_subtitle: "Všechny incidenty"
   templates_subtitle: "Dostupné playbooks"
   dashboard_subtitle: "Přehled incidentů"

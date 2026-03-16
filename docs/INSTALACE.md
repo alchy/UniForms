@@ -161,11 +161,7 @@ app:
   subtitle: "Universal Forms Engine"
 
 terminology:
-  record: "record"
-  records: "records"
   record_id_label: "Record ID"
-  template: "template"
-  templates: "templates"
   new_record_btn: "New Record"
   record_owner_label: "Coordinator"
   take_over_btn: "Take Over"

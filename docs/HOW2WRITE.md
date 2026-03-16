@@ -188,7 +188,7 @@ Blockquoty nenahrazují tabulky ani příklady. Jeden blockquote ke každé sekc
 Nadpisy pišou **bez závorek** s jedinou výjimkou: typ nebo název identifikátoru v backtick závorce je součástí nadpisu:
 
 ```markdown
-### Tabulka akcí (`action_table`)
+### Tabulka akcí (`table`)
 ### POST `/api/v1/cases/`
 ```
 

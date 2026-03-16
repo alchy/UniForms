@@ -225,8 +225,8 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/collections/
     "name": "SOC",
     "description": "Security Operations Center",
     "terminology": {
-      "record": "incident",
-      "records": "incidents"
+      "record_id_label": "Ticket ID",
+      "new_record_btn": "New Incident"
     },
     "workflow": {
       "initial_state": "new",

@@ -97,22 +97,23 @@ templates.env.globals.update({
 |----------|-------|---------|
 | `{{ app_name }}` | Název aplikace z `uniforms.yaml` | `UniForms` |
 | `{{ app_subtitle }}` | Podtitulek z `uniforms.yaml` | `Universal Forms Engine` |
-| `{{ term }}` | Dict terminologie z `uniforms.yaml → terminology` | `{"record": "ticket", ...}` |
+| `{{ term }}` | Dict terminologie z `uniforms.yaml → terminology` | `{"record_id_label": "Ticket ID", ...}` |
 
 Terminologii používáte v šablonách takto:
 
 ```html
-<h1>{{ term.records | title }}</h1>         <!-- např. "Záznamy" nebo "Tickety" -->
 <button>{{ term.new_record_btn }}</button>   <!-- např. "Nový záznam" -->
+<span>{{ term.record_id_label }}</span>      <!-- např. "Record ID" nebo "ID incidentu" -->
 ```
 
 `base.html` navíc exportuje terminologii do JS objektu `TERM`, který je dostupný v každém JS souboru:
 
 ```javascript
 // Přístup z JavaScriptu (definován v base.html)
-TERM.record        // "záznam"
-TERM.btn_save      // "Uložit"
-TERM.col_status    // "Stav"
+TERM.btn_save          // "Save"
+TERM.col_status        // "Status"
+TERM.record_id_label   // "Record ID"
+TERM.record_owner_label // "Record Owner"
 ```
 
 ### Per-request kontext (liší se dle stránky)
@@ -478,16 +479,13 @@ UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
 
 ### Vestavěné renderery (přepsatelné přes `registerRenderer`)
 
-| Typy sekcí | Interní renderer |
-|------------|-----------------|
-| `header`, `workbook_header`, `playbook_header`, `record_header` | `renderHeader` |
+| Typ sekce | Interní renderer |
+|-----------|-----------------|
+| `header` | `renderHeader` |
 | `form` | `renderFormSection` |
-| `checklist` | `renderChecklist` |
 | `table` | `renderTable` |
+| `checklist` | `renderChecklist` |
 | `section_group` | `renderSectionGroup` |
-| `contact_table` | `renderContactTable` |
-| `item_table`, `assets_table` | `renderItemTable` |
-| `task_table`, `action_table` | `renderTaskTable` |
 
 ### Klíčové JS funkce na stránce detailu záznamu
 
