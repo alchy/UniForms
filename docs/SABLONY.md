@@ -360,12 +360,39 @@ Ke každému kroku lze přidat `hint` (nápověda pod krokem) nebo `example` (vz
 
 Editovatelná tabulka s volitelnou editovatelností per-sloupec. `allow_append: true` přidá tlačítko pro nový řádek, `allow_delete: true` umožní řádky mazat.
 
-Klíče `rows` a `append_row_template` slouží různým účelům a zpravidla **nepoužíváš oba najednou**:
+`rows` a `append_row_template` slouží různým fázím — jsou to **nezávislé klíče, ne alternativy**:
 
-- **`rows`** — řádky vložené do záznamu při jeho *vytvoření* ze šablony. Jsou součástí uloženého JSON a analytik je vidí okamžitě. Použij, když potřebuješ tabulku s předvyplněnými daty (např. známé kontakty ze šablony).
-- **`append_row_template`** — vzor pro řádky přidané uživatelem tlačítkem „+ Přidat řádek". Určuje výchozí hodnoty nového řádku (chybějící klíče = `null`). Použij, když chceš tabulku prázdnou, ale nové řádky mají mít rozumné výchozí hodnoty (např. `status: "Nekontaktován"`).
+- **`rows`** — data *uložená do záznamu* při jeho vytvoření (backend, `record_service`). Řádky jsou součástí JSON záznamu od první chvíle. Vynechání nebo `rows: []` je totéž — tabulka začíná prázdná. `rows: []` nikdy nepiš, je zbytečné.
+- **`append_row_template`** — vzor pro tlačítko „+ Přidat řádek" (runtime, prohlížeč). Určuje výchozí hodnoty nového řádku; klíče, které neuvedeš, dostanou `null`. Nemá vliv na počáteční stav záznamu.
 
-Kombinace dává smysl jen tehdy, když počáteční řádky mají *jiný obsah* než šablona pro nové — například šablona předvyplní koordinátora projektu, zatímco nové řádky jsou prázdné.
+Typické použití — **vyber jeden ze tří vzorů**:
+
+```yaml
+# 1. Prázdná tabulka, nové řádky mají výchozí hodnoty (nejčastější)
+allow_append: true
+append_row_template:
+  status: "Nekontaktován"
+
+# 2. Tabulka s předvyplněnými řádky ze šablony, nové řádky prázdné
+allow_append: true
+rows:
+  - name: "Jan Novák"
+    role: "Primární kontakt"
+    phone: null
+    status: "Nekontaktován"
+
+# 3. Předvyplněné řádky i výchozí hodnoty pro nové (výjimečné)
+allow_append: true
+rows:
+  - name: "Jan Novák"
+    role: "Primární kontakt"
+    phone: null
+    status: "Nekontaktován"
+append_row_template:
+  status: "Nekontaktován"
+```
+
+Plný příklad sekce (vzor 1):
 
 ```yaml
 - id: contacts
@@ -393,9 +420,8 @@ Kombinace dává smysl jen tehdy, když počáteční řádky mají *jiný obsah
       type: select
       editable: true
       options: ["Nekontaktován", "Kontaktován", "Odpověděl"]
-  rows: []   # tabulka začíná prázdná
   append_row_template:
-    status: "Nekontaktován"   # jediná výchozí hodnota; ostatní sloupce = null
+    status: "Nekontaktován"
 ```
 
 | Klíč | ✓ | Popis |
@@ -404,8 +430,8 @@ Kombinace dává smysl jen tehdy, když počáteční řádky mají *jiný obsah
 | `type` | ✓ | `"table"` |
 | `title` | ✓ | Nadpis karty |
 | `columns[]` | ✓ | Definice sloupců (viz níže) |
-| `rows[]` | | Počáteční řádky vložené do záznamu při jeho vytvoření; `rows: []` nebo absence = prázdná tabulka |
-| `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem; neuvedené klíče dostávají `null` |
+| `rows[]` | | Počáteční řádky vložené do záznamu při jeho vytvoření; vynechání = prázdná tabulka |
+| `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem; neuvedené klíče = `null` |
 | `allow_append` | | `true` = tlačítko „+ Přidat řádek" (výchozí: `false`) |
 | `allow_delete` | | `true` = tlačítko pro smazání řádku (výchozí: `false`) |
 | `hint` | | Modrý informační box nad tabulkou |
@@ -882,7 +908,7 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 | Klíč | ✓ | Popis |
 |------|:-:|-------|
 | `columns[]` | ✓ | Definice sloupců |
-| `rows[]` | | Počáteční řádky vložené do záznamu při vytvoření; `rows: []` = prázdná tabulka |
+| `rows[]` | | Počáteční řádky vložené do záznamu při vytvoření; vynechání = prázdná tabulka (`rows: []` nepište) |
 | `append_row_template{}` | | Výchozí hodnoty pro řádek přidaný uživatelem tlačítkem „+ Přidat řádek" |
 | `allow_append` | | `true` = tlačítko pro přidání řádku |
 | `allow_delete` | | `true` = tlačítko pro smazání řádku |
