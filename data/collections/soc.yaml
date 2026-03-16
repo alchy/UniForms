@@ -31,7 +31,7 @@ description: >
 
 terminology:
   record_id_label: "ID UIB"
-  records_subtitle: "Všechny incidenty"
+  records_subtitle: "Všechny UIB"
   templates_subtitle: "Dostupné workbooky"
   dashboard_subtitle: "Přehled UIB"
   new_record_btn: "Nová UIB"
