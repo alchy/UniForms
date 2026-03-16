@@ -16,7 +16,7 @@
 id: datasource
 
 # Zobrazovaný název kolekce (v sidebaru, záhlaví stránky).
-name: "Průvodky datových zdrojů SOC"
+name: "Datové zdroje"
 
 # Stručný popis účelu kolekce – zobrazuje se v dashboardu.
 description: >
