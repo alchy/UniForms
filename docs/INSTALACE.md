@@ -23,7 +23,7 @@ Aplikace nevyžaduje databázový server, Redis ani žádnou jinou infrastruktur
 
 ```bash
 # 1. Klonování repozitáře
-git clone https://github.com/your-org/UniForms.git
+git clone https://github.com/alchy/UniForms.git
 cd UniForms
 
 # 2. Virtuální prostředí a závislosti
@@ -49,7 +49,7 @@ Aplikace běží na **http://localhost:8080**.
 
 ```powershell
 # 1. Klonování repozitáře
-git clone https://github.com/your-org/UniForms.git
+git clone https://github.com/alchy/UniForms.git
 cd UniForms
 
 # 2. Virtuální prostředí a závislosti
@@ -330,13 +330,16 @@ dnf install -y git python3.11 python3.11-pip nginx
 ### Krok 2 — Dedikovaný uživatel
 
 ```bash
-useradd -m -s /bin/bash -d /opt/uniforms uniforms
+useradd --system --shell /usr/sbin/nologin --create-home --home-dir /opt/uniforms uniforms
+passwd -l uniforms
 ```
+
+> Uživatel je systémový (bez přihlášení) — nelze se pod ním přihlásit interaktivně. Aplikace běží výhradně přes systemd.
 
 ### Krok 3 — Klonování a instalace
 
 ```bash
-sudo -u uniforms git clone https://github.com/your-org/UniForms.git /opt/uniforms/app
+sudo -u uniforms git clone https://github.com/alchy/UniForms.git /opt/uniforms/app
 sudo -u uniforms python3.11 -m venv /opt/uniforms/app/.venv
 sudo -u uniforms bash -c "cd /opt/uniforms/app && .venv/bin/pip install -r requirements.txt"
 ```
@@ -384,6 +387,8 @@ User=uniforms
 Group=uniforms
 WorkingDirectory=/opt/uniforms/app
 ExecStart=/opt/uniforms/app/.venv/bin/python start.py
+# Pokud je port 8080 obsazený jinou aplikací, použijte jiný port:
+# ExecStart=/opt/uniforms/app/.venv/bin/python start.py --port 8081
 Restart=on-failure
 RestartSec=5
 
@@ -468,7 +473,8 @@ dnf install -y certbot python3-certbot-nginx
 
 # Dočasná HTTP konfigurace pro vydání certifikátu
 # (vložte do /etc/nginx/conf.d/uniforms.conf)
-certbot --nginx -d forms.vasefirma.cz --redirect
+certbot --nginx -d forms.vasefirma.cz --redirect \
+  --non-interactive --agree-tos -m admin@vasefirma.cz
 ```
 
 Certbot automaticky ověří doménu, nainstaluje certifikát a nastaví automatické obnovování.
