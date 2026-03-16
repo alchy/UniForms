@@ -15,7 +15,7 @@
 id: soc
 
 # Zobrazovaný název kolekce (v sidebaru, záhlaví stránky).
-name: "SOC – Security Operations Center"
+name: "SOC"
 
 # Stručný popis účelu kolekce – zobrazuje se v dashboardu.
 description: >
