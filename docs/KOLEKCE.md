@@ -135,9 +135,13 @@ Každý stav (`WorkflowState`):
 |------|---|-------|
 | `id` | ✓ | Interní identifikátor stavu; uložený v záznamu. |
 | `label` | ✓ | Zobrazovaný název stavu v UI. |
-| `color` | ✓ | Bootstrap barva badge/tlačítka. |
+| `color` | ✓ | Barva badge/tlačítka – Bootstrap varianta nebo CSS barva. |
 
-Dostupné barvy Bootstrap: `primary`, `secondary`, `success`, `danger`, `warning`, `info`, `dark`, `light`.
+Jako hodnotu `color` lze použít:
+- **Bootstrap variantu**: `primary`, `secondary`, `success`, `danger`, `warning`, `info`, `dark`
+- **Libovolnou CSS barvu**: pojmenovaná barva (`green`, `steelblue`, `gray`), hex (`#e74c3c`), rgb (`rgb(100,180,60)`) apod.
+
+Pro CSS barvy aplikace automaticky vytvoří světlé pozadí (12 % opacity) a ztlumenou barvu okraje pomocí `color-mix()`.
 
 ```yaml
 workflow:
@@ -441,7 +445,7 @@ Přehled všech klíčů konfiguračního souboru kolekce.
 | `workflow.states` | ✓ | list | (výchozí sada) | Seznam stavů workflow. |
 | `workflow.states[].id` | ✓ | string | — | Interní identifikátor stavu. |
 | `workflow.states[].label` | ✓ | string | — | Zobrazovaný název stavu. |
-| `workflow.states[].color` | ✓ | string | `secondary` | Bootstrap barva stavu. |
+| `workflow.states[].color` | ✓ | string | `secondary` | Bootstrap varianta nebo CSS barva (viz sekce workflow). |
 | `list_columns` | ✓ | list | (record_owner) | Sloupce v seznamu záznamů. |
 | `list_columns[].key` | ✓ | string | — | Klíč pole záznamu. |
 | `list_columns[].label` | ✓ | string | — | Záhlaví sloupce. |

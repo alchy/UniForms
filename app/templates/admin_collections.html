@@ -82,23 +82,25 @@
         renderTable();
     }
 
-    const STATE_COLOR_MAP = {
-        secondary: 'bg-secondary-subtle text-secondary border-secondary-subtle',
-        primary:   'bg-primary-subtle text-primary border-primary-subtle',
-        warning:   'bg-warning-subtle text-warning border-warning-subtle',
-        success:   'bg-success-subtle text-success border-success-subtle',
-        info:      'bg-info-subtle text-info border-info-subtle',
-        danger:    'bg-danger-subtle text-danger border-danger-subtle',
-        dark:      'bg-dark-subtle text-dark border-dark-subtle',
-    };
+    // Bootstrap variant names → badge utility classes; any other value is treated as a raw CSS color
+    const _BS_COLORS = new Set(['secondary','primary','warning','success','info','danger','dark']);
+    function badgeAttrs(color) {
+        const c = (!color || !_BS_COLORS.has(color)) ? null : color;
+        if (c) return { cls: `bg-${c}-subtle text-${c} border-${c}-subtle`, style: '' };
+        const raw = color || 'secondary';
+        return {
+            cls: '',
+            style: `background-color:color-mix(in srgb,${raw} 12%,white);color:${raw};border-color:color-mix(in srgb,${raw} 35%,transparent)`,
+        };
+    }
 
     function renderTable() {
         const tbody = document.getElementById('collections-tbody');
         tbody.innerHTML = '';
         allCollections.forEach(col => {
             const stateBadges = (col.workflow?.states || []).map(s => {
-                const cls = STATE_COLOR_MAP[s.color] || STATE_COLOR_MAP.secondary;
-                return `<span class="badge border ${cls} me-1">${s.label}</span>`;
+                const ba = badgeAttrs(s.color);
+                return `<span class="badge border ${ba.cls} me-1" style="${ba.style}">${s.label}</span>`;
             }).join('');
             const colLabels = (col.list_columns || []).map(c =>
                 `<span class="badge bg-light text-secondary border me-1">${c.label}</span>`

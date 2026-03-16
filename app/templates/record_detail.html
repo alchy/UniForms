@@ -167,22 +167,19 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
     const IS_ADMIN = {{ 'true' if user and user.role == 'system_admin' else 'false' }};
     const PRINT_MODE = {{ 'true' if print_mode else 'false' }};
 
-    // Bootstrap color → badge class mapping
-    const BADGE_COLOR_MAP = {
-        secondary: 'bg-secondary-subtle text-secondary border border-secondary-subtle',
-        primary:   'bg-primary-subtle text-primary border border-primary-subtle',
-        warning:   'bg-warning-subtle text-warning border border-warning-subtle',
-        success:   'bg-success-subtle text-success border border-success-subtle',
-        info:      'bg-info-subtle text-info border border-info-subtle',
-        danger:    'bg-danger-subtle text-danger border border-danger-subtle',
-        dark:      'bg-dark-subtle text-dark border border-dark-subtle',
-    };
-
-    // Bootstrap color → icon class for the dropdown
-    const ICON_COLOR_MAP = {
-        secondary: 'text-secondary', primary: 'text-primary', warning: 'text-warning',
-        success: 'text-success', info: 'text-info', danger: 'text-danger', dark: 'text-dark',
-    };
+    // Bootstrap variant names → badge utility classes; any other value is treated as a raw CSS color
+    const _BS_COLORS = new Set(['secondary','primary','warning','success','info','danger','dark']);
+    function badgeAttrs(color) {
+        const c = (!color || !_BS_COLORS.has(color)) ? null : color;
+        if (c) return { cls: `bg-${c}-subtle text-${c} border border-${c}-subtle`, style: '', iconCls: `text-${c}`, iconStyle: '' };
+        const raw = color || 'secondary';
+        return {
+            cls: 'border',
+            style: `background-color:color-mix(in srgb,${raw} 12%,white);color:${raw};border-color:color-mix(in srgb,${raw} 35%,transparent)`,
+            iconCls: '',
+            iconStyle: `color:${raw}`,
+        };
+    }
 
     if (PRINT_MODE) document.body.classList.add('print-mode');
 
@@ -198,9 +195,11 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
     function buildWorkflowUI(workflowStates) {
         // Build statusConfig for badge rendering
         workflowStates.forEach(state => {
+            const ba = badgeAttrs(state.color);
             statusConfig[state.id] = {
                 label: state.label,
-                cls: BADGE_COLOR_MAP[state.color] || BADGE_COLOR_MAP.secondary,
+                cls: ba.cls,
+                style: ba.style,
             };
         });
 
@@ -209,9 +208,9 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
         menu.innerHTML = '';
         workflowStates.forEach(state => {
             const li = document.createElement('li');
-            const colorCls = ICON_COLOR_MAP[state.color] || 'text-secondary';
+            const ba = badgeAttrs(state.color);
             li.innerHTML = `<a class="dropdown-item" href="#" onclick="changeStatus('${state.id}'); return false;">
-                <i class="bi bi-circle me-2 ${colorCls}"></i>${state.label}
+                <i class="bi bi-circle me-2 ${ba.iconCls}" style="${ba.iconStyle}"></i>${state.label}
             </a>`;
             menu.appendChild(li);
         });
@@ -324,10 +323,11 @@ body.print-mode main { flex: 0 0 100% !important; max-width: 100% !important; }
     }
 
     function renderRecordHeader(r) {
-        const st = statusConfig[r.status] || {label: r.status, cls: 'bg-secondary-subtle text-secondary'};
+        const st = statusConfig[r.status] || {label: r.status, cls: 'bg-secondary-subtle text-secondary', style: ''};
         const badge = document.getElementById('status-badge');
         badge.textContent = st.label;
         badge.className = `badge ${st.cls}`;
+        badge.style.cssText = st.style || '';
         const title = getRecordTitle(r);
         document.getElementById('record-title').textContent = title || r.data.template_name || r.template_id;
         document.getElementById('record-meta').innerHTML =

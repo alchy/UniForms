@@ -47,8 +47,8 @@ terminology:
 # Sleduje životní cyklus dokumentu průvodky (ne operační status datového zdroje –
 # ten je samostatným polem source_status přímo v šabloně).
 # initial_state musí odpovídat jednomu z id níže.
-# Barvy odpovídají Bootstrap 5 variantám: primary, secondary, success,
-# danger, warning, info, dark (viz getStatusBadgeClass() v uniforms.js).
+# color: Bootstrap 5 varianta (primary, secondary, success, danger, warning, info, dark)
+#        NEBO libovolná CSS barva (např. green, #e74c3c, steelblue, rgb(100,180,60)).
 
 workflow:
   initial_state: draft

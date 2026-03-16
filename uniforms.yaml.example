@@ -49,7 +49,8 @@ id:
 # ---------------------------------------------------------------------------
 # Default workflow states – used when a template does not define its own workflow.
 # Per-template workflow is defined in the template YAML under the 'workflow' key.
-# color: Bootstrap contextual color – primary, secondary, success, danger, warning, info, dark
+# color: Bootstrap variant (primary, secondary, success, danger, warning, info, dark)
+#        OR any CSS color value (e.g. green, #e74c3c, rgb(100,180,60), steelblue)
 # ---------------------------------------------------------------------------
 workflow:
   default_states:
