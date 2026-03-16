@@ -44,6 +44,14 @@ def _user_ctx(user: TokenPayload) -> dict:
     return {"username": user.sub, "role": user.role}
 
 
+# Vrati terminologii: globalni hodnoty z uniforms.yaml prekryty per-kolekci overrides
+def _merge_term(collection=None) -> dict:
+    base = uniforms.terminology.model_dump()
+    if collection and collection.terminology:
+        base.update(collection.terminology)
+    return base
+
+
 # Nacte kolekce pristupne uzivateli pro sidebar; volitelne rozlisi aktualni kolekci
 async def _sidebar_ctx(
     db: aiosqlite.Connection,
@@ -143,6 +151,7 @@ async def records_list(
     return templates.TemplateResponse("records.html", {
         "request": request,
         "user": _user_ctx(user),
+        "term": _merge_term(sidebar.get("collection")),
         "collection_id": collection_id,
         "active_section": "records",
         **sidebar,
@@ -162,6 +171,7 @@ async def record_print(
     return templates.TemplateResponse("record_detail.html", {
         "request": request,
         "user": _user_ctx(user),
+        "term": _merge_term(sidebar.get("collection")),
         "collection_id": collection_id,
         "record_id": record_id,
         "print_mode": True,
@@ -183,6 +193,7 @@ async def record_detail(
     return templates.TemplateResponse("record_detail.html", {
         "request": request,
         "user": _user_ctx(user),
+        "term": _merge_term(sidebar.get("collection")),
         "collection_id": collection_id,
         "record_id": record_id,
         "active_section": "records",
@@ -248,6 +259,7 @@ async def templates_list(
     return templates.TemplateResponse("templates_list.html", {
         "request": request,
         "user": _user_ctx(user),
+        "term": _merge_term(sidebar.get("collection")),
         "collection_id": collection_id,
         "templates": tmpl_list,
         "active_section": "templates",
@@ -268,6 +280,7 @@ async def template_editor_new(
     return templates.TemplateResponse("template_editor.html", {
         "request": request,
         "user": _user_ctx(user),
+        "term": _merge_term(sidebar.get("collection")),
         "collection_id": collection_id,
         "mode": "new",
         "template_id": None,
@@ -290,6 +303,7 @@ async def template_editor_edit(
     return templates.TemplateResponse("template_editor.html", {
         "request": request,
         "user": _user_ctx(user),
+        "term": _merge_term(sidebar.get("collection")),
         "collection_id": collection_id,
         "mode": "edit",
         "template_id": template_id,
