@@ -17,11 +17,7 @@ class AppConfig(BaseModel):
 
 class TerminologyConfig(BaseModel):
     # Core entity names
-    record: str = "record"
-    records: str = "records"
     record_id_label: str = "Record ID"
-    template: str = "template"
-    templates: str = "templates"
 
     # Page subtitles (shown under headings)
     records_subtitle: str = "All records"

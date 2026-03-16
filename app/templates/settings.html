@@ -25,11 +25,11 @@
     <div class="card-body">
         <form id="settings-form">
             <div class="mb-3">
-                <label class="form-label fw-semibold">{{ term.records | capitalize }} directory</label>
+                <label class="form-label fw-semibold">Records directory</label>
                 <input type="text" class="form-control" id="records_dir"
                        value="{{ settings.get('records_dir', 'data/records') }}"
                        placeholder="data/records">
-                <div class="form-text">Path where {{ term.record }} JSON files are stored.</div>
+                <div class="form-text">Path where record JSON files are stored.</div>
             </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">Schemas directory</label>

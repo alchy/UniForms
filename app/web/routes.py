@@ -17,21 +17,10 @@ router = APIRouter(tags=["Web"])
 templates = Jinja2Templates(directory="app/templates")
 
 # Vlozi globalni kontext z uniforms.yaml do vsech Jinja2 sablon
-_GLOBAL_TERM = uniforms.terminology.model_dump()
-
-
-def _col_term(col, key: str) -> str:
-    """Vrati terminologii pro danou kolekci; fallback na globalni hodnotu z uniforms.yaml."""
-    if col and col.terminology and key in col.terminology:
-        return col.terminology[key]
-    return _GLOBAL_TERM.get(key, key)
-
-
 templates.env.globals.update({
     "app_name": uniforms.app.name,
     "app_subtitle": uniforms.app.subtitle,
-    "term": _GLOBAL_TERM,
-    "col_term": _col_term,
+    "term": uniforms.terminology.model_dump(),
 })
 
 

@@ -11,16 +11,16 @@
 {# ── Toolbar ────────────────────────────────────────────────────────────── #}
 <div id="editor-toolbar" class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-white flex-shrink-0" style="min-height:52px;">
     <a href="/templates/{{ collection_id }}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i>{{ term.templates | capitalize }}
+        <i class="bi bi-arrow-left me-1"></i>Templates
     </a>
     <div class="vr"></div>
     <span id="tb-filename" class="text-muted small font-monospace"></span>
     <div class="ms-auto d-flex gap-2">
-        <button id="btn-clone" class="btn btn-outline-secondary btn-sm" onclick="cloneTemplate()" title="Clone {{ term.template }} to a new file">
+        <button id="btn-clone" class="btn btn-outline-secondary btn-sm" onclick="cloneTemplate()" title="Clone template to a new file">
             <i class="bi bi-copy me-1"></i>Clone
         </button>
         {% if mode == 'edit' %}
-        <button id="btn-delete" class="btn btn-outline-danger btn-sm" onclick="confirmDelete()" title="Delete {{ term.template }}">
+        <button id="btn-delete" class="btn btn-outline-danger btn-sm" onclick="confirmDelete()" title="Delete template">
             <i class="bi bi-trash me-1"></i>Delete
         </button>
         {% endif %}
@@ -53,7 +53,7 @@
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h6 class="modal-title">Save as new {{ term.template }}</h6>
+                <h6 class="modal-title">Save as new template</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -78,11 +78,11 @@
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <div class="modal-header py-2 border-danger">
-                <h6 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete {{ term.template }}</h6>
+                <h6 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete template</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-1 small">Really delete {{ term.template }} <strong id="delete-name"></strong>?</p>
+                <p class="mb-1 small">Really delete template <strong id="delete-name"></strong>?</p>
                 <p class="text-danger small mb-0">This action cannot be undone. Existing records will not be affected.</p>
             </div>
             <div class="modal-footer py-2">

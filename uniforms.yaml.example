@@ -16,11 +16,7 @@ app:
 # ---------------------------------------------------------------------------
 terminology:
   # Core entity names
-  record: "record"           # singular: "ticket", "incident", "request", "case", "report"
-  records: "records"         # plural
   record_id_label: "Record ID"
-  template: "template"       # "workbook", "playbook", "form", "checklist"
-  templates: "templates"
 
   # Page subtitles (shown under page headings)
   records_subtitle: "All records"

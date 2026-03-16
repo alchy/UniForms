@@ -7,11 +7,7 @@ app:
 
 terminology:
   # Core entity names
-  record: "record"
-  records: "records"
   record_id_label: "Record ID"
-  template: "template"
-  templates: "templates"
 
   # Page subtitles
   records_subtitle: "All records"
