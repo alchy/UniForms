@@ -48,6 +48,7 @@ data/workbooks/
 
 # ── Working / conversion directories (not part of the app) ────────────────
 4conversion/
+extensions/
 
 # ── Vendor JS/CSS (downloaded via scripts/download_vendors.py) ────────────
 #app/static/vendor/
