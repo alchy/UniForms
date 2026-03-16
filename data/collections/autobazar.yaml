@@ -1,6 +1,31 @@
+# Autobazar Collection – konfigurační soubor kolekce
+#
+# Demonstrační kolekce pro evidenci vozidel (příjem, inzerce, prodej).
+# Slouží jako ukázka doménově specifické terminologie a vlastního workflow.
+# Zkopíruj soubor do adresáře collections_dir (nastaveného v Settings).
+# Název souboru musí odpovídat hodnotě id níže (autobazar.yaml).
+#
+# Schéma modelu: app/models/collection.py
+# Dokumentace:   docs/KOLEKCE.md
+
+# ── Identita kolekce ──────────────────────────────────────────────────────────
+
+# Technický identifikátor kolekce – musí odpovídat názvu YAML souboru (bez přípony).
+# Používá se v URL cestách (/records/autobazar), v API i jako klíč pro přiřazení rolí.
 id: autobazar
+
+# Zobrazovaný název kolekce (v sidebaru, záhlaví stránky).
 name: Autobazar
+
+# Stručný popis účelu kolekce – zobrazuje se v dashboardu.
 description: Evidence vozidel – příjem, inzerce a prodej.
+
+# ── Workflow stavů záznamu ────────────────────────────────────────────────────
+#
+# Definuje životní cyklus vozu v bazaru.
+# initial_state musí odpovídat jednomu z id níže.
+# Barvy odpovídají Bootstrap 5 variantám: primary, secondary, success,
+# danger, warning, info (viz getStatusBadgeClass() v uniforms.js).
 
 workflow:
   initial_state: prijato
@@ -21,9 +46,30 @@ workflow:
       label: Stornováno
       color: danger
 
+# ── Formát ID záznamu ─────────────────────────────────────────────────────────
+#
+# Definuje, jak se generuje unikátní ID nového záznamu (vozidla).
+# Dostupné tokeny:
+#   {prefix}     – hodnota z klíče prefix níže
+#   {YYYYMM}     – rok a měsíc (202506)
+#   {DDMMYYYY}   – den, měsíc, rok (15062025)
+#   {YYYY}       – rok (2025)
+#   {MM}         – měsíc (06)
+#   {DD}         – den (15)
+#   {HHMM}       – hodina a minuta (1432)
+#   {rand:04d}   – náhodné číslo 0–9999, zarovnané na 4 číslice (0042)
+#   {rand}       – náhodné číslo bez zarovnání
+
 id_format:
   prefix: ABZ
   format: "{prefix}-{YYYYMM}-{rand:04d}"
+
+# ── Sloupce v seznamu záznamů ─────────────────────────────────────────────────
+#
+# Určuje, která pole ze záznamu se zobrazí jako sloupce v tabulce /records/autobazar.
+# Vždy se zobrazují implicitní sloupce: ID záznamu, šablona, stav, datum vytvoření.
+# key  – klíč pole v šabloně (shodný s klíčem v YAML šabloně)
+# label – záhlaví sloupce v UI
 
 list_columns:
   - key: obchodnik
@@ -31,13 +77,38 @@ list_columns:
   - key: znacka
     label: Značka / Model
 
+# ── Role v kolekci ────────────────────────────────────────────────────────────
+#
+# Definuje role dostupné pro přiřazení uživatelů k této kolekci.
+# id musí být jedno z: collection_admin, collection_user.
+#   collection_admin – může vytvářet a mazat záznamy, spravovat šablony
+#   collection_user  – může prohlížet a editovat záznamy
+# label – zobrazovaný název role v UI správy uživatelů
+
 roles:
   - id: collection_admin
     label: Vedoucí
   - id: collection_user
     label: Obchodník
 
+# ── Titulek záznamu ───────────────────────────────────────────────────────────
+#
+# Klíč pole, jehož hodnota se zobrazí jako nadpis v záhlaví detailu záznamu.
+# Pole se hledá ve všech sekcích šablony (včetně vnořených section_groups).
+# Pokud pole není nalezeno nebo title_field chybí, zobrazí se název šablony.
+
 title_field: znacka
+
+# ── Tlačítko Převzít ──────────────────────────────────────────────────────────
+#
+# Zobrazí tlačítko "Převzít" v záhlaví detailu záznamu.
+# Po kliknutí zapíše aktuálního přihlášeného uživatele (nebo timestamp) do
+# zvoleného pole záznamu.
+# field      – klíč pole, do kterého se zapíše hodnota
+# value_type – co se zapíše:
+#   username  → přihlašovací jméno aktuálního uživatele (výchozí)
+#   timestamp → aktuální UTC čas ve formátu ISO-8601
+# Pokud sekci take_over vynecháš, tlačítko se vůbec nezobrazí.
 
 take_over:
   field: obchodnik
