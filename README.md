@@ -1,100 +1,104 @@
 # UniForms
 
-A generic, configurable forms engine for structured data capture. Define templates in YAML, submit records through the browser, manage everything through a REST API.
+Generický formulářový engine pro strukturovaný sběr dat. Šablony definuješ v YAML, záznamy vyplňuješ v prohlížeči, správu zajišťuje REST API.
 
-## What is UniForms?
+## Co je UniForms?
 
-UniForms is a web application that turns YAML template definitions into interactive HTML forms. Users open a record in the browser, fill in the structured form rendered from the template, and save. The application handles storage, locking, workflow states, and user management.
+UniForms je webová aplikace, která transformuje YAML definice šablon na interaktivní HTML formuláře. Analytik otevře záznam v prohlížeči, vyplní strukturovaný formulář vygenerovaný ze šablony a uloží. Aplikace se stará o ukládání, zamykání, stavy workflow a správu uživatelů.
 
-UniForms is domain-agnostic. The same engine can power IT helpdesk tickets, HR onboarding requests, support cases, audit checklists, or any other structured workflow — the domain is defined entirely by your templates and configuration.
+UniForms je doménově nezávislý. Stejný engine může pohánět IT helpdesk tickety, HR onboardingové žádosti, bezpečnostní incidenty SOC, auditní checklisty nebo jakýkoliv jiný strukturovaný workflow — doménu definuješ výhradně šablonami a konfigurací.
 
-## Key Features
+## Klíčové vlastnosti
 
-- **YAML-driven templates** — define form structure, sections, fields, and checklists in plain YAML; no code required for new record types
-- **Extension system** — domain-specific section types and logic packaged as extensions (e.g. the `soc` extension adds `classification` and `raci_table` section types)
-- **Configurable terminology** — labels like "record", "template", and workflow state names are read from `uniforms.yaml` so the UI reflects your domain language
-- **File-based record storage** — records are JSON files on disk; configurable storage path; no external database required
-- **JWT authentication** — httpOnly cookie (`uniforms_token`), role-based access (admin / user), configurable session duration
-- **Per-template workflow states** — each template can define its own set of workflow states with display labels
-- **Template inheritance** — templates can extend a parent template and override or add sections; abstract base templates are supported
-- **Record locking** — prevents concurrent edits; lock acquired on open, released on save-and-exit
-- **Auto-save on status change** — status field change triggers an immediate background save
-- **Print to PDF** — browser print dialog renders a clean print layout
+- **YAML šablony** — strukturu formuláře (sekce, pole, checklisty, tabulky) definuješ v čitelném YAML; pro nový typ záznamu nepotřebuješ psát kód
+- **Extension systém** — doménově specifické renderery a šablony zabalené jako extension (např. extension `soc` přidává SOC/CSIRT workbooky)
+- **Konfigurovatelná terminologie** — štítky jako „záznam", „šablona" nebo názvy stavů workflow čte aplikace z `uniforms.yaml`; UI reflektuje jazyk tvé domény
+- **Souborové úložiště** — záznamy jsou JSON soubory na disku; cesta je konfigurovatelná; žádná externí databáze
+- **JWT autentizace** — httpOnly cookie (`uniforms_token`), rolový přístup (admin / uživatel), konfigurovatelná délka session
+- **Workflow stavy** — každá kolekce definuje vlastní sadu stavů s barvami a popisky
+- **Dědičnost šablon** — šablona může dědit sekce z nadřazené šablony; podporovány abstraktní základní šablony
+- **Zamykání záznamů** — brání souběžné editaci; zámek se získá při otevření, uvolní při uložení a odchodu
+- **Tisková verze** — čistý tiskový layout přes `window.print()` nebo uložení do PDF
 
-## Quick Start
+## Rychlý start
 
 ```bash
-git clone https://github.com/your-org/UniForms.git
+git clone https://github.com/alchy/UniForms.git
 cd UniForms
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env             # set JWT_SECRET_KEY and ADMIN_PASSWORD
+cp .env.example .env             # nastav JWT_SECRET_KEY a ADMIN_PASSWORD
 python scripts/download_vendors.py
 python start.py
 ```
 
-Application available at **http://localhost:8080**. Default login: `admin` / `admin`.
+Aplikace je dostupná na **http://localhost:8080**. Výchozí přihlášení: `admin` / `admin`.
 
-## Configuration Overview
+> **Pozor:** Výchozí heslo okamžitě změň přes Admin → Users.
 
-### `.env` — secrets and infrastructure
+## Konfigurace
+
+### `.env` — tajné klíče a infrastruktura
 
 ```ini
-JWT_SECRET_KEY=your-random-secret-min-32-chars
+JWT_SECRET_KEY=vygeneruj-silny-klic-min-32-znaku   # POVINNÉ — změň!
+JWT_EXPIRE_MINUTES=480
+AUTH_PROVIDER=simple        # simple | ldap | oauth
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=changeme
+ADMIN_PASSWORD=admin        # změň!
 DATABASE_PATH=data/uniforms.db
-DEFAULT_RECORDS_DIR=data/records
-DEFAULT_TEMPLATES_DIR=data/templates
-TIMEZONE=UTC
 ```
 
-### `uniforms.yaml` — domain configuration
+### `uniforms.yaml` — konfigurace domény
 
-Domain-specific settings live in `uniforms.yaml`, not in `.env`. This includes terminology overrides, default workflow states, and extension loading:
+Doménová nastavení (terminologie, výchozí workflow, extensions) patří do `uniforms.yaml`, ne do `.env`:
 
 ```yaml
-app_name: UniForms
-app_subtitle: IT Helpdesk Portal
+app:
+  name: "UniForms"
+  subtitle: "Universal Forms Engine"
 
 terminology:
-  record: ticket
-  records: tickets
-  template: form type
+  record: "záznam"
+  records: "záznamy"
 
 workflow:
   default_states:
-    - value: open
-      label: Open
-    - value: in_progress
-      label: In Progress
-    - value: resolved
-      label: Resolved
-    - value: closed
-      label: Closed
+    - id: new
+      label: "Nové"
+      color: secondary
+    - id: in_progress
+      label: "V řešení"
+      color: warning
+    - id: closed
+      label: "Uzavřeno"
+      color: success
+  initial_state: new
 
-extensions: []
+extensions:
+  - id: soc
+    path: extensions/soc
 ```
 
-See `uniforms.yaml.example` for a full reference.
-
-## Tech Stack
+## Technický stack
 
 - **Backend**: FastAPI + Uvicorn (Python 3.11+)
 - **Frontend**: Jinja2 + Bootstrap 5 (server-side rendering)
-- **Auth**: JWT (PyJWT), httpOnly cookie `uniforms_token`
-- **Database**: SQLite — users and settings (aiosqlite)
-- **Storage**: JSON files (records), YAML files (templates)
-- **JS libraries**: jQuery, DataTables, Bootstrap Icons, Ace Editor
-- **Form renderer**: `uniforms.js` — browser-side JSON → interactive HTML form
+- **Auth**: JWT (PyJWT), httpOnly cookie `uniforms_token`, bcrypt hesla
+- **Databáze**: SQLite — uživatelé, nastavení, zámky (aiosqlite)
+- **Úložiště**: JSON soubory (záznamy), YAML soubory (šablony, kolekce)
+- **JS knihovny**: Bootstrap Icons, DataTables, Ace Editor
+- **Form renderer**: `uniforms.js` — browser-side JSON → interaktivní HTML formulář
 
-## Documentation
+## Dokumentace
 
-- [Installation and deployment](docs/INSTALL.md) — local setup, systemd service, nginx reverse proxy
-- [API reference](docs/API.md) — all REST endpoints
-- [Web rendering](docs/WEB_RENDERING.md) — Jinja2 templates, layout, globals
-- [Template guide](docs/TEMPLATE_GUIDE.md) — technical reference for template authors
-- [Template authoring](docs/TEMPLATE_AUTHORING.md) — non-developer guide for writing templates
-- [Template pipeline](docs/TEMPLATE_PIPELINE.md) — YAML → normalize → clone → record internals
-- [uniforms.js developer guide](docs/UNIFORMS_JS.md) — browser-side form renderer API
+| Soubor | Obsah |
+|--------|-------|
+| [docs/INSTALACE.md](docs/INSTALACE.md) | Instalace, konfigurace, produkční nasazení |
+| [docs/API.md](docs/API.md) | REST API — přehled všech endpointů |
+| [docs/AUTENTIZACE.md](docs/AUTENTIZACE.md) | Auth, role, JWT, správa uživatelů |
+| [docs/KOLEKCE.md](docs/KOLEKCE.md) | Formát `collection.yaml` — workflow, terminologie, id_format |
+| [docs/SABLONY.md](docs/SABLONY.md) | YAML šablony — typy sekcí, pole, pipeline, dědičnost |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | Web routing, uniforms.js renderer, extension systém |
+| [docs/HOW2WRITE.md](docs/HOW2WRITE.md) | Styl psaní technické dokumentace (pro přispěvatele) |
