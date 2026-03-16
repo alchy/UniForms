@@ -30,9 +30,9 @@ description: >
 # Neuvedené klíče se převezmou z uniforms.yaml (nebo z vestavěných výchozích hodnot).
 
 terminology:
-  record: incident
-  records: incidenty
-  record_id_label: "ID incidentu"
+  record: Událost informační bezpečnosti (UIB)
+  records: Události informační bezpečnosti (UIB)
+  record_id_label: "ID UIB"
   template: playbook
   templates: playbooks
   records_subtitle: "Všechny incidenty"
