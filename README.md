@@ -22,6 +22,8 @@ UniForms je doménově nezávislý. Stejný engine může pohánět IT helpdesk 
 
 ## Rychlý start (samostatná aplikace)
 
+> **Vyžaduje Python 3.11+** (ne jen doporučení — na 3.9/3.10 se závislosti nenainstalují). Ověř `python3 --version`; na macOS je systémový `python3` často 3.9, pak použij `python3.11 -m venv .venv`.
+
 ```bash
 git clone https://github.com/alchy/UniForms.git
 cd UniForms
@@ -159,6 +161,7 @@ data/                runtime data (SQLite, záznamy, šablony, kolekce)
 
 | Soubor | Obsah |
 |--------|-------|
+| [docs/PRVNI_FORMULAR.md](docs/PRVNI_FORMULAR.md) | **Začni tady** — první formulář od nuly za 10 minut |
 | [docs/KNIHOVNA.md](docs/KNIHOVNA.md) | Použití UniForms jako knihovny — embedding, rozšíření |
 | [docs/INSTALACE.md](docs/INSTALACE.md) | Instalace, konfigurace, produkční nasazení |
 | [docs/API.md](docs/API.md) | REST API — přehled všech endpointů |

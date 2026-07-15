@@ -1,7 +1,7 @@
 # HOW2WRITE – Průvodce tvorbou technické dokumentace
 
 Tento dokument popisuje styl a strukturu technické dokumentace používané v projektu UniForms.
-Vzorový příklad ke studiu: [`docs/UNIFORMS_JS.md`](UNIFORMS_JS.md) – dokumentace klientské knihovny pro renderování formulářů.
+Vzorový příklad ke studiu: [`docs/FRONTEND.md`](FRONTEND.md) – dokumentace klientské knihovny pro renderování formulářů.
 
 Dokumentace je **návodná** – vede čtenáře od „co to je" přes „jak to funguje" až po „jak to konkrétně použiji".
 Není to jen reference. Čtenář by po přečtení dokumentu měl být schopen samostatně vytvořit funkční výstup.

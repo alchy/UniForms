@@ -8,12 +8,14 @@ UniForms je webová aplikace pro strukturovaný sběr dat a správu záznamů pr
 
 | Požadavek | Minimální verze | Poznámka |
 |-----------|-----------------|---------|
-| Python | 3.11 | `python --version` nebo `python3 --version` |
+| Python | **3.11** (tvrdý požadavek) | `python3 --version` |
 | pip | aktuální | součástí Pythonu |
 | Git | libovolná | pro klonování repozitáře |
 | Přístup k internetu | — | stažení vendor JS/CSS knihoven |
 
 Aplikace nevyžaduje databázový server, Redis ani žádnou jinou infrastrukturu — vše běží lokálně.
+
+> **Pozor na verzi Pythonu:** UniForms **vyžaduje Python 3.11 nebo novější** — není to jen doporučení. Závislosti (pydantic 2.12) se na Pythonu 3.9/3.10 nenainstalují, případně spadne import s kryptickou chybou. Na macOS je systémový `python3` často 3.9 — ověř `python3 --version` a v případě potřeby použij konkrétní verzi (`python3.11 -m venv .venv`). Instalace novějšího Pythonu: [python.org/downloads](https://www.python.org/downloads/) nebo `brew install python@3.11` / `apt install python3.11`.
 
 ---
 
@@ -90,6 +92,8 @@ Po prvním přihlášení doporučené kroky:
 3. V **Admin → Collections** vytvořte první kolekci.
 4. Přidejte šablonu pro kolekci přes **Templates → New**.
 5. Vytvořte první záznam tlačítkem na stránce šablon.
+
+> **Krok za krokem:** kompletní návod od kolekce k prvnímu záznamu (s hotovými YAML příklady) je v [PRVNI_FORMULAR.md](PRVNI_FORMULAR.md).
 
 ---
 
@@ -247,10 +251,6 @@ UniForms/
 │   │       └── REC-202603-0001.json
 │   └── uniforms.db                SQLite databáze (uživatelé, nastavení, zámky)
 ├── docs/                          tato dokumentace
-│   └── soc/                       SOC extension (šablony + renderery)
-│       ├── extension.yaml
-│       ├── js/
-│       └── templates/
 ├── scripts/
 │   └── download_vendors.py        stáhne JS/CSS knihovny do static/vendor/
 ├── .env                           tajné klíče (neverzovat!)
@@ -525,7 +525,7 @@ Před zpřístupněním aplikace uživatelům ověřte:
 
 ## Reference
 
-- Psaní šablon: [TEMPLATE_AUTHORING.md](TEMPLATE_AUTHORING.md)
+- Psaní šablon: [SABLONY.md](SABLONY.md)
 - REST API: [API.md](API.md)
-- Autentizace a role: [AUTH.md](AUTH.md)
+- Autentizace a role: [AUTENTIZACE.md](AUTENTIZACE.md)
 - Frontend a renderer: [FRONTEND.md](FRONTEND.md)

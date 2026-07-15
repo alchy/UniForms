@@ -73,7 +73,7 @@ UniForms podporuje tři auth providery nastavitelné v `.env` proměnnou `AUTH_P
 
 Po úspěšném přihlášení server nastaví cookie `uniforms_token` (JWT HS256). Token obsahuje claimy `sub` (username), `role` (systémová role) a `exp` (expirace). Platnost tokenu je `JWT_EXPIRE_MINUTES` minut (výchozí: 480 = 8 hodin).
 
-Podrobnosti o bezpečnostní konfiguraci: [AUTH.md](AUTH.md)
+Podrobnosti o bezpečnostní konfiguraci: [AUTENTIZACE.md](AUTENTIZACE.md)
 
 ---
 
@@ -1083,8 +1083,9 @@ Typické scénáře:
 
 - Interaktivní dokumentace (Swagger UI): `http://localhost:8080/api/docs`
 - Interaktivní dokumentace (ReDoc): `http://localhost:8080/api/redoc`
-- Autentizace a konfigurace: [AUTH.md](AUTH.md)
-- Tvorba šablon: [TEMPLATE_AUTHORING.md](TEMPLATE_AUTHORING.md)
-- Průvodce šablonami: [TEMPLATE_GUIDE.md](TEMPLATE_GUIDE.md)
-- Frontend rendering: [UNIFORMS_JS.md](UNIFORMS_JS.md)
-- Instalace a nasazení: [INSTALL.md](INSTALL.md)
+- Autentizace a konfigurace: [AUTENTIZACE.md](AUTENTIZACE.md)
+- Tvorba šablon a záznamů: [SABLONY.md](SABLONY.md)
+- Konfigurace kolekcí: [KOLEKCE.md](KOLEKCE.md)
+- Frontend rendering: [FRONTEND.md](FRONTEND.md)
+- Použití jako knihovna: [KNIHOVNA.md](KNIHOVNA.md)
+- Instalace a nasazení: [INSTALACE.md](INSTALACE.md)

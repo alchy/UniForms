@@ -1,6 +1,6 @@
 # UniForms – Frontend a webový renderer
 
-Tento dokument popisuje architekturu webového rozhraní UniForms od serveru přes Jinja2 šablony až po klientský JS renderer. Určeno vývojářům upravujícím frontend nebo píšícím extensions.
+Tento dokument popisuje architekturu webového rozhraní UniForms od serveru přes Jinja2 šablony až po klientský JS renderer. Určeno vývojářům upravujícím frontend nebo píšícím vlastní typy sekcí (viz sekce 9).
 
 ---
 
@@ -20,7 +20,6 @@ GET /records/{collection_id}/{record_id}
 FastAPI  uniforms/web/routes.py
     │   TemplateResponse("record_detail.html", context)
     │   → vloží do HTML: COLLECTION_ID, RECORD_ID, CURRENT_USER, IS_ADMIN, PRINT_MODE
-    │   → vloží: extension_js URL seznam
     ▼
 Jinja2 engine
     │   base.html  ← record_detail.html (extends)
@@ -137,7 +136,6 @@ Každý route handler předá šabloně lokální kontext:
 | `print_mode` | `bool` | detail záznamu |
 | `collection` | `CollectionConfig` | stránky kolekce (ze sidebar_ctx) |
 | `accessible_collections` | `list` | všude (pro sidebar) |
-| `extension_js` | `list[str]` | detail záznamu |
 
 ### Dědičnost šablon
 
@@ -408,30 +406,20 @@ Hodnoty zadávané uživatelem (inputy, textarey) **nikdy nevstoupí do `innerHT
 
 ---
 
-## 9. Extension systém
+## 9. Vlastní typy sekcí (custom renderery)
 
-Extensions mohou registrovat vlastní typy sekcí bez modifikace `uniforms.js`.
+Vestavěné typy sekcí (`header`, `form`, `table`, `checklist`, `section_group`) pokryjí většinu formulářů. Když potřebuješ vlastní vizualizaci sekce, zaregistruj **vlastní renderer** přes `UniForms.registerRenderer(type, fn)` — bez zásahu do `uniforms.js`.
 
-### Jak extension funguje
+Postup má tři kroky:
 
-```
-extensions/{ext_id}/
-    extension.yaml     → manifest (id, name, js, templates_dir, ...)
-    js/
-        renderer.js    → registruje custom renderery
-    templates/
-        *.yaml         → YAML šablony specifické pro extension
-```
-
-Extension JS soubory se načtou po `uniforms.js` — jejich URL jsou vloženy serverem do `record_detail.html` přes proměnnou `extension_js`.
-
-### Registrace vlastního rendereru
+**1. Napiš JS soubor s rendererem** — ulož ho do `uniforms/static/js/`, např. `my_renderers.js`:
 
 ```javascript
-// extensions/soc/js/soc_renderer.js
+// uniforms/static/js/my_renderers.js
+// Zaregistruje nový typ sekce "ioc_table".
 
 UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
-    const { el, buildTableHead, makeDeleteBtn } = UniForms._helpers;
+    const { el, buildTableHead } = UniForms._helpers;
 
     const wrap = el('div', 'table-responsive');
     const table = el('table', 'table table-sm table-bordered');
@@ -439,10 +427,10 @@ UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
     // Záhlaví
     table.appendChild(buildTableHead(
         ['indicator', 'type', 'note'],
-        ['Indikátor', 'Typ', 'Poznámka']
+        { indicator: 'Indikátor', type: 'Typ', note: 'Poznámka' }
     ));
 
-    // Tělo tabulky
+    // Tělo tabulky – zápis přímo zpět do section.rows (mutace objektu)
     const tbody = el('tbody');
     (section.rows || []).forEach(row => {
         const tr = el('tr');
@@ -459,20 +447,29 @@ UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
     table.appendChild(tbody);
     wrap.appendChild(table);
 
-    return wrap;
+    return wrap;   // renderer vrací DOM element
 });
 ```
 
-Šablona pak použije:
+**2. Načti soubor PO `uniforms.js`** — přidej `<script>` do bloku `scripts` v `record_detail.html` (`uniforms.js` je připojen v `base.html`, takže tvůj soubor musí následovat za ním):
+
+```html
+{# uniforms/templates/record_detail.html – uvnitř {% block scripts %} #}
+<script src="/static/js/my_renderers.js"></script>
+```
+
+**3. Použij nový typ v šabloně** — v YAML šabloně kolekce:
 
 ```yaml
 - id: ioc_seznam
-  type: ioc_table
+  type: ioc_table          # název registrovaný v registerRenderer(...)
   title: Indikátory kompromitace
   rows: []
 ```
 
-> **Tip:** Extension renderer dostane celý objekt sekce — `section.rows`, `section.columns`, `section.title`, `section.hint` atd. Data zapisuj přímo zpět do sekce (mutace objektu) — `saveRecord()` serializuje celý JS objekt.
+> **Tip:** Renderer dostane celý objekt sekce — `section.rows`, `section.columns`, `section.title`, `section.hint` atd. Data zapisuj přímo zpět do sekce (mutace objektu); `saveRecord()` serializuje celý JS objekt, takže se změny uloží samy. Vestavěné renderery lze i přepsat — `registerRenderer('table', …)` nahradí výchozí tabulku.
+
+> **Pozn.:** UniForms nemá manifest ani auto-discovery systém rozšíření — vlastní renderer je jeden JS soubor připojený `<script>` tagem. To je záměrné: renderer je čistá funkce `sekce → DOM element`, nic víc není potřeba.
 
 ---
 
@@ -516,7 +513,6 @@ UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
 
 ## Reference
 
-- Renderer sekcí (podrobný popis typů a polí): [UNIFORMS_JS.md](UNIFORMS_JS.md)
+- Typy sekcí a polí, pipeline YAML → data, psaní šablon: [SABLONY.md](SABLONY.md)
+- Konfigurace kolekce (workflow, terminologie, list_columns): [KOLEKCE.md](KOLEKCE.md)
 - REST API: [API.md](API.md)
-- Pipeline šablony (jak YAML → data sekce): [TEMPLATE_PIPELINE.md](TEMPLATE_PIPELINE.md)
-- Psaní šablon: [TEMPLATE_AUTHORING.md](TEMPLATE_AUTHORING.md)

@@ -143,15 +143,15 @@ Uživatelé se spravují přes REST API. Všechny níže uvedené operace vyžad
 
 ```bash
 # Přihlášení — cookie se uloží do souboru cookies.txt
-curl -s -c cookies.txt -X POST http://localhost:8000/api/v1/auth/login \
+curl -s -c cookies.txt -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "admin"}'
 
 # Ověření — kdo jsem?
-curl -s -b cookies.txt http://localhost:8000/api/v1/auth/me
+curl -s -b cookies.txt http://localhost:8080/api/v1/auth/me
 
 # Odhlášení
-curl -s -b cookies.txt -c cookies.txt -X POST http://localhost:8000/api/v1/auth/logout
+curl -s -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/v1/auth/logout
 ```
 
 Úspěšná odpověď `/auth/me`:
@@ -167,7 +167,7 @@ curl -s -b cookies.txt -c cookies.txt -X POST http://localhost:8000/api/v1/auth/
 ### Vytvoření nového uživatele
 
 ```bash
-curl -s -b cookies.txt -X POST http://localhost:8000/api/v1/users \
+curl -s -b cookies.txt -X POST http://localhost:8080/api/v1/users \
   -H "Content-Type: application/json" \
   -d '{
     "username": "jana.novak",
@@ -180,7 +180,7 @@ curl -s -b cookies.txt -X POST http://localhost:8000/api/v1/users \
 
 ```bash
 # Přiřadit uživateli jana.novak roli collection_user v kolekci "incidenty"
-curl -s -b cookies.txt -X POST http://localhost:8000/api/v1/users/jana.novak/collection-roles \
+curl -s -b cookies.txt -X POST http://localhost:8080/api/v1/users/jana.novak/collection-roles \
   -H "Content-Type: application/json" \
   -d '{
     "collection_id": "incidenty",
@@ -192,13 +192,13 @@ curl -s -b cookies.txt -X POST http://localhost:8000/api/v1/users/jana.novak/col
 
 ```bash
 curl -s -b cookies.txt -X DELETE \
-  "http://localhost:8000/api/v1/users/jana.novak/collection-roles/incidenty"
+  "http://localhost:8080/api/v1/users/jana.novak/collection-roles/incidenty"
 ```
 
 ### Výpis uživatelů
 
 ```bash
-curl -s -b cookies.txt http://localhost:8000/api/v1/users
+curl -s -b cookies.txt http://localhost:8080/api/v1/users
 ```
 
 ---
@@ -212,7 +212,7 @@ Nastavte minimálně 32 náhodných znaků. Při kompromitaci klíče jsou všec
 Ihned po prvním spuštění změňte `ADMIN_PASSWORD` v `.env` a restartujte aplikaci, nebo změňte heslo přes API:
 
 ```bash
-curl -s -b cookies.txt -X PATCH http://localhost:8000/api/v1/users/admin \
+curl -s -b cookies.txt -X PATCH http://localhost:8080/api/v1/users/admin \
   -H "Content-Type: application/json" \
   -d '{"password": "nove-silne-heslo"}'
 ```

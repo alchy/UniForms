@@ -79,8 +79,7 @@ Vytvoř adresář `data/schemas/mojekolekce/` a zkopíruj do něj YAML šablony.
 Přes API přiřaď uživatele do kolekce:
 
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/admin/collection-roles/mojekolekce \
-  -H "Authorization: Bearer <token>" \
+curl -b cookies.txt -X PATCH http://localhost:8080/api/v1/admin/collection-roles/mojekolekce \
   -H "Content-Type: application/json" \
   -d '{
     "assignments": [
@@ -360,13 +359,13 @@ terminology:
 
 ## Nasazení kolekce přes API
 
-Kolekce lze spravovat přes REST API bez přímého přístupu k souborovému systému. Všechny endpointy pro správu kolekcí vyžadují roli `system_admin`.
+Kolekce lze spravovat přes REST API bez přímého přístupu k souborovému systému. Všechny endpointy pro správu kolekcí vyžadují roli `system_admin`. Autentizace je přes **cookie** (ne Bearer token) — nejdřív se přihlas a ulož cookie: `curl -c cookies.txt -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' http://localhost:8080/api/v1/auth/login`, pak ji posílej s `-b cookies.txt`.
 
 ### Vytvořit novou kolekci
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/admin/collections/ \
-  -H "Authorization: Bearer <token>" \
+curl -X POST http://localhost:8080/api/v1/admin/collections/ \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{
     "filename": "mojekolekce",
@@ -379,15 +378,15 @@ curl -X POST http://localhost:8000/api/v1/admin/collections/ \
 ### Přečíst zdrojový YAML existující kolekce
 
 ```bash
-curl http://localhost:8000/api/v1/admin/collections/soc/source \
-  -H "Authorization: Bearer <token>"
+curl http://localhost:8080/api/v1/admin/collections/soc/source \
+  -b cookies.txt
 ```
 
 ### Aktualizovat YAML existující kolekce
 
 ```bash
-curl -X PUT http://localhost:8000/api/v1/admin/collections/soc \
-  -H "Authorization: Bearer <token>" \
+curl -X PUT http://localhost:8080/api/v1/admin/collections/soc \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"content": "id: soc\nname: SOC updated\n..."}'
 ```
@@ -395,8 +394,8 @@ curl -X PUT http://localhost:8000/api/v1/admin/collections/soc \
 ### Smazat kolekci
 
 ```bash
-curl -X DELETE http://localhost:8000/api/v1/admin/collections/soc \
-  -H "Authorization: Bearer <token>"
+curl -X DELETE http://localhost:8080/api/v1/admin/collections/soc \
+  -b cookies.txt
 ```
 
 > **Pozor:** Smazání kolekce odstraní pouze konfigurační soubor `collection.yaml`. Existující záznamy a šablony v `data/schemas/soc/` zůstanou na disku nedotčeny.
@@ -404,8 +403,8 @@ curl -X DELETE http://localhost:8000/api/v1/admin/collections/soc \
 ### Přiřadit uživatele do kolekce
 
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/admin/collection-roles/soc \
-  -H "Authorization: Bearer <token>" \
+curl -X PATCH http://localhost:8080/api/v1/admin/collection-roles/soc \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{
     "assignments": [
@@ -421,8 +420,8 @@ curl -X PATCH http://localhost:8000/api/v1/admin/collection-roles/soc \
 ### Změnit cestu k adresáři kolekcí
 
 ```bash
-curl -X PATCH http://localhost:8000/api/v1/settings/ \
-  -H "Authorization: Bearer <token>" \
+curl -X PATCH http://localhost:8080/api/v1/settings/ \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"collections_dir": "/opt/uniforms/collections"}'
 ```
