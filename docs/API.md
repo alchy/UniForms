@@ -367,6 +367,8 @@ curl -s -b /tmp/uf.cookies \
 
 Aktualizuje stav a/nebo data záznamu. Všechna pole jsou volitelná — lze měnit pouze stav, pouze data nebo oboje najednou. Stav musí odpovídat platnému stavu workflow dané kolekce.
 
+Zámek záznamu je vynucen na serveru: pokud záznam zamkl jiný uživatel, požadavek vrací `423 Locked` (s `locked_by` a `locked_at` v `detail`). Editovat lze záznam odemčený, nebo zamčený vlastním zámkem.
+
 ```bash
 curl -s -b /tmp/uf.cookies \
   -X PATCH http://localhost:8080/api/v1/records/soc/SOC-202603-0042 \
@@ -502,7 +504,7 @@ curl -s -b /tmp/uf.cookies \
   -X POST http://localhost:8080/api/v1/templates/soc/ \
   -H "Content-Type: application/json" \
   -d '{
-    "filename": "malware.yaml",
+    "filename": "malware",
     "content": "template_id: malware-v1\nname: Malware Incident\nversion: \"1.0\"\nsections: []\n"
   }'
 ```
@@ -510,7 +512,7 @@ curl -s -b /tmp/uf.cookies \
 ```json
 // Tělo požadavku
 {
-  "filename": "malware.yaml",
+  "filename": "malware",
   "content": "template_id: malware-v1\nname: Malware Incident\nversion: \"1.0\"\nsections: []\n"
 }
 
@@ -520,8 +522,10 @@ curl -s -b /tmp/uf.cookies \
 
 | Klíč | ✓ | Popis |
 |------|---|-------|
-| `filename` | ✓ | Název souboru včetně přípony `.yaml` |
+| `filename` | ✓ | Slug názvu souboru bez přípony `.yaml` — povoleny znaky `[a-z0-9_-]` (přípona `.yaml` v hodnotě je tolerována a odstraní se) |
 | `content` | ✓ | Celý obsah šablony jako YAML řetězec |
+
+Nevalidní `filename` vrací `400`; nevalidní YAML v `content` také `400`.
 
 ### `GET /api/v1/templates/{collection_id}/{template_id}`
 
@@ -707,9 +711,11 @@ curl -s -b /tmp/uf.cookies \
 
 | Klíč | ✓ | Popis |
 |------|---|-------|
-| `role` | | Nová systémová role: `system_admin` nebo `system_reader` |
+| `role` | | Nová systémová role: `system_admin` nebo `system_reader` (jiná hodnota → `422`) |
 | `is_active` | | Aktivace (`true`) nebo deaktivace (`false`) účtu |
 | `password` | | Nové heslo v plaintextu — server uloží bcrypt hash |
+
+Vlastnímu účtu nelze odebrat admin roli ani ho deaktivovat (vrátí `400 Bad Request`) — ochrana proti zamknutí se ven z aplikace.
 
 ### `DELETE /api/v1/users/{username}`
 
@@ -777,13 +783,13 @@ curl -s -b /tmp/uf.cookies \
 
 | Klíč | ✓ | Popis |
 |------|---|-------|
-| `roles` | ✓ | Slovník `{collection_id: role}` — `null` přiřazení odebere |
+| `roles` | ✓ | Slovník `{collection_id: role}` — role je `collection_admin` nebo `collection_user` (jiná hodnota → `422`), `null` přiřazení odebere |
 
 ---
 
 ## Nastavení – `/api/v1/settings`
 
-Konfigurace datových adresářů. Změny se projeví okamžitě bez restartu serveru. Všechny endpointy vyžadují globální roli `system_admin`.
+Konfigurace datových adresářů. Změny se projeví okamžitě bez restartu serveru. Všechny endpointy vyžadují globální roli `system_admin`. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir` — neznámý klíč vrací `422`.
 
 > **Poznámka:** Nastavení z `.env` a `uniforms.yaml` (branding, auth provider, expirace JWT) jsou načtena pouze při startu a vyžadují restart serveru. Přes API lze měnit pouze nastavení cest uložená v SQLite.
 

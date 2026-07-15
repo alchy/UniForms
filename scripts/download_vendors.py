@@ -5,7 +5,7 @@ Stahne vsechny vendor JS/CSS knihovny pro lokalni pouziti (bez CDN).
 Spust jednorazove pred prvnim spustenim aplikace:
     python scripts/download_vendors.py
 
-Soubory jsou ulozeny do app/static/vendor/ a jsou servovany primo
+Soubory jsou ulozeny do uniforms/static/vendor/ a jsou servovany primo
 webovym serverem aplikace. Adresar je v .gitignore - nesmí byt commitovan.
 
 Tento skript nahrazuje scripts/download_ace.py.
@@ -18,7 +18,7 @@ from pathlib import Path
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-VENDOR_DIR = Path(__file__).parent.parent / "app" / "static" / "vendor"
+VENDOR_DIR = Path(__file__).parent.parent / "uniforms" / "static" / "vendor"
 
 # User-Agent – nektere CDN (DataTables) blokuji python urllib bez nej
 HEADERS = {"User-Agent": "Mozilla/5.0 Forms4SOC-vendor-downloader/1.0"}
@@ -137,7 +137,7 @@ def download() -> None:
 
     print(f"\nDone: {downloaded} downloaded, {skipped} skipped, {errors} errors (total {total}).")
     if errors == 0:
-        print("All vendor libraries ready in app/static/vendor/")
+        print("All vendor libraries ready in uniforms/static/vendor/")
     else:
         print("Some downloads failed – check errors above and re-run.")
 

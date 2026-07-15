@@ -51,4 +51,4 @@ data/workbooks/
 extensions/
 
 # ── Vendor JS/CSS (downloaded via scripts/download_vendors.py) ────────────
-#app/static/vendor/
+#uniforms/static/vendor/

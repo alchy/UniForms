@@ -1,9 +1,10 @@
 # =============================================================================
-# UniForms – Deployment Configuration Example
+# UniForms – ukázková konfigurace nasazení (uniforms.yaml)
 # =============================================================================
-# Copy this file to uniforms.yaml and customize for your domain.
-# uniforms.yaml is the only configuration file for a UniForms deployment.
-# Secrets (JWT keys, passwords) go in .env – never in this file.
+# Zkopíruj do uniforms.yaml a přizpůsob své doméně.
+# Všechny klíče jsou VOLITELNÉ – když soubor chybí nebo klíč neuvedeš,
+# použije se výchozí hodnota z kódu (app/config.py).
+# Tajné hodnoty (JWT klíč, hesla) patří do .env – nikdy sem.
 # =============================================================================
 
 app:
@@ -11,77 +12,46 @@ app:
   subtitle: "Universal Forms Engine"
 
 # ---------------------------------------------------------------------------
-# Terminology – how the UI refers to entities in your domain.
-# Customize every label to match your language and domain conventions.
+# Terminologie – doménové pojmy zobrazované v UI.
+# Stačí přepsat jen to, co se ve tvé doméně jmenuje jinak; kompletní katalog
+# všech přepsatelných UI textů najdeš v TerminologyConfig (app/config.py).
+# Každá kolekce může kterýkoli klíč přepsat ve svém YAML pod `terminology:`.
 # ---------------------------------------------------------------------------
 terminology:
-  # Core entity names
-  record_id_label: "Record ID"
-
-  # Page subtitles (shown under page headings)
+  record_id_label: "Record ID"        # označení ID záznamu (Ticket ID, Case ID…)
+  record_owner_label: "Record Owner"  # vlastník / řešitel záznamu
+  new_record_btn: "New Record"        # tlačítko založení záznamu
+  take_over_btn: "Take Over"          # tlačítko převzetí záznamu
   records_subtitle: "All records"
   templates_subtitle: "Available templates"
   dashboard_subtitle: "Overview"
 
-  # Action buttons
-  new_record_btn: "New Record"       # button label on templates list
-  record_owner_label: "Record Owner"  # label for the record owner / responsible person field
-  take_over_btn: "Take Over"         # button to assign a record to yourself
-
-  # Status labels (shown as badges on template cards)
-  status_active: "Active"
-  status_draft: "Draft"
-  status_deprecated: "Deprecated"
-
-  # Sidebar navigation labels
-  nav_dashboard: "Dashboard"
-  nav_users: "Users"
-  nav_settings: "Settings"
-
 # ---------------------------------------------------------------------------
-# Record ID generation.
-# Available tokens: {prefix}, {DDMMYYYY}, {YYYYMM}, {YYYY}, {MM}, {DD}, {HHMM}, {rand:04d}
+# Generování ID záznamu.
+# Tokeny: {prefix}, {DDMMYYYY}, {YYYYMM}, {YYYY}, {MM}, {DD}, {HHMM}, {rand:04d}
+# Kolekce může formát přepsat ve svém YAML pod `id_format:`.
 # ---------------------------------------------------------------------------
 id:
   prefix: "REC"
   format: "{prefix}-{YYYYMM}-{rand:04d}"   # REC-202603-0042
 
 # ---------------------------------------------------------------------------
-# Default workflow states – used when a template does not define its own workflow.
-# Per-template workflow is defined in the template YAML under the 'workflow' key.
-# color: Bootstrap variant (primary, secondary, success, danger, warning, info, dark)
-#        OR any CSS color value (e.g. green, #e74c3c, rgb(100,180,60), steelblue)
+# Výchozí workflow stavy – použijí se, když kolekce nedefinuje vlastní.
+# Stejná struktura jako `workflow:` v collection YAML (docs/KOLEKCE.md).
+# color: Bootstrap varianta (primary, secondary, success, danger, warning,
+#        info, dark) NEBO libovolná CSS barva (green, #e74c3c, steelblue…)
 # ---------------------------------------------------------------------------
 workflow:
-  default_states:
-    - id: new
-      label: "New"
-      color: secondary
-    - id: open
-      label: "Open"
-      color: primary
-    - id: in_progress
-      label: "In Progress"
-      color: warning
-    - id: on_hold
-      label: "On Hold"
-      color: info
-    - id: closed
-      label: "Closed"
-      color: success
   initial_state: new
-
-# ---------------------------------------------------------------------------
-# Extensions – domain-specific section types, templates, and JS renderers.
-# Each extension is a directory containing an extension.yaml manifest.
-# ---------------------------------------------------------------------------
-extensions: []
-# extensions:
-#   - id: soc
-#     path: extensions/soc
+  states:
+    - { id: new,         label: "New",         color: secondary }
+    - { id: open,        label: "Open",        color: primary }
+    - { id: in_progress, label: "In Progress", color: warning }
+    - { id: on_hold,     label: "On Hold",     color: info }
+    - { id: closed,      label: "Closed",      color: success }
 
 # =============================================================================
-# IT ServiceDesk example – uncomment and adapt:
+# Příklad: IT ServiceDesk
 # =============================================================================
 #
 # app:
@@ -89,52 +59,26 @@ extensions: []
 #   subtitle: "IT Ticket Management"
 #
 # terminology:
-#   record: "ticket"
-#   records: "tickets"
 #   record_id_label: "Ticket ID"
-#   template: "template"
-#   templates: "templates"
-#   records_subtitle: "All open tickets"
-#   templates_subtitle: "Available request types"
-#   dashboard_subtitle: "Ticket overview"
-#   new_record_btn: "New Ticket"
 #   record_owner_label: "Assigned To"
+#   new_record_btn: "New Ticket"
 #   take_over_btn: "Assign to Me"
-#   status_active: "Published"
-#   status_draft: "Draft"
-#   status_deprecated: "Retired"
-#   nav_dashboard: "Dashboard"
-#   nav_users: "Users"
-#   nav_settings: "Settings"
 #
 # id:
 #   prefix: "TKT"
 #   format: "{prefix}-{YYYYMM}-{rand:04d}"
 #
 # workflow:
-#   default_states:
-#     - id: new
-#       label: "New"
-#       color: secondary
-#     - id: assigned
-#       label: "Assigned"
-#       color: primary
-#     - id: in_progress
-#       label: "In Progress"
-#       color: warning
-#     - id: pending
-#       label: "Pending"
-#       color: info
-#     - id: resolved
-#       label: "Resolved"
-#       color: success
-#     - id: closed
-#       label: "Closed"
-#       color: dark
 #   initial_state: new
+#   states:
+#     - { id: new,         label: "New",         color: secondary }
+#     - { id: assigned,    label: "Assigned",    color: primary }
+#     - { id: in_progress, label: "In Progress", color: warning }
+#     - { id: resolved,    label: "Resolved",    color: success }
+#     - { id: closed,      label: "Closed",      color: dark }
 
 # =============================================================================
-# SOC (Security Operations Center) example – enable soc extension:
+# Příklad: SOC (Security Operations Center)
 # =============================================================================
 #
 # app:
@@ -142,28 +86,12 @@ extensions: []
 #   subtitle: "SOC Incident Management"
 #
 # terminology:
-#   record: "incident"
-#   records: "incidents"
 #   record_id_label: "Ticket ID"
-#   template: "workbook"
-#   templates: "workbooks"
+#   record_owner_label: "Incident Coordinator"
+#   new_record_btn: "New Incident"
 #   records_subtitle: "All security incidents"
 #   templates_subtitle: "Available SOC workbooks"
-#   dashboard_subtitle: "Incident overview"
-#   new_record_btn: "New Incident"
-#   record_owner_label: "Incident Coordinator"
-#   take_over_btn: "Take Over"
-#   status_active: "Active"
-#   status_draft: "Draft"
-#   status_deprecated: "Deprecated"
-#   nav_dashboard: "Dashboard"
-#   nav_users: "Users"
-#   nav_settings: "Settings"
 #
 # id:
 #   prefix: "UIB"
 #   format: "{prefix}-{DDMMYYYY}-{HHMM}-{rand:04d}"
-#
-# extensions:
-#   - id: soc
-#     path: extensions/soc

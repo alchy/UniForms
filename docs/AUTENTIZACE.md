@@ -218,7 +218,7 @@ curl -s -b cookies.txt -X PATCH http://localhost:8000/api/v1/users/admin \
 ```
 
 **HTTPS**
-V produkci provozujte UniForms výhradně za HTTPS reverzním proxy (nginx, Caddy). Cookie `uniforms_token` je označena `samesite=lax`, ale bez HTTPS může být zachycena.
+V produkci provozujte UniForms výhradně za HTTPS reverzním proxy (nginx, Caddy) a nastavte `COOKIE_SECURE=true` v `.env` — cookie `uniforms_token` pak dostane flag `Secure` a prohlížeč ji nikdy nepošle přes nešifrované spojení. Cookie je vždy `httpOnly` a `samesite=lax`.
 
 **Platnost tokenu**
 Výchozích 480 minut (8 hodin) je vhodné pro pracovní den. Pro zvýšenou bezpečnost snižte na 60–120 minut:

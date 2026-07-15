@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Records{% if collection %} – {{ collection.name }}{% endif %} – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-folder2-open me-2 text-primary"></i>Records
+            {% if collection %}<span class="text-muted fw-normal">– {{ collection.name }}</span>{% endif %}
+        </h5>
+        <small class="text-muted">{{ term.records_subtitle }}</small>
+    </div>
+</div>
+
+<!-- Filter buttons – built dynamically from status config after records load -->
+<div class="d-flex gap-2 mb-3 flex-wrap" id="filter-bar">
+    <button class="btn btn-sm filter-btn active" data-filter="all">{{ term.filter_all }}</button>
+</div>
+
+<!-- Records table -->
+<div class="card border shadow-sm">
+    <div class="card-body p-0">
+        <div id="records-loading" class="text-center text-muted py-5">
+            <div class="spinner-border mb-3" role="status"></div>
+            <div>Loading records…</div>
+        </div>
+        <div id="records-empty" class="text-center text-muted py-5 d-none">
+            <i class="bi bi-folder2 fs-1 mb-3 d-block opacity-50"></i>
+            <p class="mb-0">No records found</p>
+        </div>
+        <div class="d-none" id="records-table-wrap">
+            <table class="table table-hover mb-0" id="records-table">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">{{ term.record_id_label }}</th>
+                        <th>{{ term.col_status }}</th>
+                        <th>Template</th>
+                        {% for col in (collection.list_columns if collection else []) %}
+                        <th>{{ col.label }}</th>
+                        {% endfor %}
+                        <th>{{ term.col_lock }}</th>
+                        <th class="d-none">sort</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="records-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Delete record?</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body small text-muted" id="deleteModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">{{ term.btn_cancel }}</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirmDeleteBtn">{{ term.btn_delete }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="/static/vendor/datatables/css/dataTables.bootstrap5.min.css">
+<style>
+  #records-table_wrapper .dataTables_length,
+  #records-table_wrapper .dataTables_filter { padding: 0.6rem 1rem 0.25rem; }
+  #records-table_wrapper .dataTables_info,
+  #records-table_wrapper .dataTables_paginate { padding: 0.25rem 1rem 0.6rem; }
+  #records-table_wrapper > .row { --bs-gutter-x: 0; }
+</style>
+<script src="/static/vendor/jquery/jquery.min.js"></script>
+<script src="/static/vendor/datatables/js/jquery.dataTables.min.js"></script>
+<script src="/static/vendor/datatables/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    /* Konfigurace stránky pro records_list.js – jediné místo, kde šablona předává data do JS */
+    const COLLECTION_ID = {{ collection_id | tojson }};
+    const IS_ADMIN = {{ 'true' if user and user.role == 'system_admin' else 'false' }};
+
+    // Columns defined in the collection YAML (after the fixed record_id/status/template cols)
+    const LIST_COLUMNS = [
+        {% for col in (collection.list_columns if collection else []) %}
+        {key: {{ col.key | tojson }}, label: {{ col.label | tojson }}},
+        {% endfor %}
+    ];
+</script>
+<script src="/static/js/records_list.js"></script>
+{% endblock %}

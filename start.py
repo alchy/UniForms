@@ -46,7 +46,7 @@ def main():
 
     cmd = [
         uvicorn,
-        "app.main:app",
+        "uniforms.main:app",
         "--host", args.host,
         "--port", str(args.port),
         "--log-level", "info",

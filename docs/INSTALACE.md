@@ -121,6 +121,7 @@ ADMIN_PASSWORD=admin
 ```ini
 JWT_EXPIRE_MINUTES=480         # platnost session v minutách (výchozí: 8 hodin)
 JWT_ALGORITHM=HS256            # algoritmus podepisování tokenu
+COOKIE_SECURE=false            # true v produkci za HTTPS (Secure flag cookie)
 AUTH_PROVIDER=simple           # simple | ldap | oauth
 DATABASE_PATH=data/uniforms.db # cesta k SQLite databázi
 TIMEZONE=UTC                   # IANA název časového pásma (např. Europe/Prague)
@@ -151,7 +152,7 @@ DEFAULT_COLLECTIONS_DIR=data/collections
 
 ## 5. Konfigurační soubor `uniforms.yaml`
 
-`uniforms.yaml` obsahuje doménová nastavení aplikace — branding, terminologii, workflow a extensions. Lze ho verzovat; neobsahuje žádné tajné klíče (ty patří do `.env`).
+`uniforms.yaml` obsahuje doménová nastavení aplikace — branding, terminologii a výchozí workflow. Všechny klíče jsou volitelné. Lze ho verzovat; neobsahuje žádné tajné klíče (ty patří do `.env`).
 
 Základ konfigurace:
 
@@ -160,40 +161,29 @@ app:
   name: "UniForms"
   subtitle: "Universal Forms Engine"
 
+# Doménové pojmy — přepiš jen to, co se ve tvé doméně jmenuje jinak.
+# Kompletní katalog UI textů: TerminologyConfig v uniforms/config.py.
 terminology:
   record_id_label: "Record ID"
-  new_record_btn: "New Record"
   record_owner_label: "Coordinator"
+  new_record_btn: "New Record"
   take_over_btn: "Take Over"
-  status_active: "Active"
-  status_draft: "Draft"
-  status_deprecated: "Deprecated"
-  nav_dashboard: "Dashboard"
-  nav_users: "Users"
-  nav_settings: "Settings"
 
 id:
   prefix: "REC"
   format: "{prefix}-{YYYYMM}-{rand:04d}"   # → REC-202603-0042
 
+# Výchozí workflow — stejná struktura jako `workflow:` v collection YAML.
 workflow:
-  default_states:
-    - id: new
-      label: "New"
-      color: secondary
-    - id: open
-      label: "Open"
-      color: primary
-    - id: in_progress
-      label: "In Progress"
-      color: warning
-    - id: closed
-      label: "Closed"
-      color: success
   initial_state: new
-
-extensions: []
+  states:
+    - { id: new,         label: "New",         color: secondary }
+    - { id: open,        label: "Open",        color: primary }
+    - { id: in_progress, label: "In Progress", color: warning }
+    - { id: closed,      label: "Closed",      color: success }
 ```
+
+> **Změna syntaxe:** dřívější klíč `workflow.default_states` se nyní jmenuje `workflow.states`; klíč `extensions` byl odstraněn.
 
 ### Přehled sekcí
 
@@ -203,7 +193,6 @@ extensions: []
 | `terminology` | Překlad všech UI popisků — přizpůsobí aplikaci vaší doméně |
 | `id` | Formát automaticky generovaných ID záznamů |
 | `workflow` | Výchozí workflow stavy pro kolekce bez vlastního workflow |
-| `extensions` | Seznam aktivovaných rozšíření (id + cesta) |
 
 ### Formát ID záznamu
 
@@ -228,14 +217,17 @@ Kompletní dokumentovaný příklad najdete v `uniforms.yaml.example`.
 
 ```
 UniForms/
-├── app/                           zdrojový kód FastAPI aplikace
+├── uniforms/                      Python balíček (knihovna + aplikace)
+│   ├── main.py                    create_app() — tovární funkce aplikace
 │   ├── api/                       REST API endpointy
 │   ├── services/                  business logika (records, templates, ...)
 │   ├── static/
 │   │   ├── css/custom.css         vlastní styly (layout, sidebar)
 │   │   ├── js/
-│   │   │   ├── main.js            apiFetch() helper
-│   │   │   └── uniforms.js        klientský renderer formulářů
+│   │   │   ├── main.js            sdílené helpery (apiFetch, escapeHtml, showToast)
+│   │   │   ├── uniforms.js        klientský renderer formulářů
+│   │   │   ├── records_list.js    stránka seznamu záznamů
+│   │   │   └── record_detail.js   stránka detailu záznamu
 │   │   └── vendor/                JS/CSS knihovny (staženo skriptem)
 │   │       ├── bootstrap/
 │   │       ├── bootstrap-icons/
@@ -255,7 +247,6 @@ UniForms/
 │   │       └── REC-202603-0001.json
 │   └── uniforms.db                SQLite databáze (uživatelé, nastavení, zámky)
 ├── docs/                          tato dokumentace
-├── extensions/                    volitelná rozšíření
 │   └── soc/                       SOC extension (šablony + renderery)
 │       ├── extension.yaml
 │       ├── js/
@@ -513,7 +504,7 @@ Před zpřístupněním aplikace uživatelům ověřte:
 - [ ] `.env` není verzován v gitu a má omezená oprávnění (`chmod 600 .env`)
 - [ ] `uniforms.yaml` je nakonfigurován pro vaši doménu (název, terminologie, prefix ID)
 - [ ] Nastaveno správné časové pásmo: `TIMEZONE=Europe/Prague`
-- [ ] Vendor knihovny jsou staženy: `ls app/static/vendor/`
+- [ ] Vendor knihovny jsou staženy: `ls uniforms/static/vendor/`
 - [ ] systemd service je nastaven na automatický start: `systemctl is-enabled uniforms`
 - [ ] Zálohovací cron job je nastaven: `crontab -l`
 - [ ] SELinux nakonfigurován (RHEL/Rocky): `getsebool httpd_can_network_connect` → `on`
