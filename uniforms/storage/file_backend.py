@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -13,10 +13,14 @@ from uniforms.storage.base import StorageBackend
 # Každý záznam je uložen jako {records_dir}/{record_id}.json,
 # zámek editace jako {records_dir}/{record_id}.lock.
 # Operace jsou asynchronní; zámky jsou jednoduché soubory s metadaty.
+# Zámek má platnost LOCK_TTL – starší zámek (zavřená záložka, pád prohlížeče)
+# se považuje za uvolněný. Klient drží zámek heartbeatem (opakovaný POST /lock).
 # record_id se validuje na hranici backendu (ochrana proti path traversal).
 # ---------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
+
+LOCK_TTL = timedelta(minutes=30)
 
 
 class FileStorageBackend(StorageBackend):
@@ -41,17 +45,30 @@ class FileStorageBackend(StorageBackend):
             raise ValueError(f"Unsafe record id: {record_id!r}")
         return self.records_dir / f"{record_id}.lock"
 
+    def _read_lock(self, lock_path: Path) -> Optional[dict]:
+        """Return lock data, or None if there is no lock or it has expired (stale lock is removed)."""
+        try:
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except Exception:
+            return {"locked_by": None, "locked_at": None}  # corrupt lock – treat as locked
+        try:
+            locked_at = datetime.fromisoformat(lock.get("locked_at") or "")
+        except ValueError:
+            return lock
+        if datetime.now(timezone.utc) - locked_at > LOCK_TTL:
+            lock_path.unlink(missing_ok=True)
+            return None
+        return lock
+
     def _load_record_from_path(self, path: Path) -> Optional[UniRecord]:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             record = UniRecord(**data)
-            lock_path = self._lock_path(record.record_id)
-            if lock_path.exists():
-                try:
-                    lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
-                    record.locked_by = lock_data.get("locked_by")
-                except Exception:
-                    pass
+            lock = self._read_lock(self._lock_path(record.record_id))
+            if lock:
+                record.locked_by = lock.get("locked_by")
             return record
         except Exception as exc:
             logger.warning("Cannot load record '%s': %s", path.name, exc)
@@ -103,6 +120,7 @@ class FileStorageBackend(StorageBackend):
             {"locked_by": username, "locked_at": datetime.now(timezone.utc).isoformat()},
             ensure_ascii=False,
         )
+        self._read_lock(lock_path)  # drop an expired lock before trying to create a new one
         try:
             # Exkluzivni vytvoreni souboru je atomicke – dva soubezne pozadavky
             # nemohou ziskat zamek oba (mode "x" selze, pokud soubor existuje)
@@ -116,14 +134,13 @@ class FileStorageBackend(StorageBackend):
             return False
 
         # Zamek existuje – obnovime timestamp, jen pokud ho drzi stejny uzivatel
-        try:
-            existing = json.loads(lock_path.read_text(encoding="utf-8"))
-            if existing.get("locked_by") == username:
-                lock_path.write_text(lock_json, encoding="utf-8")
-                return True
-            return False  # Locked by another user
-        except Exception:
-            return False  # Corrupt lock file – treat as locked
+        existing = self._read_lock(lock_path)
+        if existing is None:
+            return await self.acquire_lock(record_id, username)  # expired meanwhile
+        if existing.get("locked_by") == username:
+            lock_path.write_text(lock_json, encoding="utf-8")
+            return True
+        return False  # Locked by another user (or corrupt lock file)
 
     async def release_lock(self, record_id: str, username: str, force: bool = False) -> bool:
         lock_path = self._lock_path(record_id)
@@ -141,9 +158,5 @@ class FileStorageBackend(StorageBackend):
 
     async def get_lock_info(self, record_id: str) -> Optional[dict]:
         lock_path = self._lock_path(record_id)
-        if not lock_path.exists():
-            return None
-        try:
-            return json.loads(lock_path.read_text(encoding="utf-8"))
-        except Exception:
-            return None
+        lock = self._read_lock(lock_path)
+        return lock if lock and lock.get("locked_by") else None

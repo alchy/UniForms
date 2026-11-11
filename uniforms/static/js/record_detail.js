@@ -58,11 +58,20 @@ function buildWorkflowUI(workflowStates) {
 // Lock management
 // ---------------------------------------------------------------------------
 
+// Server drops locks older than 30 min (LOCK_TTL); refresh well before that
+const LOCK_HEARTBEAT_MS = 5 * 60 * 1000;
+let lockHeartbeat = null;
+
 async function acquireLock() {
     try {
         const resp = await apiFetch(`${RECORD_URL}/lock`, {method: 'POST'});
         if (resp.ok) {
             lockAcquired = true;
+            if (!lockHeartbeat) {
+                lockHeartbeat = setInterval(() => {
+                    if (lockAcquired) apiFetch(`${RECORD_URL}/lock`, {method: 'POST'}).catch(() => {});
+                }, LOCK_HEARTBEAT_MS);
+            }
             return true;
         } else if (resp.status === 423) {
             const err = await resp.json();
@@ -88,7 +97,14 @@ async function releaseLock() {
         });
     } catch (e) { /* ignore */ }
     lockAcquired = false;
+    clearInterval(lockHeartbeat);
+    lockHeartbeat = null;
 }
+
+// Closing the tab / navigating away releases the lock (keepalive fetch survives unload)
+window.addEventListener('pagehide', () => { releaseLock(); });
+// Restored from back/forward cache – the lock was released on pagehide, take it again
+window.addEventListener('pageshow', (e) => { if (e.persisted && !PRINT_MODE) acquireLock(); });
 
 async function forceUnlock() {
     await apiFetch(`${RECORD_URL}/lock`, {method: 'DELETE'});
@@ -126,15 +142,7 @@ async function loadCollectionConfig() {
 
 // Search for a field by key across all sections (including section_group children).
 function findFieldInRecord(r, key) {
-    for (const sec of (r.data?.sections || [])) {
-        const f = (sec.fields || []).find(f => f.key === key);
-        if (f) return f;
-        for (const sub of (sec.sections || [])) {
-            const sf = (sub.fields || []).find(f => f.key === key);
-            if (sf) return sf;
-        }
-    }
-    return null;
+    return findField(r.data?.sections, key);
 }
 
 // Show Take Over button only when collection config declares take_over AND
