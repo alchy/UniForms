@@ -25,6 +25,7 @@ const BOOT = window.DESIGNER_BOOT || {};
 const API = '/api/v1/designer';
 const $ = id => document.getElementById(id);
 
+const NEW_TEMPLATE_FLAG = 'uniforms.designer.newTemplate';
 const STEPS = [
     {id: 'basics', label: 'Basics', icon: 'bi-info-circle'},
     {id: 'workflow', label: 'Workflow', icon: 'bi-diagram-3'},
@@ -629,7 +630,15 @@ function stepTemplates(pane) {
         h('button', {type: 'button', class: 'btn btn-success btn-sm', onclick: openNewTemplateDialog},
             icon('bi-plus-circle', 'me-1'), 'New template')));
     if (!S.templates.length) {
-        put(pane, h('div', {class: 'dz-empty py-4'}, 'No templates yet – create the first one.'));
+        put(pane, h('div', {class: 'alert alert-warning d-flex gap-3 align-items-start mt-2'},
+            icon('bi-exclamation-triangle fs-4'),
+            h('div', {},
+                h('div', {class: 'fw-semibold mb-1'}, 'This collection has no form template yet – records cannot be created.'),
+                h('div', {class: 'small mb-3'}, 'A template is the form itself: its sections and fields (e.g. name, weight, '
+                    + 'location…). The collection settings only define workflow, IDs and roles. '
+                    + 'Create the first template, add fields from the palette and save it.'),
+                h('button', {type: 'button', class: 'btn btn-success', onclick: openNewTemplateDialog},
+                    icon('bi-plus-circle', 'me-1'), 'Create the first template'))));
         return;
     }
     const tbody = h('tbody', {});
@@ -729,7 +738,10 @@ function wireNewTemplateDialog() {
 async function stepReview(pane) {
     const model = S.model;
     put(pane, stepHeader('Review & save', 'The collection settings are checked by the server and written to its YAML file. '
-        + 'Templates are saved separately in the Templates step.'));
+        + (S.mode === 'new'
+            ? 'Next you design its form: after creating the collection you continue straight to its first template, '
+              + 'where the sections and fields are defined. Records can be created once a template is saved.'
+            : 'Templates are saved separately in the Templates step.')));
     const cid = S.mode === 'edit' ? S.cid : String(model.id || '').trim();
     if (!SLUG_RE.test(cid)) {
         put(pane, h('div', {class: 'alert alert-danger small py-2'}, 'Enter a valid collection id in the Basics step first.'));
@@ -747,7 +759,7 @@ async function stepReview(pane) {
     const status = S.mode === 'new' ? ['primary', 'New collection – not saved yet']
         : dirty ? ['warning', 'Unsaved changes'] : ['success', 'No changes – the file is up to date'];
     const saveBtn = h('button', {type: 'button', class: 'btn btn-success', disabled: !check.ok || (S.mode === 'edit' && !dirty),
-        onclick: () => saveCollection(saveBtn)}, icon('bi-save', 'me-1'), S.mode === 'new' ? 'Create collection' : 'Save collection');
+        onclick: () => saveCollection(saveBtn)}, icon('bi-save', 'me-1'), S.mode === 'new' ? 'Create collection & design its form' : 'Save collection');
     const resultBox = h('div', {id: 'dz-save-result', class: 'd-none'});
     put(body,
         h('div', {class: 'd-flex align-items-center gap-3 mb-3 flex-wrap'},
@@ -792,6 +804,8 @@ async function saveCollection(btn) {
     S.source = r.data.source;
     if (S.mode === 'new') {
         showToast('Collection created');
+        // Next step is the form itself: open the "New template" dialog right after the redirect
+        try { sessionStorage.setItem(NEW_TEMPLATE_FLAG, JSON.stringify({cid, name: String(model.name || '')})); } catch (err) { /* ignore */ }
         window.location.href = `/admin/designer/${encodeURIComponent(cid)}/edit#templates`;
         return;
     }
@@ -1714,6 +1728,15 @@ async function init() {
     const wanted = STEPS.findIndex(s => s.id === hash);
     goStep(wanted >= 0 ? wanted : 0);
     // deep link from the template list: #template=<template_id> opens that template directly
+    // Just created in the wizard → continue straight to the first template
+    let justCreated = null;
+    try { justCreated = JSON.parse(sessionStorage.getItem(NEW_TEMPLATE_FLAG) || 'null'); sessionStorage.removeItem(NEW_TEMPLATE_FLAG); } catch (err) { justCreated = null; }
+    if (S.mode === 'edit' && justCreated && justCreated.cid === S.cid && !S.templates.length) {
+        openNewTemplateDialog();
+        const nameEl = $('dz-nt-name');
+        nameEl.value = justCreated.name;
+        nameEl.dispatchEvent(new Event('input', {bubbles: true}));
+    }
     if (S.mode === 'edit' && hash.startsWith('template=')) {
         let templateId = '';
         try { templateId = decodeURIComponent(hash.slice('template='.length)); } catch (err) { templateId = ''; }

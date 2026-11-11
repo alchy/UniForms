@@ -147,8 +147,15 @@
 <div class="card border shadow-sm">
     <div class="card-body text-center py-5 text-muted">
         <i class="bi bi-folder2 fs-1 mb-3 d-block opacity-50"></i>
-        <p class="mb-1">No templates found</p>
-        <small>Add YAML files to the templates directory</small>
+        <p class="mb-1 fw-semibold">This collection has no form template yet</p>
+        <p class="small mb-3">Records are created from a template – it defines the form's sections and fields.</p>
+        {% if user and user.role == 'system_admin' %}
+        <a href="/admin/designer/{{ collection_id | urlencode }}/edit#templates" class="btn btn-success btn-sm">
+            <i class="bi bi-bricks me-1"></i>Design a template in Collection Designer
+        </a>
+        {% else %}
+        <small>Ask an administrator to add one.</small>
+        {% endif %}
     </div>
 </div>
 {% endif %}
