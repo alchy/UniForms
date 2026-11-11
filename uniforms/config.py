@@ -170,8 +170,8 @@ class Settings(BaseSettings):
     #   member of ADMIN_GROUP → system_admin, of USER_GROUP → system_reader,
     #   of neither → login refused. A member of either group who has no local
     #   account yet gets one on first OTP login automatically.
-    access_manager_admin_group: str = "admin"
-    access_manager_user_group: str = "user"
+    access_manager_admin_group: str = "uniforms-admin"
+    access_manager_user_group: str = "uniforms-user"
 
     # Initial admin account (used on first run if no users exist)
     admin_username: str = "admin"

@@ -53,3 +53,6 @@ extensions/
 
 # ── Vendor JS/CSS (downloaded via scripts/download_vendors.py) ────────────
 #uniforms/static/vendor/
+
+# pip cache of the service account (home = repo dir)
+.cache/

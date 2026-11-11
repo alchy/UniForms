@@ -16,7 +16,6 @@ It is synchronous, so calls run in a worker thread.
 from __future__ import annotations
 
 import asyncio
-import inspect
 import logging
 from dataclasses import dataclass
 from functools import lru_cache
@@ -88,26 +87,9 @@ def reset_client() -> None:
     _access.cache_clear()
 
 
-def _authenticate(access, username: str, credentials: dict, **kwargs):
-    """Access.authenticate, tolerant to the client's store signature.
-
-    access-manager 0.1.0.dev0: Access.authenticate() always forwards key_id= and
-    origin= to the store, but RemoteStore.authenticate() does not accept them →
-    TypeError on every remote login. Call the store with only the keyword
-    arguments it declares; drop this shim once the library is fixed.
-    """
-    store = getattr(access, "_store", None)
-    if store is None:
-        return access.authenticate(username, credentials, **kwargs)
-    accepted = inspect.signature(store.authenticate).parameters
-    return store.authenticate(
-        username, credentials, **{k: v for k, v in kwargs.items() if k in accepted}
-    )
-
-
 def _verify_sync(username: str, code: str, client_origin: Optional[str]) -> OtpResult:
-    verdict = _authenticate(
-        _access(), username, {"totp": code.strip()}, purpose="login", client_origin=client_origin,
+    verdict = _access().authenticate(
+        username, {"totp": code.strip()}, purpose="login", client_origin=client_origin,
     )
     return OtpResult(
         ok=bool(verdict), outcome=verdict.outcome,
