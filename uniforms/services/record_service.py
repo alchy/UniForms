@@ -264,3 +264,33 @@ async def update_record(
 
 async def delete_record(storage: StorageBackend, record_id: str) -> bool:
     return await storage.delete_record(record_id)
+
+
+def _flatten_values(data: dict) -> dict:
+    """Map of comparable values in a record document: field key → value,
+    table section id → rows, checklist step id → (done, note)."""
+    out: dict = {}
+
+    def walk(sections):
+        for sec in sections or []:
+            for f in sec.get("fields") or []:
+                if f.get("key"):
+                    out[f["key"]] = f.get("value")
+            if sec.get("type") == "table":
+                out[sec.get("id")] = sec.get("rows")
+            for group in sec.get("step_groups") or []:
+                for st in group.get("steps") or []:
+                    out[st.get("id")] = (st.get("done"), st.get("analyst_note"))
+            walk(sec.get("subsections"))
+
+    walk((data or {}).get("sections"))
+    out.pop(None, None)
+    return out
+
+
+def changed_keys(before: dict, after: dict) -> list[str]:
+    """Keys (fields, tables, checklist steps) whose value differs – for the audit
+    trail. Keys only, never values. Auto-maintained 'last_saved' is ignored."""
+    a, b = _flatten_values(before), _flatten_values(after)
+    return sorted(k for k in a.keys() | b.keys()
+                  if k != "last_saved" and a.get(k) != b.get(k))

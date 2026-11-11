@@ -11,6 +11,7 @@ from uniforms import config
 from uniforms.config import DEFAULT_ADMIN_PASSWORD, DEFAULT_JWT_SECRET, Settings, UniformsConfig
 from uniforms.core.database import init_db
 from uniforms.core.security import WebAdminRequired, WebLoginRequired
+from uniforms.core.audit_middleware import AuditMiddleware
 from uniforms.core.security_middleware import SecurityMiddleware
 
 # ---------------------------------------------------------------------------
@@ -74,6 +75,7 @@ def create_app(
     from uniforms.api.v1 import (
         admin_collections, auth, collection_roles, collections,
         info, records, settings as settings_api, templates, users,
+        audit as audit_api,
     )
     from uniforms.web import routes as web_routes
 
@@ -88,6 +90,7 @@ def create_app(
     )
 
     app.add_middleware(SecurityMiddleware)
+    app.add_middleware(AuditMiddleware)  # outermost: also records requests SecurityMiddleware refuses
 
     @app.exception_handler(WebLoginRequired)
     async def _login_required(request: Request, exc: WebLoginRequired) -> RedirectResponse:
@@ -103,7 +106,7 @@ def create_app(
     api_v1 = "/api/v1"
     for router_module in (
         auth, info, collections, templates, records,
-        collection_roles, settings_api, users, admin_collections,
+        collection_roles, settings_api, users, admin_collections, audit_api,
     ):
         app.include_router(router_module.router, prefix=api_v1)
 

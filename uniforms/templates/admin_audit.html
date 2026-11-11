@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Audit – {{ app_name }}{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-journal-text me-2 text-primary"></i>Audit
+        </h5>
+        <small class="text-muted">Who did what, from where, and whether it worked – logins and every change made through the API, including refused attempts.</small>
+    </div>
+    <small class="text-muted" id="audit-retention"></small>
+</div>
+
+<form id="audit-filter" class="card border shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0" for="f-from">From</label>
+                <input type="date" class="form-control form-control-sm" id="f-from">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0" for="f-to">To</label>
+                <input type="date" class="form-control form-control-sm" id="f-to">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0" for="f-who">User</label>
+                <input type="text" class="form-control form-control-sm" id="f-who" placeholder="e.g. demo">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0" for="f-kind">Type</label>
+                <select class="form-select form-select-sm" id="f-kind">
+                    <option value="">All</option>
+                    <option value="auth">Login / logout</option>
+                    <option value="write">Changes</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0" for="f-outcome">Outcome</label>
+                <select class="form-select form-select-sm" id="f-outcome">
+                    <option value="">All</option>
+                    <option value="ok">OK</option>
+                    <option value="denied">Denied</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="error">Error</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small text-muted mb-0" for="f-text">Search</label>
+                <input type="text" class="form-control form-control-sm" id="f-text" placeholder="record id, IP…">
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card border shadow-sm">
+    <div class="card-body p-0">
+        <div id="audit-loading" class="text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading…
+        </div>
+        <div id="audit-empty" class="text-center text-muted py-4 d-none">No events for this filter.</div>
+        <div class="table-responsive d-none" id="audit-table-wrap">
+            <table class="table table-hover table-sm mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Time</th>
+                        <th>Operation</th>
+                        <th>User</th>
+                        <th>Target</th>
+                        <th>Outcome</th>
+                        <th>Origin</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="audit-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white small text-muted d-none" id="audit-footer"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const OUTCOME = {
+        ok:       {label: 'OK',       color: 'success'},
+        denied:   {label: 'Denied',   color: 'danger'},
+        rejected: {label: 'Rejected', color: 'warning'},
+        error:    {label: 'Error',    color: 'dark'},
+    };
+    const $ = id => document.getElementById(id);
+    const isoDay = d => d.toISOString().slice(0, 10);
+
+    const today = new Date();
+    $('f-to').value = isoDay(today);
+    $('f-from').value = isoDay(new Date(today.getTime() - 7 * 86400000));
+
+    function target(ev) {
+        const parts = [];
+        if (ev.collection_id) parts.push(escapeHtml(ev.collection_id));
+        if (ev.record_id) {
+            const href = `/records/${encodeURIComponent(ev.collection_id || '')}/${encodeURIComponent(ev.record_id)}`;
+            parts.push(ev.collection_id && ev.op !== 'delete_record'
+                ? `<a href="${href}"><code>${escapeHtml(ev.record_id)}</code></a>`
+                : `<code>${escapeHtml(ev.record_id)}</code>`);
+        }
+        if (ev.template_id) parts.push(`<span class="text-muted">template</span> ${escapeHtml(ev.template_id)}`);
+        if (ev.username) parts.push(`<span class="text-muted">user</span> ${escapeHtml(ev.username)}`);
+        return parts.join(' · ') || '<span class="text-muted">–</span>';
+    }
+
+    function details(ev) {
+        const out = [];
+        if (ev.status_from || ev.status_to)
+            out.push(`status <code>${escapeHtml(ev.status_from || '?')}</code> → <code>${escapeHtml(ev.status_to || '?')}</code>`);
+        if (ev.changed && ev.changed.length)
+            out.push(`changed: ${ev.changed.map(k => `<code>${escapeHtml(k)}</code>`).join(', ')}`);
+        if (ev.error) out.push(`<span class="text-danger">${escapeHtml(ev.error)}</span>`);
+        return out.join('<br>') || '';
+    }
+
+    function who(ev) {
+        const actor = (ev.actor || '').replace(/^user:/, '');
+        const subject = (ev.subject || '').replace(/^user:/, '');
+        if (actor) return escapeHtml(actor);
+        if (subject) return `<span class="text-muted" title="attempted as">${escapeHtml(subject)}</span>`;
+        return '<span class="text-muted">anonymous</span>';
+    }
+
+    async function load() {
+        $('audit-loading').classList.remove('d-none');
+        const q = new URLSearchParams();
+        for (const [key, id] of [['day_from', 'f-from'], ['day_to', 'f-to'], ['who', 'f-who'],
+                                 ['kind', 'f-kind'], ['outcome', 'f-outcome'], ['text', 'f-text']]) {
+            const v = $(id).value.trim();
+            if (v) q.set(key, v);
+        }
+        const resp = await apiFetch(`/api/v1/admin/audit/?${q}`);
+        $('audit-loading').classList.add('d-none');
+        if (!resp.ok) { showToast('Cannot load audit log', 'danger'); return; }
+        const data = await resp.json();
+        $('audit-retention').textContent = `Retention: ${data.retention_days} days`;
+
+        const tbody = $('audit-tbody');
+        tbody.innerHTML = '';
+        data.events.forEach(ev => {
+            const o = OUTCOME[ev.outcome] || {label: ev.outcome || '?', color: 'secondary'};
+            const t = ev.t ? new Date(ev.t) : null;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="ps-3 text-nowrap" title="${escapeHtml(ev.t || '')}">${t ? escapeHtml(t.toLocaleString()) : ''}</td>
+                <td class="text-nowrap">
+                    <i class="bi ${ev.kind === 'auth' ? 'bi-box-arrow-in-right' : 'bi-pencil-square'} text-muted me-1"></i>${escapeHtml(ev.op || '')}
+                    <span class="text-muted">${escapeHtml(ev.method || '')}</span>
+                </td>
+                <td class="text-nowrap">${who(ev)}</td>
+                <td>${target(ev)}</td>
+                <td><span class="badge bg-${o.color}-subtle text-${o.color} border border-${o.color}-subtle">${escapeHtml(o.label)}</span>
+                    <span class="text-muted">${escapeHtml(String(ev.status || ''))}</span></td>
+                <td class="text-nowrap text-muted">${escapeHtml(ev.origin || '')}</td>
+                <td>${details(ev)}</td>`;
+            tbody.appendChild(tr);
+        });
+        const empty = data.events.length === 0;
+        $('audit-empty').classList.toggle('d-none', !empty);
+        $('audit-table-wrap').classList.toggle('d-none', empty);
+        const footer = $('audit-footer');
+        footer.classList.toggle('d-none', empty);
+        footer.textContent = `${data.count} events (${data.day_from} – ${data.day_to})` +
+            (data.truncated ? ' – showing the newest only, narrow the filter to see more.' : '');
+    }
+
+    let debounce;
+    $('audit-filter').addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(load, 300); });
+    $('audit-filter').addEventListener('submit', e => { e.preventDefault(); load(); });
+    load();
+})();
+</script>
+{% endblock %}

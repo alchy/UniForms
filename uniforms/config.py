@@ -167,6 +167,10 @@ class Settings(BaseSettings):
     default_schemas_dir: str = "data/schemas"
     default_collections_dir: str = "data/collections"
 
+    # Audit trail (JSONL per day) – see uniforms/core/audit.py
+    audit_dir: str = "data/audit"
+    audit_retention_days: int = 365
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

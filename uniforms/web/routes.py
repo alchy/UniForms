@@ -245,6 +245,21 @@ async def settings_page(
 
 
 # Admin stranka spravce uzivatelu; vyzaduje roli system_admin
+@router.get("/admin/audit", response_class=HTMLResponse)
+async def admin_audit_page(
+    request: Request,
+    user: TokenPayload = Depends(require_web_admin),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    sidebar = await _sidebar_ctx(db, user)
+    return templates.TemplateResponse("admin_audit.html", {
+        "request": request,
+        "user": _user_ctx(user),
+        "active_section": "audit",
+        **sidebar,
+    })
+
+
 @router.get("/admin/users", response_class=HTMLResponse)
 async def admin_users_page(
     request: Request,

@@ -1,7 +1,7 @@
 import asyncio
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 # ---------------------------------------------------------------------------
 # API endpointy pro autentizaci.
@@ -43,9 +43,12 @@ async def get_auth_provider(
 # Overi prihlasovaci udaje a nastavi JWT httpOnly cookie; JWT obsahuje sub (username) a role (system role)
 async def login(
     credentials: LoginRequest,
+    request: Request,
     response: Response,
     provider: AuthProvider = Depends(get_auth_provider),
 ) -> Token:
+    # Audit: who tried to log in (never the password)
+    request.state.audit = {"subject": f"user:{credentials.username[:128]}"}
     user = await provider.authenticate(credentials.username, credentials.password)
 
     if not user:
@@ -56,6 +59,7 @@ async def login(
             detail="Nesprávné přihlašovací údaje",
         )
 
+    request.state.audit["actor"] = f"user:{user.username}"
     # JWT obsahuje sub=username a role=system_role (system_admin nebo system_reader)
     token = create_access_token({"sub": user.username, "role": user.role})
 

@@ -1,7 +1,7 @@
 from typing import Annotated
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 # ---------------------------------------------------------------------------
 # API endpointy pro záznamy (records).
@@ -109,8 +109,9 @@ async def get_record(
 # Aktualizuje stav a/nebo data zaznamu; vyzaduje pristup ke kolekci
 # Pokud zaznam zamkl jiny uzivatel, vraci 423 (zamek je vynucen na serveru)
 async def update_record(
+    request: Request,
     record_id: RecordId,
-    request: UpdateRecordRequest,
+    body: UpdateRecordRequest,
     collection_id: str,
     current_user: User = Depends(require_collection_access),
     storage: StorageBackend = Depends(get_storage),
@@ -118,8 +119,18 @@ async def update_record(
 ) -> UniRecord:
     await _reject_if_locked_by_other(storage, record_id, current_user.username)
     collection = await _get_collection(collection_id, db)
+    before = await storage.get_record(record_id)
+    if before:
+        info = {}
+        if body.status is not None and body.status != before.status:
+            info.update(status_from=before.status, status_to=body.status)
+        if body.data is not None:
+            changed = record_service.changed_keys(before.data, body.data)
+            if changed:
+                info["changed"] = changed[:50]
+        request.state.audit = info
     try:
-        record = await record_service.update_record(storage, record_id, request, collection)
+        record = await record_service.update_record(storage, record_id, body, collection)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if not record:
@@ -147,6 +158,7 @@ async def delete_record(
 )
 # Ziska zamek editace zaznamu; vraci 423, pokud zaznam zamkl jiny uzivatel
 async def acquire_lock(
+    request: Request,
     record_id: RecordId,
     current_user: User = Depends(require_collection_access),
     storage: StorageBackend = Depends(get_storage),
@@ -155,6 +167,9 @@ async def acquire_lock(
     if not record:
         raise HTTPException(status_code=404, detail=f"Record '{record_id}' not found")
 
+    held = await storage.get_lock_info(record_id)
+    if held and held.get("locked_by") == current_user.username:
+        request.state.audit_skip = True  # heartbeat refresh – not worth an audit line
     acquired = await storage.acquire_lock(record_id, current_user.username)
     if not acquired:
         lock_info = await storage.get_lock_info(record_id)
