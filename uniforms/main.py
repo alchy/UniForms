@@ -80,7 +80,7 @@ def create_app(
     from uniforms.api.v1 import (
         admin_collections, auth, collection_roles, collections,
         info, records, settings as settings_api, templates, users,
-        audit as audit_api, access_overview, access_manager_config,
+        audit as audit_api, access_overview, access_manager_config, designer,
     )
     from uniforms.web import routes as web_routes
 
@@ -116,7 +116,7 @@ def create_app(
     for router_module in (
         auth, info, collections, templates, records,
         collection_roles, settings_api, users, admin_collections, audit_api,
-        access_overview, access_manager_config,
+        access_overview, access_manager_config, designer,
     ):
         app.include_router(router_module.router, prefix=api_v1)
 

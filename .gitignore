@@ -56,3 +56,6 @@ extensions/
 
 # pip cache of the service account (home = repo dir)
 .cache/
+
+# Collection Designer backups of rewritten YAML files
+.designer_backup/
