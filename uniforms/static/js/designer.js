@@ -1710,8 +1710,16 @@ async function init() {
     $('dz-loading').classList.add('d-none');
     $('dz-collection-view').classList.remove('d-none');
     colChanged();
-    const wanted = STEPS.findIndex(s => s.id === (window.location.hash || '').slice(1));
+    const hash = (window.location.hash || '').slice(1);
+    const wanted = STEPS.findIndex(s => s.id === hash);
     goStep(wanted >= 0 ? wanted : 0);
+    // deep link from the template list: #template=<template_id> opens that template directly
+    if (S.mode === 'edit' && hash.startsWith('template=')) {
+        let templateId = '';
+        try { templateId = decodeURIComponent(hash.slice('template='.length)); } catch (err) { templateId = ''; }
+        if (S.templates.some(t => t.template_id === templateId && t.loadable)) await openTemplate(templateId);
+        else goStep(STEPS.findIndex(s => s.id === 'templates'));
+    }
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
