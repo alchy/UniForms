@@ -1,0 +1,54 @@
+/* Collection Designer – styles of /admin/designer pages (loaded only there). */
+
+/* ── Wizard stepper ─────────────────────────────────────────────────────── */
+.dz-stepper .nav-link { color: #495057; border: 1px solid transparent; font-size: 0.875rem; padding: 0.4rem 0.8rem; }
+.dz-stepper .nav-link:hover:not(:disabled) { background: #f1f3f5; }
+.dz-stepper .nav-link.active { background: var(--bs-primary-bg-subtle); color: var(--bs-primary); border-color: var(--bs-primary-border-subtle); font-weight: 600; }
+.dz-stepper .nav-link:disabled { opacity: 0.45; }
+.dz-step-no { display: inline-flex; align-items: center; justify-content: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: #dee2e6; font-size: 0.75rem; font-weight: 600; }
+.dz-stepper .nav-link.active .dz-step-no { background: var(--bs-primary); color: #fff; }
+.dz-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--bs-warning); display: inline-block; }
+.dz-term-key { min-width: 11rem; font-size: 0.75rem; }
+.dz-yaml { background: #f8f9fa; padding: 0.75rem 1rem; font-size: 0.8rem; max-height: 32rem; overflow: auto; white-space: pre; }
+
+/* ── Sortable rows (workflow states, list columns) ──────────────────────── */
+.dz-handle { cursor: grab; color: #adb5bd; }
+.dz-handle:hover { color: #495057; }
+.dz-sort-row.dz-drop-target { box-shadow: 0 -2px 0 var(--bs-primary); }
+.dz-dragging { opacity: 0.4; }
+
+/* ── Template designer layout ───────────────────────────────────────────── */
+.dz-design-row { display: grid; grid-template-columns: 190px minmax(0, 1fr) 340px; gap: 1rem; align-items: start; }
+@media (max-width: 1100px) { .dz-design-row { grid-template-columns: 160px minmax(0, 1fr); } .dz-props-col { grid-column: 1 / -1; } }
+.dz-sticky { position: sticky; top: 0.75rem; max-height: calc(100vh - 1.5rem); overflow-y: auto; }
+
+.dz-palette-title { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #6c757d; margin: 0.6rem 0 0.3rem; }
+.dz-palette-title:first-child { margin-top: 0; }
+.dz-palette-item { border: 1px solid var(--bs-border-color); border-radius: 0.375rem; background: #fff; padding: 0.3rem 0.55rem; margin-bottom: 0.3rem; font-size: 0.85rem; cursor: grab; user-select: none; }
+.dz-palette-item:hover, .dz-palette-item:focus { border-color: var(--bs-primary); background: var(--bs-primary-bg-subtle); outline: none; }
+
+/* ── Canvas ─────────────────────────────────────────────────────────────── */
+.dz-canvas { min-height: 20rem; }
+.dz-item { border: 1px solid var(--bs-border-color); border-radius: 0.375rem; background: #fff; margin-bottom: 0.4rem; cursor: pointer; }
+.dz-item:focus { outline: 2px solid var(--bs-primary-border-subtle); }
+.dz-item.dz-selected { border-color: var(--bs-primary); box-shadow: 0 0 0 2px var(--bs-primary-border-subtle); }
+.dz-template-card { padding: 0.5rem 0.75rem; background: #f8f9fa; }
+.dz-section-head, .dz-group-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.6rem; background: #f8f9fa; border-bottom: 1px solid var(--bs-border-color); border-radius: 0.375rem 0.375rem 0 0; flex-wrap: wrap; }
+.dz-group-head { background: #fff; padding: 0.3rem 0.5rem; font-size: 0.875rem; }
+.dz-section-body, .dz-group-body { padding: 0.5rem; }
+.dz-group { background: #fcfcfd; }
+.dz-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; font-size: 0.875rem; flex-wrap: wrap; }
+.dz-row-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.dz-row-key { font-size: 0.75rem; color: #6c757d; }
+.dz-locked { color: #6c757d; font-style: italic; border: 1px dashed var(--bs-border-color); border-radius: 0.375rem; margin-bottom: 0.4rem; }
+.dz-list { min-height: 1.5rem; }
+.dz-empty { border: 1px dashed #ced4da; border-radius: 0.375rem; color: #6c757d; text-align: center; padding: 0.45rem; font-size: 0.8rem; }
+.dz-indicator { height: 3px; background: var(--bs-primary); border-radius: 2px; margin: 3px 0; pointer-events: none; }
+.dz-inherited { border: 1px dashed #ced4da; border-radius: 0.375rem; padding: 0.5rem; background: #f8f9fa; }
+.dz-inherited-item { font-size: 0.85rem; color: #495057; padding: 0.15rem 0.25rem; }
+
+/* ── Attribute panel ────────────────────────────────────────────────────── */
+.dz-other { border-top: 1px solid var(--bs-border-color); padding-top: 0.6rem; }
+.dz-cond-builder { display: grid; grid-template-columns: 1fr 5.5rem 1fr auto; gap: 0.25rem; }
+.dz-rowcard { border: 1px solid var(--bs-border-color); border-radius: 0.375rem; padding: 0.4rem; margin-bottom: 0.4rem; background: #f8f9fa; }
+.dz-preview { background: #f8f9fa; border: 1px solid var(--bs-border-color); border-radius: 0.375rem; padding: 1rem; }

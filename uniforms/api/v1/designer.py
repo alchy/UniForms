@@ -155,8 +155,7 @@ async def designer_get_collection(
         loaded = ds.load_collection(collections_dir, collection_id)
     except ds.DesignerError as exc:
         raise _http_error(exc)
-    loaded["templates"] = ds.list_templates(template_dir)
-    loaded["field_keys"] = ds.collection_field_keys(template_dir)
+    loaded.update(ds.collection_overview(template_dir))
     return loaded
 
 

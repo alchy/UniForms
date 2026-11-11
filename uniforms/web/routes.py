@@ -382,6 +382,59 @@ async def admin_collections_page(
     })
 
 
+# Collection Designer – prehled kolekci; vyzaduje roli system_admin
+@router.get("/admin/designer", response_class=HTMLResponse)
+async def admin_designer_page(
+    request: Request,
+    user: TokenPayload = Depends(require_web_admin),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    sidebar = await _sidebar_ctx(db, user)
+    return templates.TemplateResponse("admin_designer.html", {
+        "request": request,
+        "user": _user_ctx(user),
+        "active_section": "designer",
+        **sidebar,
+    })
+
+
+# Collection Designer – pruvodce novou kolekci; vyzaduje roli system_admin
+@router.get("/admin/designer/new", response_class=HTMLResponse)
+async def admin_designer_new(
+    request: Request,
+    user: TokenPayload = Depends(require_web_admin),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    sidebar = await _sidebar_ctx(db, user)
+    return templates.TemplateResponse("admin_designer_editor.html", {
+        "request": request,
+        "user": _user_ctx(user),
+        "mode": "new",
+        "designer_collection_id": None,
+        "active_section": "designer",
+        **sidebar,
+    })
+
+
+# Collection Designer – uprava existujici kolekce a jejich sablon; vyzaduje roli system_admin
+@router.get("/admin/designer/{collection_id}/edit", response_class=HTMLResponse)
+async def admin_designer_edit(
+    request: Request,
+    collection_id: str,
+    user: TokenPayload = Depends(require_web_admin),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    sidebar = await _sidebar_ctx(db, user)
+    return templates.TemplateResponse("admin_designer_editor.html", {
+        "request": request,
+        "user": _user_ctx(user),
+        "mode": "edit",
+        "designer_collection_id": collection_id,
+        "active_section": "designer",
+        **sidebar,
+    })
+
+
 # Editor pro vytvoreni nove kolekce; vyzaduje roli system_admin
 @router.get("/admin/collections/new", response_class=HTMLResponse)
 async def admin_collection_editor_new(

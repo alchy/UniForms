@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Collection Designer – {{ app_name }}{% endblock %}
+
+{% block extra_head %}<link rel="stylesheet" href="/static/css/designer.css">{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div id="dz-alert" class="d-none"></div>
+<div id="dz-loading" class="text-center text-muted py-4">
+    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading…
+</div>
+
+{# ── Collection wizard ─────────────────────────────────────────────────── #}
+<div id="dz-collection-view" class="d-none">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-bricks me-2 text-primary"></i>Collection Designer
+                <span class="text-muted fw-normal">·</span> <span id="dz-title-name"></span>
+            </h5>
+            <small class="text-muted">Go through the steps and save in the last one. The YAML file stays the definition – the designer writes it for you.</small>
+        </div>
+        <div class="d-flex gap-2">
+            {% if mode == 'edit' %}
+            <a href="/admin/collections/{{ designer_collection_id | urlencode }}/edit" class="btn btn-outline-secondary btn-sm" title="Raw YAML editor">
+                <i class="bi bi-code-slash me-1"></i>Raw YAML
+            </a>
+            {% endif %}
+            <a href="/admin/designer" class="btn btn-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>All collections</a>
+        </div>
+    </div>
+
+    <ul class="nav nav-pills dz-stepper gap-1 mb-3" id="dz-stepper"></ul>
+
+    <div class="card border shadow-sm">
+        <div class="card-body" id="dz-step-pane"></div>
+        <div class="card-footer d-flex justify-content-between bg-white">
+            <button type="button" class="btn btn-secondary btn-sm" id="dz-prev"><i class="bi bi-chevron-left me-1"></i>Back</button>
+            <button type="button" class="btn btn-primary btn-sm" id="dz-next">Next<i class="bi bi-chevron-right ms-1"></i></button>
+        </div>
+    </div>
+</div>
+
+{# ── Template designer ─────────────────────────────────────────────────── #}
+<div id="dz-template-view" class="d-none">
+    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-secondary btn-sm" id="dz-tpl-back"><i class="bi bi-arrow-left me-1"></i>Templates</button>
+            <h5 class="fw-bold mb-0" id="dz-tpl-name"></h5>
+            <span class="small" id="dz-tpl-meta"></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="btn-group btn-group-sm" id="dz-tpl-tabs" role="group" aria-label="View">
+                <button type="button" class="btn btn-outline-primary" data-view="design"><i class="bi bi-bricks me-1"></i>Design</button>
+                <button type="button" class="btn btn-outline-primary" data-view="preview"><i class="bi bi-eye me-1"></i>Preview</button>
+                <button type="button" class="btn btn-outline-primary" data-view="yaml"><i class="bi bi-code-slash me-1"></i>YAML</button>
+            </div>
+            <a class="btn btn-outline-secondary btn-sm" id="dz-tpl-raw" href="#" title="Raw YAML editor"><i class="bi bi-pencil-square me-1"></i>Raw editor</a>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="dz-tpl-undo" title="Undo"><i class="bi bi-arrow-counterclockwise me-1"></i>Undo</button>
+            <button type="button" class="btn btn-success btn-sm" id="dz-tpl-save"><i class="bi bi-save me-1"></i>Save template</button>
+        </div>
+    </div>
+    <div id="dz-tpl-source-warning" class="d-none"></div>
+    <div id="dz-tpl-alert" class="d-none"></div>
+
+    <div class="dz-design-row" id="dz-design-row">
+        <div class="dz-sticky">
+            <div class="card border shadow-sm"><div class="card-body p-2" id="dz-palette"></div></div>
+            <div class="form-text px-1">Drag onto the form, or click to add next to the selection.</div>
+        </div>
+        <div>
+            <div class="dz-canvas" id="dz-canvas"></div>
+            <div class="card border mt-2"><div class="card-body py-2" id="dz-issues"></div></div>
+            <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="dz-live-toggle">
+                <label class="form-check-label small" for="dz-live-toggle">Live preview below</label>
+            </div>
+        </div>
+        <div class="dz-sticky dz-props-col">
+            <div class="card border shadow-sm"><div class="card-body" id="dz-props"></div></div>
+        </div>
+    </div>
+
+    <div id="dz-preview-wrap" class="d-none mt-3">
+        <div class="small text-muted mb-1"><i class="bi bi-eye me-1"></i>Preview – how a new record of this template looks (inherited sections included). Nothing typed here is saved.</div>
+        <div class="dz-preview" id="dz-preview"></div>
+    </div>
+    <div id="dz-yaml-wrap" class="d-none mt-3">
+        <div class="small text-muted mb-1"><i class="bi bi-code-slash me-1"></i>YAML the designer writes for this template (read-only).</div>
+        <pre class="dz-yaml border rounded" id="dz-yaml"></pre>
+    </div>
+</div>
+
+{# ── Confirm dialog ────────────────────────────────────────────────────── #}
+<div class="modal fade" id="dz-confirm" tabindex="-1" aria-labelledby="dz-confirm-title">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="dz-confirm-title"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small mb-2 fw-semibold" id="dz-confirm-message"></p>
+                <p class="small text-muted mb-0" id="dz-confirm-detail"></p>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="dz-confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── New template dialog ───────────────────────────────────────────────── #}
+<div class="modal fade" id="dz-new-template" tabindex="-1" aria-labelledby="dz-nt-title">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="dz-nt-title"><i class="bi bi-file-earmark-plus me-2"></i>New template</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dz-nt-alert" class="d-none"></div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold mb-1" for="dz-nt-name">Name</label>
+                    <input type="text" class="form-control form-control-sm" id="dz-nt-name" placeholder="e.g. Helpdesk request">
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label small fw-semibold mb-1" for="dz-nt-id">Template id</label>
+                        <input type="text" class="form-control form-control-sm font-monospace" id="dz-nt-id" placeholder="helpdesk-request-v1">
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label small fw-semibold mb-1" for="dz-nt-file">File name</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control font-monospace" id="dz-nt-file" placeholder="helpdesk_request_v1">
+                            <span class="input-group-text">.yaml</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold mb-1" for="dz-nt-extends">Based on (extends)</label>
+                    <select class="form-select form-select-sm" id="dz-nt-extends"></select>
+                    <div class="form-text">The new template inherits the sections of the chosen template and adds its own.</div>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="dz-nt-abstract">
+                    <label class="form-check-label small" for="dz-nt-abstract">Abstract – only a base for other templates</label>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success btn-sm" id="dz-nt-create"><i class="bi bi-bricks me-1"></i>Start designing</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Server values reach JavaScript only through |tojson. */
+window.DESIGNER_BOOT = {{ {"mode": mode, "collectionId": designer_collection_id} | tojson }};
+</script>
+<script src="/static/js/designer_model.js"></script>
+<script src="/static/js/designer.js"></script>
+{% endblock %}

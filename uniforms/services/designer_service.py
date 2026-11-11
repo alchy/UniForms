@@ -168,6 +168,10 @@ def catalog(terminology_defaults: Optional[dict] = None) -> dict:
         "terminology_keys": [
             {"key": k, "default": str(defaults.get(k, ""))} for k in TERMINOLOGY_KEYS
         ],
+        "defaults": {
+            "collection": new_collection_model(),
+            "template": new_template_model(),
+        },
     }
 
 
@@ -677,6 +681,15 @@ def save_collection(
 # Templates
 # ---------------------------------------------------------------------------
 
+def collection_overview(collection_dir: Path) -> dict:
+    """{'templates': [...], 'field_keys': [...]} of a collection, parsing each file once."""
+    raw = _raw_templates(collection_dir)
+    return {
+        "templates": list_templates(collection_dir, raw),
+        "field_keys": collection_field_keys(collection_dir, raw),
+    }
+
+
 def new_template_model(template_id: str = "", name: str = "") -> dict:
     """Starting point for a new template: header with the usual automatic fields."""
     return {
@@ -699,13 +712,19 @@ def new_template_model(template_id: str = "", name: str = "") -> dict:
     }
 
 
+# Read-only overviews parse every template of a collection; libyaml (when PyYAML was
+# built with it) gives the same result as safe_load an order of magnitude faster.
+_FastLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
 def _raw_templates(collection_dir: Path) -> list[tuple[Path, Any]]:
+    """(path, parsed YAML or None) for every template file – without creating the directory."""
     out = []
     if not collection_dir.is_dir():
         return out
     for path in sorted(collection_dir.glob("*.yaml")):
         try:
-            out.append((path, yaml.safe_load(path.read_text(encoding="utf-8"))))
+            out.append((path, yaml.load(path.read_text(encoding="utf-8"), Loader=_FastLoader)))
         except Exception:
             out.append((path, None))
     return out
@@ -719,10 +738,13 @@ def _walk_sections(sections: Any):
             yield from _walk_sections(sec.get("subsections"))
 
 
-def list_templates(collection_dir: Path) -> list[dict]:
-    """All template files of a collection incl. abstract ones (raw metadata, not normalized)."""
+def list_templates(collection_dir: Path, raw: Optional[list] = None) -> list[dict]:
+    """All template files of a collection incl. abstract ones (raw metadata, not normalized).
+
+    ``raw`` may carry an already loaded ``_raw_templates()`` result to avoid parsing twice.
+    """
     result = []
-    for path, data in _raw_templates(collection_dir):
+    for path, data in (raw if raw is not None else _raw_templates(collection_dir)):
         if not isinstance(data, dict) or not data.get("template_id"):
             result.append({
                 "filename": path.name, "template_id": None, "name": path.stem,
@@ -744,10 +766,10 @@ def list_templates(collection_dir: Path) -> list[dict]:
     return result
 
 
-def collection_field_keys(collection_dir: Path) -> list[dict]:
+def collection_field_keys(collection_dir: Path, raw: Optional[list] = None) -> list[dict]:
     """Field keys used by the collection's templates – for list_columns / title_field pickers."""
     found: dict[str, str] = {}
-    for _path, data in _raw_templates(collection_dir):
+    for _path, data in (raw if raw is not None else _raw_templates(collection_dir)):
         if not isinstance(data, dict):
             continue
         for sec in _walk_sections(data.get("sections")):

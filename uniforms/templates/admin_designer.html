@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Collection Designer – {{ app_name }}{% endblock %}
+
+{% block extra_head %}<link rel="stylesheet" href="/static/css/designer.css">{% endblock %}
+
+{% block sidebar %}{% include "_sidebar.html" %}{% endblock %}
+
+{% block main_class %}col py-4 px-4{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-bricks me-2 text-primary"></i>Collection Designer
+        </h5>
+        <small class="text-muted">Create and edit collections and their form templates without writing YAML.</small>
+    </div>
+    <a href="/admin/designer/new" class="btn btn-success btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>New collection
+    </a>
+</div>
+
+<div id="dzl-alert" class="d-none"></div>
+<div id="dzl-loading" class="text-center text-muted py-4">
+    <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading…
+</div>
+<div id="dzl-cards" class="row g-3"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Page script in an IIFE – shares the global scope with main.js / uniforms.js */
+(() => {
+    'use strict';
+    const el = (tag, cls, text) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined && text !== null) e.textContent = text;
+        return e;
+    };
+
+    async function load() {
+        const resp = await apiFetch('/api/v1/admin/designer/collections');
+        document.getElementById('dzl-loading').classList.add('d-none');
+        if (!resp.ok) {
+            const box = document.getElementById('dzl-alert');
+            box.className = 'alert alert-danger py-2 small';
+            box.textContent = 'Collections could not be loaded.';
+            return;
+        }
+        const cards = document.getElementById('dzl-cards');
+        const collections = await resp.json();
+        if (!collections.length) {
+            cards.appendChild(el('div', 'col-12 text-muted small', 'No collections yet – create the first one.'));
+        }
+        collections.forEach(col => {
+            const id = encodeURIComponent(col.collection_id);
+            const wrap = el('div', 'col-md-6 col-xl-4');
+            const card = el('div', 'card border shadow-sm h-100 template-card');
+            const body = el('div', 'card-body d-flex flex-column');
+            const head = el('div', 'd-flex justify-content-between align-items-start gap-2 mb-1');
+            head.appendChild(el('h6', 'fw-bold mb-0', col.name));
+            head.appendChild(el('code', 'small', col.collection_id));
+            body.appendChild(head);
+            body.appendChild(el('p', 'text-muted small mb-2', col.description || '–'));
+            const states = el('div', 'mb-3');
+            (col.states || []).forEach(s => {
+                const ba = badgeAttrs(s.color);
+                const b = el('span', `badge me-1 ${ba.cls}`, s.label);
+                b.style.cssText = ba.style;
+                states.appendChild(b);
+            });
+            body.appendChild(states);
+            const foot = el('div', 'mt-auto d-flex align-items-center gap-2');
+            foot.appendChild(el('span', 'small text-muted me-auto',
+                `${col.templates} template${col.templates === 1 ? '' : 's'}`));
+            const raw = el('a', 'btn btn-outline-secondary btn-sm');
+            raw.href = `/admin/collections/${id}/edit`;
+            raw.title = 'Raw YAML editor';
+            raw.appendChild(el('i', 'bi bi-code-slash'));
+            foot.appendChild(raw);
+            const open = el('a', 'btn btn-primary btn-sm');
+            open.href = `/admin/designer/${id}/edit`;
+            open.appendChild(el('i', 'bi bi-bricks me-1'));
+            open.appendChild(document.createTextNode('Open designer'));
+            foot.appendChild(open);
+            body.appendChild(foot);
+            card.appendChild(body);
+            wrap.appendChild(card);
+            cards.appendChild(wrap);
+        });
+    }
+    load();
+})();
+</script>
+{% endblock %}
