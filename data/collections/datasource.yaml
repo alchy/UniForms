@@ -51,7 +51,7 @@ terminology:
 #        NEBO libovolná CSS barva (např. green, #e74c3c, steelblue, rgb(100,180,60)).
 
 workflow:
-  initial_state: draft
+  initial_state: identified
   states:
     - id: identified
       label: "Identifikovaný zdroj dat"

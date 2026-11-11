@@ -1,4 +1,3 @@
-import yaml
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -77,11 +76,9 @@ async def create_collection(
 ) -> dict:
     require_slug(body.filename, "filename")
     try:
-        data = yaml.safe_load(body.content)
-    except yaml.YAMLError as exc:
-        raise HTTPException(422, f"Invalid YAML: {exc}")
-    if not isinstance(data, dict) or not data.get("id"):
-        raise HTTPException(422, "Collection YAML must contain an 'id' field")
+        collection_service.parse_collection_yaml(body.content, body.filename)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
     d = await get_collections_dir(db)
     d.mkdir(parents=True, exist_ok=True)
     path = d / f"{body.filename}.yaml"
@@ -105,9 +102,9 @@ async def update_collection(
     if not path.exists():
         raise HTTPException(404, f"Collection '{collection_id}' not found")
     try:
-        yaml.safe_load(body.content)
-    except yaml.YAMLError as exc:
-        raise HTTPException(422, f"Invalid YAML: {exc}")
+        collection_service.parse_collection_yaml(body.content, collection_id)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
     path.write_text(body.content, encoding="utf-8")
     return {"collection_id": collection_id}
 

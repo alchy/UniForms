@@ -255,12 +255,35 @@ class TemplateService:
         except yaml.YAMLError as exc:
             raise ValueError(f"Invalid YAML: {exc}") from exc
 
+    def _validate(self, content: str, filename: str) -> dict:
+        """Parse YAML and make sure it loads as a template (incl. extends/normalisation).
+
+        Raises ValueError with a readable message, so a broken template is rejected
+        on save instead of silently disappearing from the template list.
+        """
+        data = self._parse_yaml(content)
+        if not isinstance(data, dict):
+            raise ValueError("Template YAML must be a mapping")
+        if not data.get("template_id"):
+            raise ValueError("Template YAML must contain 'template_id'")
+        try:
+            resolved = _resolve_extends(copy.deepcopy(data), [self.collection_dir])
+            UniTemplate(**_normalize_template(resolved), filename=filename)
+        except Exception as exc:
+            raise ValueError(f"Invalid template: {exc}") from exc
+        return data
+
     async def save(self, template_id: str, content: str) -> str:
         """Validate YAML and overwrite existing template file. Returns filename."""
-        self._parse_yaml(content)
         path = self._find_file(template_id)
         if not path:
             raise FileNotFoundError(f"Template '{template_id}' not found")
+        data = self._validate(content, path.name)
+        if data["template_id"] != template_id:
+            raise ValueError(
+                f"template_id cannot be changed on save ('{template_id}' → '{data['template_id']}'); "
+                "create a new template instead"
+            )
         path.write_text(content, encoding="utf-8")
         return path.name
 
@@ -270,17 +293,19 @@ class TemplateService:
 
         `filename` is a slug WITHOUT the .yaml suffix (validated – path traversal guard).
         """
-        data = self._parse_yaml(content)
         filename = filename.removesuffix(".yaml")
         if not SLUG_RE.match(filename):
             raise ValueError(
                 "Invalid filename – only lowercase letters, digits, '_' and '-' are allowed"
             )
+        data = self._validate(content, f"{filename}.yaml")
+        if self._find_file(data["template_id"]):
+            raise FileExistsError(f"Template '{data['template_id']}' already exists")
         target = self.collection_dir / f"{filename}.yaml"
         if target.exists():
             raise FileExistsError(f"File '{filename}.yaml' already exists")
         target.write_text(content, encoding="utf-8")
-        return data.get("template_id", filename) if isinstance(data, dict) else filename
+        return data["template_id"]
 
     async def delete(self, template_id: str) -> None:
         """Delete a template file."""

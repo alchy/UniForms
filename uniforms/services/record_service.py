@@ -235,12 +235,20 @@ async def update_record(
     storage: StorageBackend,
     record_id: str,
     request: UpdateRecordRequest,
+    collection: Optional[CollectionConfig] = None,
 ) -> Optional[UniRecord]:
+    """Update status and/or data. Raises ValueError for a status outside the workflow."""
     record = await storage.get_record(record_id)
     if not record:
         return None
 
     now = datetime.now(timezone.utc)
+    if request.status is not None and request.status != record.status:
+        allowed = [s["id"] for s in _resolve_workflow_states(collection)]
+        if request.status not in allowed:
+            raise ValueError(
+                f"Unknown status '{request.status}' – allowed: {', '.join(allowed)}"
+            )
     if request.status is not None:
         record.status = request.status
     if request.data is not None:

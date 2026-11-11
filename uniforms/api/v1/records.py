@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -14,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from uniforms.core.collection_deps import require_collection_access, require_collection_admin
 from uniforms.core.database import get_db
+from uniforms.core.validation import require_safe_id
 from uniforms.models.collection import CollectionConfig
 from uniforms.models.record import CreateRecordRequest, UniRecord, UpdateRecordRequest
 from uniforms.models.user import User
@@ -22,6 +25,13 @@ from uniforms.services.settings_service import get_collections_dir
 from uniforms.services.template_service import TemplateService, get_template_service
 from uniforms.storage import get_storage
 from uniforms.storage.base import StorageBackend
+
+def _valid_record_id(record_id: str) -> str:
+    return require_safe_id(record_id, "record_id")
+
+
+# Path parameter validated up-front: invalid id → HTTP 400 (instead of 500 from the storage layer)
+RecordId = Annotated[str, Depends(_valid_record_id)]
 
 router = APIRouter(prefix="/records/{collection_id}", tags=["Records"])
 
@@ -85,7 +95,7 @@ async def create_record(
 @router.get("/{record_id}", response_model=UniRecord, summary="Get record")
 # Vrati detail jednoho zaznamu; vyzaduje pristup ke kolekci
 async def get_record(
-    record_id: str,
+    record_id: RecordId,
     current_user: User = Depends(require_collection_access),
     storage: StorageBackend = Depends(get_storage),
 ) -> UniRecord:
@@ -99,13 +109,19 @@ async def get_record(
 # Aktualizuje stav a/nebo data zaznamu; vyzaduje pristup ke kolekci
 # Pokud zaznam zamkl jiny uzivatel, vraci 423 (zamek je vynucen na serveru)
 async def update_record(
-    record_id: str,
+    record_id: RecordId,
     request: UpdateRecordRequest,
+    collection_id: str,
     current_user: User = Depends(require_collection_access),
     storage: StorageBackend = Depends(get_storage),
+    db: aiosqlite.Connection = Depends(get_db),
 ) -> UniRecord:
     await _reject_if_locked_by_other(storage, record_id, current_user.username)
-    record = await record_service.update_record(storage, record_id, request)
+    collection = await _get_collection(collection_id, db)
+    try:
+        record = await record_service.update_record(storage, record_id, request, collection)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not record:
         raise HTTPException(status_code=404, detail=f"Record '{record_id}' not found")
     return record
@@ -114,7 +130,7 @@ async def update_record(
 @router.delete("/{record_id}", status_code=204, summary="Delete record (collection admin)")
 # Smaze zaznam; vyzaduje roli collection_admin nebo system_admin
 async def delete_record(
-    record_id: str,
+    record_id: RecordId,
     current_user: User = Depends(require_collection_admin),
     storage: StorageBackend = Depends(get_storage),
 ) -> None:
@@ -131,7 +147,7 @@ async def delete_record(
 )
 # Ziska zamek editace zaznamu; vraci 423, pokud zaznam zamkl jiny uzivatel
 async def acquire_lock(
-    record_id: str,
+    record_id: RecordId,
     current_user: User = Depends(require_collection_access),
     storage: StorageBackend = Depends(get_storage),
 ) -> dict:
@@ -156,7 +172,7 @@ async def acquire_lock(
 @router.delete("/{record_id}/lock", status_code=204, summary="Release record lock")
 # Uvolni zamek zaznamu; system_admin muze uvolnit i cizi zamek
 async def release_lock(
-    record_id: str,
+    record_id: RecordId,
     current_user: User = Depends(require_collection_access),
     storage: StorageBackend = Depends(get_storage),
 ) -> None:

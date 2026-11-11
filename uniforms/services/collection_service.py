@@ -29,6 +29,34 @@ def _load_collection_from_path(path: Path) -> Optional[CollectionConfig]:
         return None
 
 
+def parse_collection_yaml(content: str, collection_id: str) -> CollectionConfig:
+    """Strictly validate collection YAML before it is written to disk.
+
+    Raises ValueError with a human-readable message. Checks: valid YAML mapping,
+    `id` equal to the file name (roles are keyed by id), model validity and
+    workflow.initial_state being one of workflow.states.
+    """
+    try:
+        data = yaml.safe_load(content)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Invalid YAML: {exc}")
+    if not isinstance(data, dict):
+        raise ValueError("Collection YAML must be a mapping")
+    data.setdefault("id", collection_id)
+    if data["id"] != collection_id:
+        raise ValueError(f"Collection id '{data['id']}' must match the file name '{collection_id}'")
+    wf = data.get("workflow") or {}
+    state_ids = [s.get("id") for s in wf.get("states") or [] if isinstance(s, dict)]
+    if state_ids and "initial_state" in wf and wf["initial_state"] not in state_ids:
+        raise ValueError(
+            f"workflow.initial_state '{wf['initial_state']}' is not one of: {', '.join(state_ids)}"
+        )
+    try:
+        return CollectionConfig(**data)
+    except Exception as exc:  # pydantic ValidationError
+        raise ValueError(f"Invalid collection: {exc}")
+
+
 # Vrati seznam vsech kolekcí z adresare serazenych podle nazvu
 async def list_collections(collections_dir: Path) -> list[CollectionConfig]:
     result = []

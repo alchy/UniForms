@@ -1,4 +1,8 @@
-from pydantic import BaseModel
+import logging
+
+from pydantic import BaseModel, model_validator
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Pydantic modely pro konfiguraci kolekce (collection YAML soubor).
@@ -27,6 +31,18 @@ class CollectionWorkflow(BaseModel):
         WorkflowState(id="on_hold",     label="On Hold",     color="info"),
         WorkflowState(id="closed",      label="Closed",      color="success"),
     ]
+
+    @model_validator(mode="after")
+    def _initial_state_must_exist(self):
+        # Lenient on load (a broken file must not make the whole collection vanish):
+        # fall back to the first state. Saving through the API is strict – see
+        # collection_service.parse_collection_yaml().
+        ids = [s.id for s in self.states]
+        if ids and self.initial_state not in ids:
+            logger.warning("workflow.initial_state '%s' is not among states %s – using '%s'",
+                           self.initial_state, ids, ids[0])
+            self.initial_state = ids[0]
+        return self
 
 
 class ListColumn(BaseModel):
