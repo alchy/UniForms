@@ -24,7 +24,9 @@ class AuthProvider(ABC):
     """
 
     @abstractmethod
-    async def authenticate(self, username: str, password: str) -> Optional[User]:
+    async def authenticate(
+        self, username: str, password: str, client_origin: Optional[str] = None
+    ) -> Optional[User]:
         """
         Ověří přihlašovací údaje.
         Vrátí User při úspěchu, None při nesprávných údajích.

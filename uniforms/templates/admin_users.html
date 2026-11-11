@@ -56,15 +56,22 @@
             <div class="modal-body">
                 <div id="create-alert" class="d-none mb-3"></div>
                 <div class="row g-3 mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Username</label>
                         <input type="text" class="form-control" id="new-username" placeholder="john.doe" autocomplete="off">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Sign-in</label>
+                        <select class="form-select" id="new-auth">
+                            <option value="local">Password</option>
+                            <option value="access_manager">OTP (access-manager)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">Password</label>
                         <input type="password" class="form-control" id="new-password" autocomplete="new-password">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Global role</label>
                         <select class="form-select" id="new-role">
                             <option value="system_reader" selected>System Reader</option>
@@ -115,6 +122,13 @@
                         <select class="form-select" id="edit-role">
                             <option value="system_reader">System Reader</option>
                             <option value="system_admin">System Admin</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Sign-in</label>
+                        <select class="form-select" id="edit-auth">
+                            <option value="local">Password</option>
+                            <option value="access_manager">OTP (access-manager)</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -250,6 +264,13 @@
                 s.textContent = ' (you)';
                 tdName.appendChild(s);
             }
+            if (u.auth_source === 'access_manager') {
+                const b = document.createElement('span');
+                b.className = 'badge bg-info-subtle text-info border border-info-subtle ms-2 fw-normal';
+                b.title = 'Signs in with an OTP code verified by access-manager';
+                b.innerHTML = '<i class="bi bi-shield-lock me-1"></i>OTP';
+                tdName.appendChild(b);
+            }
             tr.appendChild(tdName);
 
             const tdRole = document.createElement('td');
@@ -334,6 +355,8 @@
         document.getElementById('new-username').value = '';
         document.getElementById('new-password').value = '';
         document.getElementById('new-role').value = 'system_reader';
+        document.getElementById('new-auth').value = 'local';
+        syncPasswordField('new-auth', 'new-password');
         document.getElementById('new-global-admin-note').classList.add('d-none');
         buildRolesTable('new-roles-tbody', {});
     });
@@ -342,20 +365,35 @@
         document.getElementById('new-global-admin-note').classList.toggle('d-none', this.value !== 'system_admin');
     });
 
+    // OTP accounts have no local password – the field is disabled for them
+    function syncPasswordField(selectId, inputId) {
+        const otp = document.getElementById(selectId).value === 'access_manager';
+        const input = document.getElementById(inputId);
+        input.disabled = otp;
+        input.placeholder = otp ? 'not used – OTP via access-manager' : '';
+        if (otp) input.value = '';
+    }
+    ['new', 'edit'].forEach(p => document.getElementById(`${p}-auth`)
+        .addEventListener('change', () => syncPasswordField(`${p}-auth`, `${p}-password`)));
+
     async function createUser() {
         hideAlert('create-alert');
         const username = document.getElementById('new-username').value.trim();
         const password = document.getElementById('new-password').value;
         const role     = document.getElementById('new-role').value;
+        const auth_source = document.getElementById('new-auth').value;
+        const otp = auth_source === 'access_manager';
 
-        if (!username || !password) {
-            showAlert('create-alert', 'Please fill in username and password.', 'warning');
+        if (!username || (!otp && !password)) {
+            showAlert('create-alert', otp ? 'Please fill in username.' : 'Please fill in username and password.', 'warning');
             return;
         }
 
+        const body = {username, role, auth_source};
+        if (!otp) body.password = password;
         const resp = await apiFetch('/api/v1/users/', {
             method: 'POST',
-            body: JSON.stringify({username, password, role}),
+            body: JSON.stringify(body),
         });
 
         if (!resp.ok) {
@@ -384,7 +422,9 @@
         document.getElementById('edit-username-label').textContent = u.username;
         document.getElementById('edit-role').value = u.role;
         document.getElementById('edit-active').value = u.is_active ? 'true' : 'false';
+        document.getElementById('edit-auth').value = u.auth_source || 'local';
         document.getElementById('edit-password').value = '';
+        syncPasswordField('edit-auth', 'edit-password');
         hideAlert('edit-alert');
 
         // Toggle admin note
@@ -416,6 +456,7 @@
         const payload = {
             role:      document.getElementById('edit-role').value,
             is_active: document.getElementById('edit-active').value === 'true',
+            auth_source: document.getElementById('edit-auth').value,
         };
         const password = document.getElementById('edit-password').value;
         if (password) payload.password = password;

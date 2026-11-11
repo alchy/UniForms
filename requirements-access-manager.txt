@@ -1,0 +1,4 @@
+# Optional: OTP login through access-manager (github.com/alchy/access-manager)
+#   pip install -r requirements-access-manager.txt
+# then set AUTH_PROVIDER / ACCESS_MANAGER_* in .env (see .env.example)
+access-manager[remote] @ git+https://github.com/alchy/access-manager

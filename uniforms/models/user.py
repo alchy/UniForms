@@ -36,21 +36,29 @@ class LoginRequest(BaseModel):
 
 # --- Modely pro správu uživatelů ---
 
+# Zdroj overeni uctu: lokalni heslo, nebo OTP pres access-manager
+AuthSource = Literal["local", "access_manager"]
+
+
 class UserResponse(BaseModel):
     id: int
     username: str
     role: str
     is_active: bool
     created_at: str
+    auth_source: AuthSource = "local"
 
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=1, max_length=128)
-    password: str = Field(min_length=1, max_length=256)
+    # Required for local accounts; ignored for OTP accounts (access-manager verifies them)
+    password: Optional[str] = Field(default=None, min_length=1, max_length=256)
     role: SystemRole = "system_reader"
+    auth_source: AuthSource = "local"
 
 
 class UserUpdate(BaseModel):
     role: Optional[SystemRole] = None
     is_active: Optional[bool] = None
     password: Optional[str] = Field(default=None, min_length=1, max_length=256)
+    auth_source: Optional[AuthSource] = None

@@ -49,8 +49,30 @@ async def login(
 ) -> Token:
     # Audit: who tried to log in (never the password)
     request.state.audit = {"subject": f"user:{credentials.username[:128]}"}
-    user = await provider.authenticate(credentials.username, credentials.password)
+    client_ip = request.client.host if request.client else None
+    user = await provider.authenticate(
+        credentials.username, credentials.password, client_origin=client_ip
+    )
 
+    # How the attempt was verified (local password / access-manager OTP) and,
+    # for OTP, the verdict and its detailed reason – audit only, never the form
+    method = getattr(provider, "last_method", None)
+    otp = getattr(provider, "last_otp", None)
+    if method:
+        request.state.audit["auth_method"] = method
+    if otp is not None:
+        request.state.audit["am_outcome"] = otp.outcome
+        if otp.reason:
+            request.state.audit["am_reason"] = otp.reason
+    denied = getattr(provider, "last_denied", None)
+    if denied:
+        request.state.audit["reason"] = denied
+
+    if not user and otp is not None and otp.outcome == "throttled":
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Příliš mnoho pokusů – zkuste to znovu za {otp.retry_after or 60} s",
+        )
     if not user:
         # Zpomaleni odpovedi pri neuspesnem prihlaseni (ochrana proti brute-force)
         await asyncio.sleep(1)

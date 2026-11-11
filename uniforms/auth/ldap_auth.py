@@ -17,7 +17,9 @@ class LDAPProvider(AuthProvider):
     a doplň implementaci metod authenticate() a get_user().
     """
 
-    async def authenticate(self, username: str, password: str) -> Optional[User]:
+    async def authenticate(
+        self, username: str, password: str, client_origin: Optional[str] = None
+    ) -> Optional[User]:
         raise NotImplementedError("LDAPProvider: implementace zatím není dokončena")
 
     async def get_user(self, username: str) -> Optional[User]:

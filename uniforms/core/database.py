@@ -51,6 +51,14 @@ async def init_db() -> None:
             );
         """)
 
+        # Migrace: zdroj overeni uctu – 'local' (heslo) | 'access_manager' (OTP)
+        async with db.execute("PRAGMA table_info(users)") as cursor:
+            columns = {row["name"] for row in await cursor.fetchall()}
+        if "auth_source" not in columns:
+            await db.execute(
+                "ALTER TABLE users ADD COLUMN auth_source TEXT NOT NULL DEFAULT 'local'"
+            )
+
         # Vychozi nastaveni cest; INSERT OR IGNORE = zapise se jen pri prvnim spusteni
         await db.execute(
             "INSERT OR IGNORE INTO settings (key, value) VALUES ('records_dir', ?)",

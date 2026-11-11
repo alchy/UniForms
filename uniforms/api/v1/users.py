@@ -1,3 +1,5 @@
+import secrets
+
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -20,7 +22,7 @@ router = APIRouter(prefix="/users", tags=["Uživatelé"])
 # Nacte radek uzivatele z DB podle username; vrati None, pokud neexistuje
 async def _get_user_row(db: aiosqlite.Connection, username: str):
     async with db.execute(
-        "SELECT id, username, role, is_active, created_at FROM users WHERE username = ?",
+        "SELECT id, username, role, is_active, created_at, auth_source FROM users WHERE username = ?",
         (username,),
     ) as cursor:
         return await cursor.fetchone()
@@ -37,7 +39,7 @@ async def list_users(
     db: aiosqlite.Connection = Depends(get_db),
 ) -> list[UserResponse]:
     async with db.execute(
-        "SELECT id, username, role, is_active, created_at FROM users ORDER BY created_at"
+        "SELECT id, username, role, is_active, created_at, auth_source FROM users ORDER BY created_at"
     ) as cursor:
         rows = await cursor.fetchall()
     return [UserResponse(**dict(row)) for row in rows]
@@ -61,9 +63,13 @@ async def create_user(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Uživatel '{request.username}' již existuje",
         )
+    if request.auth_source == "local" and not request.password:
+        raise HTTPException(status_code=422, detail="Lokální účet potřebuje heslo")
+    # OTP account: the local password is never used – store an unguessable one
+    password = request.password if request.auth_source == "local" else secrets.token_urlsafe(32)
     await db.execute(
-        "INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
-        (request.username, await hash_password(request.password), request.role),
+        "INSERT INTO users (username, hashed_password, role, auth_source) VALUES (?, ?, ?, ?)",
+        (request.username, await hash_password(password), request.role, request.auth_source),
     )
     await db.commit()
     row = await _get_user_row(db, request.username)
@@ -123,6 +129,10 @@ async def update_user(
         await db.execute(
             "UPDATE users SET is_active = ? WHERE username = ?",
             (1 if request.is_active else 0, username),
+        )
+    if request.auth_source is not None:
+        await db.execute(
+            "UPDATE users SET auth_source = ? WHERE username = ?", (request.auth_source, username)
         )
     if request.password is not None:
         await db.execute(

@@ -151,8 +151,27 @@ class Settings(BaseSettings):
     # Cookie: v produkci za HTTPS nastav COOKIE_SECURE=true
     cookie_secure: bool = False
 
-    # Auth provider: "simple" | "oauth" | "ldap"
+    # Auth provider: "simple" | "access_manager" | "oauth" | "ldap"
+    #   simple         – local accounts; an account with auth_source=access_manager
+    #                    (OTP) is verified by access-manager, the others by password
+    #   access_manager – every login is verified by access-manager (OTP code);
+    #                    the local users table still holds the role
     auth_provider: str = "simple"
+
+    # access-manager (github.com/alchy/access-manager) – OTP login
+    #   remote service: ACCESS_MANAGER_URL + ACCESS_MANAGER_KEY (+ REALM as assertion)
+    #   same machine:   ACCESS_MANAGER_HOME + ACCESS_MANAGER_REALM (no service)
+    access_manager_url: str = ""
+    access_manager_key: str = ""
+    access_manager_realm: str = ""
+    access_manager_home: str = ""
+    access_manager_ca: str = ""          # custom CA bundle for the service certificate
+    # Role from access-manager groups (realm principals) at every OTP login:
+    #   member of ADMIN_GROUP → system_admin, of USER_GROUP → system_reader,
+    #   of neither → login refused. A member of either group who has no local
+    #   account yet gets one on first OTP login automatically.
+    access_manager_admin_group: str = "admin"
+    access_manager_user_group: str = "user"
 
     # Initial admin account (used on first run if no users exist)
     admin_username: str = "admin"
