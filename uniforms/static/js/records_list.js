@@ -56,11 +56,8 @@ function buildFilterBar(workflowStates) {
 
 // Generic field value extractor – searches all sections for a field with matching key
 function getFieldValue(r, key) {
-    for (const section of (r.data?.sections || [])) {
-        const f = (section.fields || []).find(f => f.key === key);
-        if (f != null && f.value != null && f.value !== '') return String(f.value);
-    }
-    return null;
+    const f = findField(r.data?.sections, key);
+    return (f != null && f.value != null && f.value !== '') ? String(f.value) : null;
 }
 
 function buildTableRows(records) {

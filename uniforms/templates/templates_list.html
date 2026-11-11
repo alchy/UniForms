@@ -104,7 +104,8 @@
             <div class="card-footer bg-white border-top d-flex flex-column gap-2">
                 <button
                     class="btn btn-success btn-sm w-100"
-                    onclick="startRecord('{{ tmpl.template_id }}', this)"
+                    data-template-id="{{ tmpl.template_id }}"
+                    onclick="startRecord(this.dataset.templateId, this)"
                     {% if tmpl.status != 'active' %}disabled{% endif %}
                 >
                     <span class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
@@ -121,7 +122,8 @@
                         <i class="bi bi-copy me-1"></i>{{ term.btn_clone }}
                     </a>
                     <button class="btn btn-danger btn-sm"
-                            onclick="deleteTemplate('{{ tmpl.template_id }}', '{{ tmpl.name }}')"
+                            data-template-id="{{ tmpl.template_id }}" data-template-name="{{ tmpl.name }}"
+                            onclick="deleteTemplate(this.dataset.templateId, this.dataset.templateName)"
                             title="Delete template">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -146,7 +148,7 @@
 
 {% block scripts %}
 <script>
-    const COLLECTION_ID = '{{ collection_id }}';
+    const COLLECTION_ID = {{ collection_id | tojson }};
 
     async function startRecord(templateId, btn) {
         const spinner = btn.querySelector('.spinner-border');

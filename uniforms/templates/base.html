@@ -54,20 +54,20 @@
 <script>
 /* Terminology strings exposed to JavaScript */
 const TERM = {
-    btn_cancel:    "{{ term.btn_cancel }}",
-    btn_delete:    "{{ term.btn_delete }}",
-    btn_edit:      "{{ term.btn_edit }}",
-    btn_clone:     "{{ term.btn_clone }}",
-    btn_print:     "{{ term.btn_print }}",
-    btn_open:      "{{ term.btn_open }}",
-    btn_save:      "{{ term.btn_save }}",
-    btn_create:    "{{ term.btn_create }}",
-    col_status:    "{{ term.col_status }}",
-    col_title:     "{{ term.col_title }}",
-    col_lock:      "{{ term.col_lock }}",
-    filter_all:    "{{ term.filter_all }}",
-    record_owner_label: "{{ term.record_owner_label }}",
-    record_id_label:   "{{ term.record_id_label }}",
+    btn_cancel:    {{ term.btn_cancel | tojson }},
+    btn_delete:    {{ term.btn_delete | tojson }},
+    btn_edit:      {{ term.btn_edit | tojson }},
+    btn_clone:     {{ term.btn_clone | tojson }},
+    btn_print:     {{ term.btn_print | tojson }},
+    btn_open:      {{ term.btn_open | tojson }},
+    btn_save:      {{ term.btn_save | tojson }},
+    btn_create:    {{ term.btn_create | tojson }},
+    col_status:    {{ term.col_status | tojson }},
+    col_title:     {{ term.col_title | tojson }},
+    col_lock:      {{ term.col_lock | tojson }},
+    filter_all:    {{ term.filter_all | tojson }},
+    record_owner_label: {{ term.record_owner_label | tojson }},
+    record_id_label:   {{ term.record_id_label | tojson }},
 };
 </script>
 <script src="/static/js/main.js"></script>

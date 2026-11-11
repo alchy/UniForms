@@ -54,6 +54,23 @@ function escapeHtml(value) {
 }
 
 /**
+ * Find a field by key in a record's sections, recursing into section_group
+ * children (stored under `subsections`). Returns the field object or null.
+ *
+ * @param {Array} sections
+ * @param {string} key
+ */
+function findField(sections, key) {
+    for (const sec of (sections || [])) {
+        const f = (sec.fields || []).find(f => f.key === key);
+        if (f) return f;
+        const nested = findField(sec.subsections, key);
+        if (nested) return nested;
+    }
+    return null;
+}
+
+/**
  * Map a workflow state color to badge presentation.
  * Bootstrap variant names use utility classes; any other value is treated
  * as a raw CSS color and rendered via color-mix inline styles.

@@ -97,8 +97,8 @@
 <script src="/static/vendor/ace/ace.js"></script>
 <script src="/static/vendor/js-yaml/js-yaml.min.js"></script>
 <script>
-const MODE          = '{{ mode }}';
-const COLLECTION_ID = '{{ collection_id or "" }}';
+const MODE          = {{ mode | tojson }};
+const COLLECTION_ID = {{ (collection_id or "") | tojson }};
 
 // ── Ace init ──────────────────────────────────────────────────────────────
 

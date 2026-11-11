@@ -161,7 +161,7 @@
 
 {% block scripts %}
 <script>
-    const CURRENT_USER = '{{ user.username if user else "" }}';
+    const CURRENT_USER = {{ (user.username if user else "") | tojson }};
 
     // Collections available in this instance (from server context)
     const COLLECTIONS = [

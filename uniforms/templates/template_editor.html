@@ -101,10 +101,10 @@
 <script src="/static/vendor/ace/ace.js"></script>
 <script src="/static/vendor/js-yaml/js-yaml.min.js"></script>
 <script>
-const COLLECTION_ID = '{{ collection_id }}';
-const MODE       = '{{ mode }}';
-const TMPL_ID    = '{{ template_id or "" }}';
-const CLONE_FROM = '{{ clone_from or "" }}';
+const COLLECTION_ID = {{ collection_id | tojson }};
+const MODE       = {{ mode | tojson }};
+const TMPL_ID    = {{ (template_id or "") | tojson }};
+const CLONE_FROM = {{ (clone_from or "") | tojson }};
 
 // ── Ace init ──────────────────────────────────────────────────────────────
 

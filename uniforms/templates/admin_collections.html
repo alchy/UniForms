@@ -79,52 +79,43 @@
         allCollections = await resp.json();
         document.getElementById('collections-loading').classList.add('d-none');
         document.getElementById('collections-table-wrap').classList.remove('d-none');
-        renderTable();
+        renderCollectionsTable();
     }
 
-    // Bootstrap variant names → badge utility classes; any other value is treated as a raw CSS color
-    const _BS_COLORS = new Set(['secondary','primary','warning','success','info','danger','dark']);
-    function badgeAttrs(color) {
-        const c = (!color || !_BS_COLORS.has(color)) ? null : color;
-        if (c) return { cls: `bg-${c}-subtle text-${c} border-${c}-subtle`, style: '' };
-        const raw = color || 'secondary';
-        return {
-            cls: '',
-            style: `background-color:color-mix(in srgb,${raw} 12%,white);color:${raw};border-color:color-mix(in srgb,${raw} 35%,transparent)`,
-        };
-    }
+    // badgeAttrs() / _BS_COLORS are provided globally by /static/js/main.js
 
-    function renderTable() {
+    function renderCollectionsTable() {
         const tbody = document.getElementById('collections-tbody');
         tbody.innerHTML = '';
         allCollections.forEach(col => {
             const stateBadges = (col.workflow?.states || []).map(s => {
                 const ba = badgeAttrs(s.color);
-                return `<span class="badge border ${ba.cls} me-1" style="${ba.style}">${s.label}</span>`;
+                return `<span class="badge border ${ba.cls} me-1" style="${escapeHtml(ba.style)}">${escapeHtml(s.label)}</span>`;
             }).join('');
             const colLabels = (col.list_columns || []).map(c =>
-                `<span class="badge bg-light text-secondary border me-1">${c.label}</span>`
+                `<span class="badge bg-light text-secondary border me-1">${escapeHtml(c.label)}</span>`
             ).join('');
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="ps-3 align-middle">
-                    <code class="fw-semibold">${col.id}</code>
+                    <code class="fw-semibold">${escapeHtml(col.id)}</code>
                 </td>
-                <td class="align-middle fw-semibold">${col.name}</td>
-                <td class="align-middle small text-muted">${col.description || '–'}</td>
+                <td class="align-middle fw-semibold">${escapeHtml(col.name)}</td>
+                <td class="align-middle small text-muted">${escapeHtml(col.description || '–')}</td>
                 <td class="align-middle small">${stateBadges || '<span class="text-muted fst-italic">–</span>'}</td>
                 <td class="align-middle small">${colLabels || '<span class="text-muted fst-italic">–</span>'}</td>
                 <td class="align-middle text-end pe-3">
                     <div class="d-flex gap-1 justify-content-end">
-                        <a href="/admin/collections/${col.id}/edit" class="btn btn-secondary btn-sm" title="Edit">
+                        <a href="/admin/collections/${encodeURIComponent(col.id)}/edit" class="btn btn-secondary btn-sm" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <button class="btn btn-danger btn-sm" onclick="confirmDelete('${col.id}', '${col.name}')" title="Delete">
+                        <button class="btn btn-danger btn-sm" data-action="delete" title="Delete">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
                 </td>`;
+            tr.querySelector('[data-action="delete"]').addEventListener('click', () => confirmDelete(col.id, col.name));
             tbody.appendChild(tr);
         });
     }

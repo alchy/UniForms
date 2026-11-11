@@ -72,9 +72,9 @@
 <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script>
     const LOGIN_ERRORS = {
-        credentials: "{{ term.login_error_credentials }}",
-        failed:      "{{ term.login_error_failed }}",
-        connection:  "{{ term.login_error_connection }}",
+        credentials: {{ term.login_error_credentials | tojson }},
+        failed:      {{ term.login_error_failed | tojson }},
+        connection:  {{ term.login_error_connection | tojson }},
     };
 
     document.getElementById('login-form').addEventListener('submit', async function (e) {
