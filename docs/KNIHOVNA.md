@@ -26,7 +26,8 @@ uniforms/
 ├── api/v1/       REST API routery (FastAPI)
 ├── web/          server-side rendering (Jinja2) — volitelné (include_web)
 ├── services/     doménová logika BEZ závislosti na HTTP
-│                 (record_service, template_service, collection_service)
+│                 (record_service, template_service, collection_service,
+│                  designer_service – model ↔ YAML pro Collection Designer)
 ├── storage/      StorageBackend — rozhraní úložiště záznamů + souborová implementace
 ├── auth/         AuthProvider — rozhraní autentizace + simple/ldap/oauth
 ├── core/         security (JWT, bcrypt), SQLite, validace vstupů, middleware
@@ -124,3 +125,19 @@ from uniforms.storage.file_backend import FileStorageBackend
 storage = FileStorageBackend(Path("data/records/helpdesk"))
 records = await record_service.list_records(storage)
 ```
+
+### Úprava kolekcí a šablon z kódu
+
+`designer_service` nabízí stejné operace jako GUI [Collection Designer](COLLECTION_DESIGNER.md) — načtení definice jako slovníku, kontrolu a bezpečný zápis zpět do YAML (validace, záloha, ochrana komentářů):
+
+```python
+from pathlib import Path
+from uniforms.services import designer_service as ds
+
+loaded = ds.load_collection(Path("data/collections"), "helpdesk")
+loaded["model"]["name"] = "IT Helpdesk"
+ds.save_collection(Path("data/collections"), "helpdesk", loaded["model"],
+                   base_hash=loaded["source"]["hash"])
+```
+
+Stránky návrháře se registrují jen při `include_web=True`; jeho REST API (`/api/v1/admin/designer/*`) je dostupné i v headless režimu.

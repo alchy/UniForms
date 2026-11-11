@@ -32,6 +32,8 @@ Výchozí cesty jsou `data/collections/` a `data/schemas/`. Obě lze změnit v N
 
 ## Rychlý start
 
+> **Tip:** Kolekci lze místo psaní YAML vytvořit průvodcem v GUI (Admin → Collection Designer) — viz [COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md). Tento dokument popisuje formát souboru, který návrhář čte a zapisuje.
+
 Vytvoření nové kolekce ve třech krocích:
 
 ### 1. Vytvořit YAML soubor kolekce

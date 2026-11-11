@@ -979,6 +979,179 @@ curl -s -b /tmp/uf.cookies \
 
 ---
 
+## Admin – Collection Designer – `/api/v1/admin/designer`
+
+API návrháře kolekcí a šablon ([COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md)). Vyžaduje globální roli `system_admin`. Na rozdíl od `/admin/collections` a `/templates` nepracuje s textem YAML, ale s **modelem** — JSON objektem, který odpovídá YAML souboru jedna ku jedné (nenormalizovaný; neznámé klíče se zachovávají). Převod na YAML, validaci a zápis dělá server.
+
+| Metoda | Endpoint | Popis | Auth |
+|--------|----------|-------|------|
+| `GET` | `/api/v1/admin/designer/catalog` | Typy sekcí a polí, barvy, tokeny, výchozí modely | system_admin |
+| `GET` | `/api/v1/admin/designer/collections` | Přehled kolekcí s počtem šablon | system_admin |
+| `GET` | `/api/v1/admin/designer/collections/{id}` | Model kolekce + šablony + klíče polí | system_admin |
+| `POST` | `/api/v1/admin/designer/collections` | Vytvoření kolekce z modelu | system_admin |
+| `PUT` | `/api/v1/admin/designer/collections/{id}` | Uložení modelu kolekce | system_admin |
+| `POST` | `/api/v1/admin/designer/collections/{id}/check` | Kontrola modelu kolekce (nic nezapisuje) | system_admin |
+| `GET` | `/api/v1/admin/designer/collections/{id}/templates/{template_id}` | Model šablony + zděděné sekce | system_admin |
+| `POST` | `/api/v1/admin/designer/collections/{id}/templates` | Vytvoření šablony z modelu | system_admin |
+| `PUT` | `/api/v1/admin/designer/collections/{id}/templates/{template_id}` | Uložení modelu šablony | system_admin |
+| `POST` | `/api/v1/admin/designer/collections/{id}/check-template` | Kontrola, náhled a YAML šablony (nic nezapisuje) | system_admin |
+
+### `GET /api/v1/admin/designer/collections/{id}`
+
+```bash
+curl -s -b /tmp/uf.cookies \
+  http://localhost:8080/api/v1/admin/designer/collections/zoo
+```
+
+```json
+// Odpověď 200 (zkráceno)
+{
+  "collection_id": "zoo",
+  "filename": "zoo.yaml",
+  "model": { "id": "zoo", "name": "Zoo Evidence", "workflow": { "initial_state": "received", "states": [] } },
+  "source": {
+    "hash": "5d0c…", "comments": 1, "comments_lost": 0,
+    "anchors": 0, "canonical": false, "rewrite_lossy": false
+  },
+  "templates": [
+    { "template_id": "zoo-pstros-v1", "name": "Pštros dvouprstý", "filename": "zoo_pstros_v1.yaml",
+      "status": "active", "abstract": false, "extends": "zoo-zvire-base-v1", "sections": 1, "loadable": true }
+  ],
+  "field_keys": [ { "key": "animal_name", "label": "Jméno zvířete" } ]
+}
+```
+
+| Klíč | Popis |
+|------|-------|
+| `model` | Obsah YAML souboru jako objekt — ten se upravuje a posílá zpět |
+| `source.hash` | SHA-256 souboru; posílá se zpět jako `base_hash` |
+| `source.comments_lost` | Počet řádků komentářů, které by přepis zahodil |
+| `source.rewrite_lossy` | `true` = uložení změny vyžaduje `confirm_rewrite` |
+| `templates` | Všechny šablony kolekce včetně abstraktních; `loadable: false` = jen editor YAML |
+| `field_keys` | Klíče polí ze šablon — nápověda pro `list_columns`, `title_field`, `take_over` |
+
+`GET …/templates/{template_id}` vrací stejný tvar (`model`, `source`, `filename`) a navíc `inherited` — sekce zděděné od rodičů (`chain`, `sections`, `error`).
+
+### `POST /api/v1/admin/designer/collections`
+
+```bash
+curl -s -b /tmp/uf.cookies \
+  -X POST http://localhost:8080/api/v1/admin/designer/collections \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_id": "helpdesk",
+    "model": {
+      "id": "helpdesk",
+      "name": "IT Helpdesk",
+      "workflow": {
+        "initial_state": "new",
+        "states": [
+          {"id": "new", "label": "Nový", "color": "secondary"},
+          {"id": "closed", "label": "Uzavřeno", "color": "success"}
+        ]
+      },
+      "id_format": {"prefix": "HD", "format": "{prefix}-{YYYYMM}-{rand:04d}"},
+      "roles": [
+        {"id": "collection_admin", "label": "Vedoucí"},
+        {"id": "collection_user", "label": "Technik"}
+      ]
+    }
+  }'
+```
+
+```json
+// Odpověď 201
+{
+  "collection_id": "helpdesk",
+  "filename": "helpdesk.yaml",
+  "change": "created",
+  "changed_keys": [],
+  "backup": null,
+  "comments_discarded": 0,
+  "issues": [],
+  "source": { "hash": "9a41…", "comments": 0, "comments_lost": 0, "anchors": 0, "canonical": true, "rewrite_lossy": false }
+}
+```
+
+| Klíč | ✓ | Popis |
+|------|---|-------|
+| `collection_id` | ✓ | Slug kolekce `[a-z0-9_-]`; musí se shodovat s `model.id` |
+| `model` | ✓ | Definice kolekce — klíče viz [KOLEKCE.md](KOLEKCE.md) |
+
+`POST …/collections/{id}/templates` má tělo `{"filename": "helpdesk_request_v1", "model": {…}}` (`filename` je slug bez přípony; `model.template_id` jen `[A-Za-z0-9_-]`) a vrací navíc `template_id`. Rodič uvedený v `extends` musí existovat.
+
+### `PUT /api/v1/admin/designer/collections/{id}`
+
+```bash
+curl -s -b /tmp/uf.cookies \
+  -X PUT http://localhost:8080/api/v1/admin/designer/collections/helpdesk \
+  -H "Content-Type: application/json" \
+  -d '{"model": {"id": "helpdesk", "name": "Helpdesk 2"}, "base_hash": "9a41…", "confirm_rewrite": false}'
+```
+
+```json
+// Odpověď 200
+{ "collection_id": "helpdesk", "filename": "helpdesk.yaml", "change": "updated",
+  "changed_keys": ["name", "workflow", "id_format", "roles"],
+  "backup": "helpdesk.20261111T120000000000Z.yaml", "comments_discarded": 0, "issues": [], "source": { "hash": "c77e…" } }
+```
+
+| Klíč | ✓ | Popis |
+|------|---|-------|
+| `model` | ✓ | Celý nový obsah definice |
+| `base_hash` | | `source.hash` z načtení; nesedí-li se souborem na disku, vrátí `409 stale` |
+| `confirm_rewrite` | | `true` = souhlas se ztrátou komentářů / kotev ručně psaného souboru |
+
+`change` je `updated`, nebo `unchanged`, když se obsah neliší — soubor se pak nepřepisuje. `PUT …/templates/{template_id}` má stejné tělo; `model.template_id` se nesmí lišit od ID v URL.
+
+### `POST /api/v1/admin/designer/collections/{id}/check-template`
+
+```bash
+curl -s -b /tmp/uf.cookies \
+  -X POST http://localhost:8080/api/v1/admin/designer/collections/helpdesk/check-template \
+  -H "Content-Type: application/json" \
+  -d '{"model": {"template_id": "hd-v1", "name": "Požadavek", "sections": [
+        {"title": "Detail", "type": "form", "fields": [{"key": "kind", "label": "Druh", "type": "select"}]}]}}'
+```
+
+```json
+// Odpověď 200
+{
+  "ok": true,
+  "yaml": "template_id: hd-v1\nname: Požadavek\n…",
+  "issues": [
+    { "level": "warning", "path": "sections[0].fields[0]", "message": "Select field has no options" }
+  ],
+  "sections": [ { "id": "detail", "title": "Detail", "type": "form",
+                  "fields": [ { "key": "kind", "label": "Druh", "type": "select", "editable": true, "value": null } ] } ],
+  "inherited": { "chain": [], "sections": [], "error": null }
+}
+```
+
+| Klíč | Popis |
+|------|-------|
+| `ok` | `false`, pokud je mezi nálezy alespoň jedna chyba — takový model nejde uložit |
+| `yaml` | YAML, který by se zapsal |
+| `issues` | Nálezy: `level` (`error` \| `warning`), `path`, `message` |
+| `sections` | Normalizované sekce včetně zděděných — vstup pro `UniForms.render()` (náhled) |
+
+`POST …/collections/{id}/check` vrací pro model kolekce `ok`, `yaml` a `issues`. Kontrolní endpointy nic nezapisují a neauditují se.
+
+### Chyby návrháře
+
+Chybová odpověď má v `detail` objekt `{code, message, …}`:
+
+| HTTP | `code` | Kdy |
+|------|--------|-----|
+| `404` | `not_found` | kolekce nebo šablona neexistuje |
+| `409` | `exists` | kolekce, `template_id` nebo soubor už existuje |
+| `409` | `stale` | soubor se od načtení změnil (`base_hash` nesedí) |
+| `409` | `rewrite_not_confirmed` | uložení by zahodilo komentáře; `detail` nese `comments_lost`, `anchors` |
+| `422` | `invalid` | model neprošel validací; `detail.issues` je seznam nálezů |
+| `422` | `unsupported` | soubor obsahuje hodnoty, které nelze přenést přes JSON (např. datum bez uvozovek) |
+
+---
+
 ## Admin – Kolekční role – `/api/v1/admin/collection-roles`
 
 Správa přiřazení uživatelů ke kolekcím. Vyžaduje globální roli `system_admin`.
@@ -1340,6 +1513,7 @@ Typické scénáře:
 - Auditní stopa: [AUDIT.md](AUDIT.md)
 - Tvorba šablon a záznamů: [SABLONY.md](SABLONY.md)
 - Konfigurace kolekcí: [KOLEKCE.md](KOLEKCE.md)
+- Collection Designer: [COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md)
 - Frontend rendering: [FRONTEND.md](FRONTEND.md)
 - Použití jako knihovna: [KNIHOVNA.md](KNIHOVNA.md)
 - Instalace a nasazení: [INSTALACE.md](INSTALACE.md)

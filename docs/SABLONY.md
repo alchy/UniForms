@@ -77,6 +77,8 @@ rozbitá šablona už nemůže tiše zmizet ze seznamu.
 
 ## 3. Rychlý start
 
+> **Tip:** Šablonu lze místo psaní YAML naklikat v GUI — viz [Collection Designer](COLLECTION_DESIGNER.md). Tento dokument popisuje formát souboru, který návrhář čte a zapisuje.
+
 Níže je kompletní minimální šablona. Obsahuje záhlaví a jeden formulář. Uložte ji jako nový soubor, otevřete aplikaci a vytvořte první záznam.
 
 **Krok 1 — Uložte soubor**
@@ -447,7 +449,7 @@ Sdružuje více logicky souvisejících sekcí pod jeden nadpis jako accordionov
 - id: closure
   title: Uzavření incidentu
   type: section_group
-  sections:
+  subsections:
     - id: closure_base
       type: form
       title: Závěrečné hodnocení
@@ -501,10 +503,10 @@ Sdružuje více logicky souvisejících sekcí pod jeden nadpis jako accordionov
 | `id` | ✓ | Unikátní ID skupiny |
 | `type` | ✓ | `"section_group"` |
 | `title` | ✓ | Nadpis skupiny |
-| `sections[]` | ✓ | Podsekce libovolného typu (`form`, `table`, `checklist`) |
-| `sections[].always_expanded` | | `true` = podsekce nelze sbalit |
+| `subsections[]` | ✓ | Podsekce libovolného typu (`form`, `table`, `checklist`) |
+| `subsections[].always_expanded` | | `true` = podsekce nelze sbalit |
 
-> **Poznámka:** Klíč pro podsekce je `sections:` (ne `subsections:`). Obě varianty jsou v kódu normalizátoru podporovány, ale doporučená forma je `sections:`.
+> **Pozor:** Klíč pro podsekce je `subsections:` (ne `sections:`). Normalizátor i renderer čtou jen `subsections:` — podsekce zapsané pod `sections:` se nevykreslí. [Collection Designer](COLLECTION_DESIGNER.md) na takový zápis upozorní varováním.
 
 ---
 

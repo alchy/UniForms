@@ -96,6 +96,35 @@ tail -n 5 data/audit/$(date -u +%F).jsonl | python3 -m json.tool --json-lines
 `changed` jsou **klíče** polí, tabulek a kroků checklistu, jejichž hodnota se změnila
 (max. 50) – nikdy hodnoty. Automatické `last_saved` se ignoruje.
 
+### Změna kolekce nebo šablony z Collection Designeru
+
+```json
+{
+  "t": "2026-11-11T11:50:11+00:00",
+  "kind": "write",
+  "op": "designer_update_template",
+  "actor": "user:admin",
+  "origin": "193.0.231.250",
+  "method": "PUT",
+  "path": "/api/v1/admin/designer/collections/soc/templates/uib-bec-v2",
+  "collection_id": "soc",
+  "template_id": "uib-bec-v2",
+  "status": 200,
+  "outcome": "ok",
+  "via": "designer",
+  "change": "updated",
+  "changed_keys": ["name", "sections"],
+  "comments_discarded": 3,
+  "backup": "uib_bec_v2.20261111T115010613163Z.yaml"
+}
+```
+
+`op` je `designer_create_collection`, `designer_update_collection`, `designer_create_template`
+nebo `designer_update_template`; `change` říká, zda soubor vznikl (`created`), změnil se
+(`updated`), nebo zůstal beze změny (`unchanged`). `changed_keys` jsou **názvy** změněných
+klíčů nejvyšší úrovně, nikdy hodnoty. Odmítnuté uložení nese `reject_code` (`invalid`,
+`stale`, `rewrite_not_confirmed`…). Podrobnosti: [COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md#audit).
+
 ### Neúspěšné přihlášení přes access-manager
 
 ```json

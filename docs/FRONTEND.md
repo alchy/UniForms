@@ -78,6 +78,11 @@ Všechny webové stránky jsou obsluhované v `uniforms/web/routes.py`. Přihlá
 | `/admin/collections` | `admin_collections.html` | `system_admin` |
 | `/admin/collections/new` | `admin_collection_editor.html` | `system_admin` |
 | `/admin/collections/{id}/edit` | `admin_collection_editor.html` | `system_admin` |
+| `/admin/designer` | `admin_designer.html` | `system_admin` |
+| `/admin/designer/new` | `admin_designer_editor.html` | `system_admin` |
+| `/admin/designer/{id}/edit` | `admin_designer_editor.html` | `system_admin` |
+
+Stránky `/admin/designer…` jsou [Collection Designer](COLLECTION_DESIGNER.md) — návrhář kolekcí a šablon. Jejich logika je v `static/js/designer_model.js` (operace nad modelem, bez DOM) a `static/js/designer.js` (stránka, celá v IIFE); náhled šablony kreslí `UniForms.render()`.
 
 ---
 
