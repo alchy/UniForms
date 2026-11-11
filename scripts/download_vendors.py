@@ -21,7 +21,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 VENDOR_DIR = Path(__file__).parent.parent / "uniforms" / "static" / "vendor"
 
 # User-Agent – nektere CDN (DataTables) blokuji python urllib bez nej
-HEADERS = {"User-Agent": "Mozilla/5.0 Forms4SOC-vendor-downloader/1.0"}
+HEADERS = {"User-Agent": "Mozilla/5.0 UniForms-vendor-downloader/1.0"}
 
 # Struktura: "podadresar": [(url, lokalni_nazev), ...]
 LIBRARIES = {

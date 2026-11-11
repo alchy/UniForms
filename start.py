@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Forms4SOC – startovací skript.
+UniForms – startovací skript.
 Spustí uvicorn server s aktivním .venv (pokud existuje).
 Použití: python start.py [--port 8080] [--host 0.0.0.0] [--reload]
 """
@@ -33,7 +33,7 @@ def find_python() -> str:
     return sys.executable
 
 def main():
-    parser = argparse.ArgumentParser(description="Forms4SOC server")
+    parser = argparse.ArgumentParser(description="UniForms server")
     parser.add_argument("--host", default="127.0.0.1", help="Adresa (výchozí: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8080, help="Port (výchozí: 8080)")
     parser.add_argument("--reload", action="store_true", help="Automatický reload při změně kódu")
@@ -54,7 +54,7 @@ def main():
     if args.reload:
         cmd.append("--reload")
 
-    print(f"Forms4SOC: http://{args.host}:{args.port}")
+    print(f"UniForms: http://{args.host}:{args.port}")
     print(f"API docs:  http://{args.host}:{args.port}/api/docs")
     print("Stop: Ctrl+C\n")
 
