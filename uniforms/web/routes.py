@@ -59,7 +59,18 @@ def _get_user_from_cookie(request: Request) -> TokenPayload | None:
 
 # Prevede TokenPayload na slovnik pro Jinja2 kontext
 def _user_ctx(user: TokenPayload) -> dict:
-    return {"username": user.sub, "role": user.role}
+    # Role shown under the same name everywhere: the access-manager group that grants
+    # it (uniforms-admin / uniforms-user) – identical for local and OTP accounts.
+    group = am_auth.cfg("admin_group") if user.role == "system_admin" else am_auth.cfg("user_group")
+    title = "System Admin" if user.role == "system_admin" else "System Reader"
+    via = {"access_manager": "access-manager (OTP)", "local": "local password"}.get(user.auth_source or "")
+    return {
+        "username": user.sub,
+        "role": user.role,
+        "auth_source": user.auth_source,
+        "role_label": group or title,
+        "role_title": f"{title} · signed in via {via}" if via else title,
+    }
 
 
 # Vrati terminologii: globalni hodnoty z uniforms.yaml prekryty per-kolekci overrides
@@ -94,11 +105,23 @@ async def _sidebar_ctx(
 # Webove auth dependencies
 # ---------------------------------------------------------------------------
 
-# Vyzaduje prihlaseneho uzivatele (platna JWT cookie); vyhodi WebLoginRequired, pokud chybi
-async def require_web_user(request: Request) -> TokenPayload:
+# Vyzaduje prihlaseneho uzivatele (platna JWT cookie); vyhodi WebLoginRequired, pokud chybi.
+# Stejne jako API (require_auth) bere roli a aktivitu z DB, ne z JWT: zahlavi, admin menu
+# i pristup ke strankam odpovidaji aktualnimu stavu, ne stavu pri prihlaseni.
+async def require_web_user(
+    request: Request, db: aiosqlite.Connection = Depends(get_db)
+) -> TokenPayload:
     user = _get_user_from_cookie(request)
     if not user:
         raise WebLoginRequired()
+    if am_auth.auth_provider() in ("simple", "access_manager"):
+        async with db.execute(
+            "SELECT role, is_active, auth_source FROM users WHERE username = ?", (user.sub,)
+        ) as cur:
+            row = await cur.fetchone()
+        if not row or not row["is_active"]:
+            raise WebLoginRequired()
+        user = user.model_copy(update={"role": row["role"], "auth_source": row["auth_source"]})
     return user
 
 

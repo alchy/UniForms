@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from uniforms import config
 from uniforms.config import DEFAULT_ADMIN_PASSWORD, DEFAULT_JWT_SECRET, Settings, UniformsConfig
 from uniforms.core.database import init_db
-from uniforms.core.security import WebAdminRequired, WebLoginRequired
+from uniforms.core.security import COOKIE_NAME, WebAdminRequired, WebLoginRequired
 from uniforms.core.audit_middleware import AuditMiddleware
 from uniforms.core.security_middleware import SecurityMiddleware
 
@@ -99,7 +99,11 @@ def create_app(
 
     @app.exception_handler(WebLoginRequired)
     async def _login_required(request: Request, exc: WebLoginRequired) -> RedirectResponse:
-        return RedirectResponse(url="/login", status_code=302)
+        # Drop the cookie too: a valid JWT of a deactivated / removed account would
+        # otherwise bounce /login → /dashboard → /login forever.
+        response = RedirectResponse(url="/login", status_code=302)
+        response.delete_cookie(COOKIE_NAME)
+        return response
 
     @app.exception_handler(WebAdminRequired)
     async def _admin_required(request: Request, exc: WebAdminRequired) -> RedirectResponse:

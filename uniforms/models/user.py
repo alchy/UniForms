@@ -21,6 +21,7 @@ class User(BaseModel):
 class TokenPayload(BaseModel):
     sub: str       # username
     role: str = "system_reader"
+    auth_source: Optional[str] = None   # set by the web layer from the DB, not part of the JWT
     exp: Optional[int] = None
 
 
