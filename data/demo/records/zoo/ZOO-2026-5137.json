@@ -1,0 +1,452 @@
+{
+  "record_id": "ZOO-2026-5137",
+  "collection_id": "zoo",
+  "template_id": "zoo-pstros-v1",
+  "status": "exhibit",
+  "created_by": "demo",
+  "created_at": "2025-10-07T10:04:56.021512Z",
+  "updated_at": "2026-11-11T10:04:56.018252Z",
+  "data": {
+    "template_id": "zoo-pstros-v1",
+    "template_name": "Pštros dvouprstý",
+    "template_version": "1.0",
+    "category": "Ptáci běžci",
+    "meta": {
+      "species": "Pštros dvouprstý (Struthio camelus)"
+    },
+    "workflow_states": [
+      {
+        "id": "received",
+        "label": "Přijato",
+        "color": "secondary"
+      },
+      {
+        "id": "quarantine",
+        "label": "Karanténa",
+        "color": "warning"
+      },
+      {
+        "id": "exhibit",
+        "label": "V expozici",
+        "color": "success"
+      },
+      {
+        "id": "breeding",
+        "label": "V odchovu",
+        "color": "info"
+      },
+      {
+        "id": "vet",
+        "label": "U veterináře",
+        "color": "danger"
+      },
+      {
+        "id": "departed",
+        "label": "Odešlo ze zoo",
+        "color": "dark"
+      }
+    ],
+    "sections": [
+      {
+        "id": "header",
+        "title": "Hlavička",
+        "type": "header",
+        "fields": [
+          {
+            "key": "record_id",
+            "label": "Evidenční číslo",
+            "auto_value": "record_id",
+            "editable": false,
+            "type": "text",
+            "value": "ZOO-2026-5137"
+          },
+          {
+            "key": "animal_name",
+            "label": "Jméno zvířete",
+            "placeholder": "např. Olda",
+            "type": "text",
+            "editable": true,
+            "value": "Ulrich"
+          },
+          {
+            "key": "species",
+            "label": "Druh",
+            "auto_value": "meta.species",
+            "editable": false,
+            "type": "text",
+            "value": "Pštros dvouprstý (Struthio camelus)"
+          },
+          {
+            "key": "record_owner",
+            "label": "Ošetřovatel",
+            "hint": "Vyplní se tlačítkem Převzít péči.",
+            "type": "text",
+            "editable": true,
+            "value": "Marie Krmivová"
+          },
+          {
+            "key": "last_saved",
+            "label": "Poslední aktualizace",
+            "auto_value": "last_saved",
+            "editable": false,
+            "type": "text",
+            "value": "2026-11-11T11:04"
+          }
+        ]
+      },
+      {
+        "id": "identification",
+        "title": "Identifikace",
+        "type": "form",
+        "fields": [
+          {
+            "key": "sex",
+            "label": "Pohlaví",
+            "type": "select",
+            "options": [
+              "Samec",
+              "Samice",
+              "Zatím nevíme (ani ono)"
+            ],
+            "editable": true,
+            "value": "Samec"
+          },
+          {
+            "key": "born_at",
+            "label": "Datum vylíhnutí / narození",
+            "type": "datetime",
+            "editable": true,
+            "value": "2019-04-12T06:30"
+          },
+          {
+            "key": "origin",
+            "label": "Původ",
+            "type": "select",
+            "options": [
+              "Odchov v naší zoo",
+              "Přesun z jiné zoo",
+              "Záchranná stanice",
+              "Neznámý (prostě se objevil)"
+            ],
+            "editable": true,
+            "value": "Přesun z jiné zoo"
+          },
+          {
+            "key": "chip_id",
+            "label": "Čip / kroužek",
+            "placeholder": "např. RING-CZ-0042",
+            "type": "text",
+            "editable": true,
+            "value": "RING-CZ-0107"
+          },
+          {
+            "key": "weight_kg",
+            "label": "Hmotnost (kg)",
+            "type": "number",
+            "editable": true,
+            "value": 148
+          },
+          {
+            "key": "enclosure",
+            "label": "Výběh",
+            "placeholder": "např. Savana B",
+            "type": "text",
+            "editable": true,
+            "value": "Savana B"
+          },
+          {
+            "key": "father",
+            "label": "Otec",
+            "type": "text",
+            "editable": true,
+            "value": "neznámý (prý šlechtic)"
+          },
+          {
+            "key": "mother",
+            "label": "Matka",
+            "type": "text",
+            "editable": true,
+            "value": "neznámá"
+          },
+          {
+            "key": "distinguishing_marks",
+            "label": "Poznávací znamení",
+            "type": "textarea",
+            "editable": true,
+            "value": "Černé peří s noblesou, jedno pírko na hlavě vždy trčí doleva."
+          }
+        ]
+      },
+      {
+        "id": "character",
+        "title": "Povaha a zvyky",
+        "type": "form",
+        "fields": [
+          {
+            "key": "temperament",
+            "label": "Povaha",
+            "type": "select",
+            "options": [
+              "Klidná",
+              "Zvídavá",
+              "Panovačná",
+              "Uražená",
+              "Nevyzpytatelná"
+            ],
+            "editable": true,
+            "value": "Panovačná"
+          },
+          {
+            "key": "visitor_rating",
+            "label": "Oblíbenost u návštěvníků (1–10)",
+            "type": "number",
+            "editable": true,
+            "value": 9
+          },
+          {
+            "key": "habits",
+            "label": "Zvyky a zvláštnosti",
+            "type": "textarea",
+            "editable": true,
+            "value": "Každé ráno v 7:00 obchází výběh jako starosta. Nesnáší deštníky a pana ředitele."
+          }
+        ]
+      },
+      {
+        "id": "feeding",
+        "title": "Krmný plán",
+        "type": "table",
+        "allow_append_row": true,
+        "allow_delete_row": true,
+        "columns": [
+          {
+            "key": "time",
+            "label": "Čas",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "food",
+            "label": "Krmivo",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "amount",
+            "label": "Dávka",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "note",
+            "label": "Poznámka",
+            "type": "text",
+            "editable": false
+          }
+        ],
+        "rows": [
+          {
+            "time": "07:00",
+            "food": "Granule pro běžce",
+            "amount": "2 kg",
+            "note": "Podávat až po ranní obchůzce"
+          },
+          {
+            "time": "15:00",
+            "food": "Zelenina + vojtěška",
+            "amount": "3 kg",
+            "note": "Mrkev krájet, celou neuznává"
+          }
+        ]
+      },
+      {
+        "id": "vet_care",
+        "title": "Veterinární péče",
+        "type": "table",
+        "allow_append_row": true,
+        "allow_delete_row": true,
+        "columns": [
+          {
+            "key": "date",
+            "label": "Datum",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "procedure",
+            "label": "Úkon",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "vet",
+            "label": "Veterinář",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "result",
+            "label": "Výsledek",
+            "type": "select",
+            "options": [
+              "Zdravé",
+              "Sledovat",
+              "Léčba",
+              "Nespolupracovalo"
+            ],
+            "editable": false
+          }
+        ],
+        "rows": [
+          {
+            "date": "2026-03-14",
+            "procedure": "Preventivní prohlídka",
+            "vet": "MVDr. Tlapka",
+            "result": "Zdravé"
+          },
+          {
+            "date": "2026-09-02",
+            "procedure": "Odčervení",
+            "vet": "MVDr. Tlapka",
+            "result": "Nespolupracovalo"
+          }
+        ]
+      },
+      {
+        "id": "daily_check",
+        "title": "Denní kontrola ošetřovatele",
+        "type": "checklist",
+        "step_groups": [
+          {
+            "title": null,
+            "steps": [
+              {
+                "action": "Spočítat zvířata ve výběhu (a ověřit, že žádné nepřibylo navíc)",
+                "id": "daily_check_group_1_01",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Kontrola krmení a čerstvé vody",
+                "id": "daily_check_group_1_02",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Vizuální kontrola zdravotního stavu",
+                "id": "daily_check_group_1_03",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Kontrola oplocení a zámků",
+                "id": "daily_check_group_1_04",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Zápis do deníku ošetřovatele",
+                "id": "daily_check_group_1_05",
+                "analyst_note": null,
+                "done": true
+              }
+            ],
+            "id": "group_1"
+          }
+        ]
+      },
+      {
+        "id": "diary",
+        "title": "Deník ošetřovatele",
+        "type": "table",
+        "allow_append_row": true,
+        "allow_delete_row": true,
+        "columns": [
+          {
+            "key": "date",
+            "label": "Datum",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "entry",
+            "label": "Záznam",
+            "type": "text",
+            "editable": false
+          }
+        ],
+        "rows": [
+          {
+            "date": "2026-11-02",
+            "entry": "Kopnutím otevřel kbelík s mrkví. Výkonnostně zaznamenáno."
+          },
+          {
+            "date": "2026-11-09",
+            "entry": "Hlídá hnízdo, ošetřovatelku pustil až na třetí pokus."
+          }
+        ]
+      },
+      {
+        "id": "ostrich",
+        "title": "Pštrosí specifika",
+        "type": "form",
+        "fields": [
+          {
+            "key": "category",
+            "label": "Kategorie",
+            "type": "select",
+            "options": [
+              "Pštros (dospělý samec)",
+              "Pštrosice (dospělá samice)",
+              "Pštrosíče (mládě)"
+            ],
+            "editable": true,
+            "value": "Pštros (dospělý samec)"
+          },
+          {
+            "key": "height_cm",
+            "label": "Výška (cm)",
+            "type": "number",
+            "editable": true,
+            "value": 255
+          },
+          {
+            "key": "top_speed_kmh",
+            "label": "Naměřená nejvyšší rychlost (km/h)",
+            "type": "number",
+            "editable": true,
+            "value": 68
+          },
+          {
+            "key": "head_in_sand",
+            "label": "Strká hlavu do písku?",
+            "type": "select",
+            "options": [
+              "Ne – to je mýtus",
+              "Jen když přijde inventura",
+              "Nevyzkoušeno"
+            ],
+            "editable": true,
+            "value": "Ne – to je mýtus"
+          },
+          {
+            "key": "eggs_laid",
+            "label": "Počet snesených vajec (sezóna)",
+            "type": "number",
+            "visible_if": "category == 'Pštrosice (dospělá samice)'",
+            "editable": true,
+            "value": null
+          },
+          {
+            "key": "mating_dance",
+            "label": "Svatební tanec – hodnocení poroty",
+            "type": "textarea",
+            "visible_if": "category == 'Pštros (dospělý samec)'",
+            "editable": true,
+            "value": "Porota: 9/10. Paní Ulrychová: „ujde to“."
+          }
+        ]
+      }
+    ]
+  }
+}

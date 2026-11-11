@@ -1,0 +1,446 @@
+{
+  "record_id": "ZOO-2026-3922",
+  "collection_id": "zoo",
+  "template_id": "zoo-tucnak-v1",
+  "status": "exhibit",
+  "created_by": "demo",
+  "created_at": "2025-11-11T10:04:56.272649Z",
+  "updated_at": "2026-11-11T10:04:56.269909Z",
+  "data": {
+    "template_id": "zoo-tucnak-v1",
+    "template_name": "Tučňák Humboldtův",
+    "template_version": "1.0",
+    "category": "Ptáci – vodní",
+    "meta": {
+      "species": "Tučňák Humboldtův (Spheniscus humboldti)"
+    },
+    "workflow_states": [
+      {
+        "id": "received",
+        "label": "Přijato",
+        "color": "secondary"
+      },
+      {
+        "id": "quarantine",
+        "label": "Karanténa",
+        "color": "warning"
+      },
+      {
+        "id": "exhibit",
+        "label": "V expozici",
+        "color": "success"
+      },
+      {
+        "id": "breeding",
+        "label": "V odchovu",
+        "color": "info"
+      },
+      {
+        "id": "vet",
+        "label": "U veterináře",
+        "color": "danger"
+      },
+      {
+        "id": "departed",
+        "label": "Odešlo ze zoo",
+        "color": "dark"
+      }
+    ],
+    "sections": [
+      {
+        "id": "header",
+        "title": "Hlavička",
+        "type": "header",
+        "fields": [
+          {
+            "key": "record_id",
+            "label": "Evidenční číslo",
+            "auto_value": "record_id",
+            "editable": false,
+            "type": "text",
+            "value": "ZOO-2026-3922"
+          },
+          {
+            "key": "animal_name",
+            "label": "Jméno zvířete",
+            "placeholder": "např. Olda",
+            "type": "text",
+            "editable": true,
+            "value": "Olda"
+          },
+          {
+            "key": "species",
+            "label": "Druh",
+            "auto_value": "meta.species",
+            "editable": false,
+            "type": "text",
+            "value": "Tučňák Humboldtův (Spheniscus humboldti)"
+          },
+          {
+            "key": "record_owner",
+            "label": "Ošetřovatel",
+            "hint": "Vyplní se tlačítkem Převzít péči.",
+            "type": "text",
+            "editable": true,
+            "value": "Bohouš Šupina"
+          },
+          {
+            "key": "last_saved",
+            "label": "Poslední aktualizace",
+            "auto_value": "last_saved",
+            "editable": false,
+            "type": "text",
+            "value": "2026-11-11T11:04"
+          }
+        ]
+      },
+      {
+        "id": "identification",
+        "title": "Identifikace",
+        "type": "form",
+        "fields": [
+          {
+            "key": "sex",
+            "label": "Pohlaví",
+            "type": "select",
+            "options": [
+              "Samec",
+              "Samice",
+              "Zatím nevíme (ani ono)"
+            ],
+            "editable": true,
+            "value": "Samec"
+          },
+          {
+            "key": "born_at",
+            "label": "Datum vylíhnutí / narození",
+            "type": "datetime",
+            "editable": true,
+            "value": "2017-12-24T10:00"
+          },
+          {
+            "key": "origin",
+            "label": "Původ",
+            "type": "select",
+            "options": [
+              "Odchov v naší zoo",
+              "Přesun z jiné zoo",
+              "Záchranná stanice",
+              "Neznámý (prostě se objevil)"
+            ],
+            "editable": true,
+            "value": "Odchov v naší zoo"
+          },
+          {
+            "key": "chip_id",
+            "label": "Čip / kroužek",
+            "placeholder": "např. RING-CZ-0042",
+            "type": "text",
+            "editable": true,
+            "value": "RING-CZ-0033"
+          },
+          {
+            "key": "weight_kg",
+            "label": "Hmotnost (kg)",
+            "type": "number",
+            "editable": true,
+            "value": 4.4
+          },
+          {
+            "key": "enclosure",
+            "label": "Výběh",
+            "placeholder": "např. Savana B",
+            "type": "text",
+            "editable": true,
+            "value": "Pavilon Humboldt – bazén 1"
+          },
+          {
+            "key": "father",
+            "label": "Otec",
+            "type": "text",
+            "editable": true,
+            "value": "Bedřich"
+          },
+          {
+            "key": "mother",
+            "label": "Matka",
+            "type": "text",
+            "editable": true,
+            "value": "Květa"
+          },
+          {
+            "key": "distinguishing_marks",
+            "label": "Poznávací znamení",
+            "type": "textarea",
+            "editable": true,
+            "value": "Na hrudi tečka ve tvaru Česka (při troše fantazie)."
+          }
+        ]
+      },
+      {
+        "id": "character",
+        "title": "Povaha a zvyky",
+        "type": "form",
+        "fields": [
+          {
+            "key": "temperament",
+            "label": "Povaha",
+            "type": "select",
+            "options": [
+              "Klidná",
+              "Zvídavá",
+              "Panovačná",
+              "Uražená",
+              "Nevyzpytatelná"
+            ],
+            "editable": true,
+            "value": "Klidná"
+          },
+          {
+            "key": "visitor_rating",
+            "label": "Oblíbenost u návštěvníků (1–10)",
+            "type": "number",
+            "editable": true,
+            "value": 10
+          },
+          {
+            "key": "habits",
+            "label": "Zvyky a zvláštnosti",
+            "type": "textarea",
+            "editable": true,
+            "value": "Narozen na Štědrý den, proto čeká dárek každý den. Před krmením stojí v řadě vždy první, i když tam nikdo jiný není."
+          }
+        ]
+      },
+      {
+        "id": "feeding",
+        "title": "Krmný plán",
+        "type": "table",
+        "allow_append_row": true,
+        "allow_delete_row": true,
+        "columns": [
+          {
+            "key": "time",
+            "label": "Čas",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "food",
+            "label": "Krmivo",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "amount",
+            "label": "Dávka",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "note",
+            "label": "Poznámka",
+            "type": "text",
+            "editable": false
+          }
+        ],
+        "rows": [
+          {
+            "time": "09:00",
+            "food": "Šprot",
+            "amount": "250 g",
+            "note": "Podávat z ruky, z kbelíku se uráží"
+          },
+          {
+            "time": "16:00",
+            "food": "Sleď + vitamíny",
+            "amount": "200 g",
+            "note": "Vitamín schovat do ryby"
+          }
+        ]
+      },
+      {
+        "id": "vet_care",
+        "title": "Veterinární péče",
+        "type": "table",
+        "allow_append_row": true,
+        "allow_delete_row": true,
+        "columns": [
+          {
+            "key": "date",
+            "label": "Datum",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "procedure",
+            "label": "Úkon",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "vet",
+            "label": "Veterinář",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "result",
+            "label": "Výsledek",
+            "type": "select",
+            "options": [
+              "Zdravé",
+              "Sledovat",
+              "Léčba",
+              "Nespolupracovalo"
+            ],
+            "editable": false
+          }
+        ],
+        "rows": [
+          {
+            "date": "2026-06-11",
+            "procedure": "Kontrola peří po přepeřování",
+            "vet": "MVDr. Tlapka",
+            "result": "Zdravé"
+          }
+        ]
+      },
+      {
+        "id": "daily_check",
+        "title": "Denní kontrola ošetřovatele",
+        "type": "checklist",
+        "step_groups": [
+          {
+            "title": null,
+            "steps": [
+              {
+                "action": "Spočítat zvířata ve výběhu (a ověřit, že žádné nepřibylo navíc)",
+                "id": "daily_check_group_1_01",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Kontrola krmení a čerstvé vody",
+                "id": "daily_check_group_1_02",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Vizuální kontrola zdravotního stavu",
+                "id": "daily_check_group_1_03",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Kontrola oplocení a zámků",
+                "id": "daily_check_group_1_04",
+                "analyst_note": null,
+                "done": true
+              },
+              {
+                "action": "Zápis do deníku ošetřovatele",
+                "id": "daily_check_group_1_05",
+                "analyst_note": null,
+                "done": true
+              }
+            ],
+            "id": "group_1"
+          }
+        ]
+      },
+      {
+        "id": "diary",
+        "title": "Deník ošetřovatele",
+        "type": "table",
+        "allow_append_row": true,
+        "allow_delete_row": true,
+        "columns": [
+          {
+            "key": "date",
+            "label": "Datum",
+            "type": "text",
+            "editable": false
+          },
+          {
+            "key": "entry",
+            "label": "Záznam",
+            "type": "text",
+            "editable": false
+          }
+        ],
+        "rows": [
+          {
+            "date": "2026-11-05",
+            "entry": "Pozoroval návštěvníky 40 minut bez mrknutí. Návštěvníci odešli první."
+          },
+          {
+            "date": "2026-11-10",
+            "entry": "Odmítl huňáčka. Trvá na šprotech."
+          }
+        ]
+      },
+      {
+        "id": "penguin",
+        "title": "Tučňáčí specifika",
+        "type": "form",
+        "fields": [
+          {
+            "key": "category",
+            "label": "Kategorie",
+            "type": "select",
+            "options": [
+              "Tučňák (dospělý)",
+              "Tučňáče (mládě)"
+            ],
+            "editable": true,
+            "value": "Tučňák (dospělý)"
+          },
+          {
+            "key": "favourite_fish",
+            "label": "Oblíbená ryba",
+            "type": "select",
+            "options": [
+              "Šprot",
+              "Sleď",
+              "Huňáček",
+              "Cokoli, co hodí ošetřovatel"
+            ],
+            "editable": true,
+            "value": "Šprot"
+          },
+          {
+            "key": "dive_record_m",
+            "label": "Rekord v ponoru (m)",
+            "type": "number",
+            "editable": true,
+            "value": 21
+          },
+          {
+            "key": "waddle_style",
+            "label": "Styl chůze",
+            "type": "select",
+            "options": [
+              "Klasické kolébání",
+              "Kolébání s nadhledem",
+              "Klouzání po břiše"
+            ],
+            "editable": true,
+            "value": "Kolébání s nadhledem"
+          },
+          {
+            "key": "wearing_tuxedo",
+            "label": "Frak",
+            "type": "select",
+            "options": [
+              "Vždy",
+              "Vždy (jinak to nejde)"
+            ],
+            "editable": true,
+            "value": "Vždy (jinak to nejde)"
+          }
+        ]
+      }
+    ]
+  }
+}

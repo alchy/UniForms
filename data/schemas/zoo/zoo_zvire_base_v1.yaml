@@ -1,0 +1,81 @@
+# Společný základ evidenční karty zvířete (abstraktní – nelze z něj zakládat záznamy)
+template_id: zoo-zvire-base-v1
+name: "Evidenční karta zvířete (základ)"
+version: "1.0"
+category: "Zoo"
+status: active
+abstract: true
+
+sections:
+  - id: header
+    title: "Hlavička"
+    type: header
+    fields:
+      - { key: record_id,    label: "Evidenční číslo", auto: record_id }
+      - { key: animal_name,  label: "Jméno zvířete", placeholder: "např. Olda" }
+      - { key: species,      label: "Druh", auto: meta.species }
+      - { key: record_owner, label: "Ošetřovatel", hint: "Vyplní se tlačítkem Převzít péči." }
+      - { key: last_saved,   label: "Poslední aktualizace", auto: last_saved }
+
+  - id: identification
+    title: "Identifikace"
+    type: form
+    fields:
+      - { key: sex, label: "Pohlaví", type: select, options: ["Samec", "Samice", "Zatím nevíme (ani ono)"] }
+      - { key: born_at, label: "Datum vylíhnutí / narození", type: datetime }
+      - { key: origin, label: "Původ", type: select, options: ["Odchov v naší zoo", "Přesun z jiné zoo", "Záchranná stanice", "Neznámý (prostě se objevil)"] }
+      - { key: chip_id, label: "Čip / kroužek", placeholder: "např. RING-CZ-0042" }
+      - { key: weight_kg, label: "Hmotnost (kg)", type: number }
+      - { key: enclosure, label: "Výběh", placeholder: "např. Savana B" }
+      - { key: father, label: "Otec" }
+      - { key: mother, label: "Matka" }
+      - { key: distinguishing_marks, label: "Poznávací znamení", type: textarea }
+
+  - id: character
+    title: "Povaha a zvyky"
+    type: form
+    fields:
+      - { key: temperament, label: "Povaha", type: select, options: ["Klidná", "Zvídavá", "Panovačná", "Uražená", "Nevyzpytatelná"] }
+      - { key: visitor_rating, label: "Oblíbenost u návštěvníků (1–10)", type: number }
+      - { key: habits, label: "Zvyky a zvláštnosti", type: textarea }
+
+  - id: feeding
+    title: "Krmný plán"
+    type: table
+    allow_append_row: true
+    allow_delete_row: true
+    columns:
+      - { key: time,   label: "Čas", type: text }
+      - { key: food,   label: "Krmivo", type: text }
+      - { key: amount, label: "Dávka", type: text }
+      - { key: note,   label: "Poznámka", type: text }
+
+  - id: vet_care
+    title: "Veterinární péče"
+    type: table
+    allow_append_row: true
+    allow_delete_row: true
+    columns:
+      - { key: date,      label: "Datum", type: text }
+      - { key: procedure, label: "Úkon", type: text }
+      - { key: vet,       label: "Veterinář", type: text }
+      - { key: result,    label: "Výsledek", type: select, options: ["Zdravé", "Sledovat", "Léčba", "Nespolupracovalo"] }
+
+  - id: daily_check
+    title: "Denní kontrola ošetřovatele"
+    type: checklist
+    steps:
+      - "Spočítat zvířata ve výběhu (a ověřit, že žádné nepřibylo navíc)"
+      - "Kontrola krmení a čerstvé vody"
+      - "Vizuální kontrola zdravotního stavu"
+      - "Kontrola oplocení a zámků"
+      - "Zápis do deníku ošetřovatele"
+
+  - id: diary
+    title: "Deník ošetřovatele"
+    type: table
+    allow_append_row: true
+    allow_delete_row: true
+    columns:
+      - { key: date,  label: "Datum", type: text }
+      - { key: entry, label: "Záznam", type: text }

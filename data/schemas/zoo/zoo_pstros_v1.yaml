@@ -1,0 +1,22 @@
+# Evidenční karta – pštros dvouprstý (pštros, pštrosice, pštrosíče)
+template_id: zoo-pstros-v1
+name: "Pštros dvouprstý"
+version: "1.0"
+category: "Ptáci běžci"
+status: active
+extends: zoo-zvire-base-v1
+description: "Evidenční karta pštrosa dvouprstého (Struthio camelus) – samci, samice i mláďata."
+meta:
+  species: "Pštros dvouprstý (Struthio camelus)"
+
+sections:
+  - id: ostrich
+    title: "Pštrosí specifika"
+    type: form
+    fields:
+      - { key: category, label: "Kategorie", type: select, options: ["Pštros (dospělý samec)", "Pštrosice (dospělá samice)", "Pštrosíče (mládě)"] }
+      - { key: height_cm, label: "Výška (cm)", type: number }
+      - { key: top_speed_kmh, label: "Naměřená nejvyšší rychlost (km/h)", type: number }
+      - { key: head_in_sand, label: "Strká hlavu do písku?", type: select, options: ["Ne – to je mýtus", "Jen když přijde inventura", "Nevyzkoušeno"] }
+      - { key: eggs_laid, label: "Počet snesených vajec (sezóna)", type: number, visible_if: "category == 'Pštrosice (dospělá samice)'" }
+      - { key: mating_dance, label: "Svatební tanec – hodnocení poroty", type: textarea, visible_if: "category == 'Pštros (dospělý samec)'" }

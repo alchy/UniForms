@@ -1,0 +1,46 @@
+# Zoo Evidence – evidence zvířat zoologické zahrady
+id: zoo
+name: "Zoo Evidence"
+description: >
+  Evidence chovaných zvířat – identifikace, rodokmen, výběh, krmení,
+  veterinární péče a deník ošetřovatele. Pštrosi i tučňáci vítáni.
+
+terminology:
+  record_id_label: "Evidenční číslo"
+  records_subtitle: "Všechna zvířata"
+  templates_subtitle: "Druhy zvířat"
+  dashboard_subtitle: "Přehled chovu"
+  new_record_btn: "Nové zvíře"
+  record_owner_label: "Ošetřovatel"
+  take_over_btn: "Převzít péči"
+
+workflow:
+  initial_state: received
+  states:
+    - { id: received,   label: "Přijato",          color: secondary }
+    - { id: quarantine, label: "Karanténa",        color: warning }
+    - { id: exhibit,    label: "V expozici",       color: success }
+    - { id: breeding,   label: "V odchovu",        color: info }
+    - { id: vet,        label: "U veterináře",     color: danger }
+    - { id: departed,   label: "Odešlo ze zoo",    color: dark }
+
+id_format:
+  prefix: ZOO
+  format: "{prefix}-{YYYY}-{rand:04d}"
+
+list_columns:
+  - { key: animal_name, label: "Jméno" }
+  - { key: species,     label: "Druh" }
+  - { key: category,    label: "Kategorie" }
+  - { key: enclosure,   label: "Výběh" }
+  - { key: record_owner, label: "Ošetřovatel" }
+
+roles:
+  - { id: collection_admin, label: "Zoolog" }
+  - { id: collection_user,  label: "Ošetřovatel" }
+
+title_field: animal_name
+
+take_over:
+  field: record_owner
+  value_type: username

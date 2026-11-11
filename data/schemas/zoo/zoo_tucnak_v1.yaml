@@ -1,0 +1,21 @@
+# Evidenční karta – tučňák Humboldtův
+template_id: zoo-tucnak-v1
+name: "Tučňák Humboldtův"
+version: "1.0"
+category: "Ptáci – vodní"
+status: active
+extends: zoo-zvire-base-v1
+description: "Evidenční karta tučňáka Humboldtova (Spheniscus humboldti)."
+meta:
+  species: "Tučňák Humboldtův (Spheniscus humboldti)"
+
+sections:
+  - id: penguin
+    title: "Tučňáčí specifika"
+    type: form
+    fields:
+      - { key: category, label: "Kategorie", type: select, options: ["Tučňák (dospělý)", "Tučňáče (mládě)"] }
+      - { key: favourite_fish, label: "Oblíbená ryba", type: select, options: ["Šprot", "Sleď", "Huňáček", "Cokoli, co hodí ošetřovatel"] }
+      - { key: dive_record_m, label: "Rekord v ponoru (m)", type: number }
+      - { key: waddle_style, label: "Styl chůze", type: select, options: ["Klasické kolébání", "Kolébání s nadhledem", "Klouzání po břiše"] }
+      - { key: wearing_tuxedo, label: "Frak", type: select, options: ["Vždy", "Vždy (jinak to nejde)"] }
