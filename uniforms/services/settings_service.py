@@ -57,3 +57,21 @@ async def get_schemas_dir(db: aiosqlite.Connection) -> Path:
 
 async def get_collections_dir(db: aiosqlite.Connection) -> Path:
     return await _get_dir(db, "collections_dir", settings.default_collections_dir)
+
+
+# ---------------------------------------------------------------------------
+# Feature switches (stored as "true" / "false" in the settings table)
+# ---------------------------------------------------------------------------
+
+#: Boolean settings and their defaults. Collection Designer is OFF unless enabled
+#: in Settings – while off, its pages and API answer 404 as if they did not exist.
+BOOL_SETTINGS = {"designer_enabled": False}
+
+
+async def get_bool_setting(db: aiosqlite.Connection, key: str) -> bool:
+    value = await get_setting(db, key)
+    return BOOL_SETTINGS.get(key, False) if value is None else value == "true"
+
+
+async def designer_enabled(db: aiosqlite.Connection) -> bool:
+    return await get_bool_setting(db, "designer_enabled")

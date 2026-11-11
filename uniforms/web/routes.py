@@ -1,13 +1,14 @@
 import aiosqlite
 import jwt
 from pathlib import Path
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from uniforms.config import DEFAULT_JWT_SECRET, uniforms, settings as app_settings
 from uniforms.auth import access_manager_auth as am_auth
 from uniforms.core.database import get_db
+from uniforms.services import settings_service
 from uniforms.core.security import COOKIE_NAME, WebAdminRequired, WebLoginRequired, decode_token
 from uniforms.models.user import TokenPayload
 from uniforms.services import collection_service
@@ -91,7 +92,8 @@ async def _sidebar_ctx(
     accessible = await collection_service.get_accessible_collections(
         db, user.sub, user.role, collections_dir
     )
-    ctx: dict = {"accessible_collections": accessible}
+    ctx: dict = {"accessible_collections": accessible,
+                 "designer_enabled": await settings_service.designer_enabled(db)}
     if collection_id:
         collection = next((c for c in accessible if c.id == collection_id), None)
         if collection is None:
@@ -123,6 +125,12 @@ async def require_web_user(
             raise WebLoginRequired()
         user = user.model_copy(update={"role": row["role"], "auth_source": row["auth_source"]})
     return user
+
+
+# Collection Designer je vypnuty (Settings) → jeho stranky neexistuji (404)
+async def require_designer_enabled(db: aiosqlite.Connection = Depends(get_db)) -> None:
+    if not await settings_service.designer_enabled(db):
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 # Vyzaduje roli system_admin; vyhodi WebAdminRequired, pokud role nesouhlasi
@@ -386,6 +394,7 @@ async def admin_collections_page(
 @router.get("/admin/designer", response_class=HTMLResponse)
 async def admin_designer_page(
     request: Request,
+    _enabled: None = Depends(require_designer_enabled),
     user: TokenPayload = Depends(require_web_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ):
@@ -402,6 +411,7 @@ async def admin_designer_page(
 @router.get("/admin/designer/new", response_class=HTMLResponse)
 async def admin_designer_new(
     request: Request,
+    _enabled: None = Depends(require_designer_enabled),
     user: TokenPayload = Depends(require_web_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ):
@@ -421,6 +431,7 @@ async def admin_designer_new(
 async def admin_designer_edit(
     request: Request,
     collection_id: str,
+    _enabled: None = Depends(require_designer_enabled),
     user: TokenPayload = Depends(require_web_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ):

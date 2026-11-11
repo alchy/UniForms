@@ -17,6 +17,12 @@ Editory surového YAML zůstávají a návrhář na ně odkazuje. Hodí se pro v
 
 Stránka je v menu **Admin → Collection Designer** (`/admin/designer`) a vidí ji jen `system_admin`. Ostatní přístupová práva se nemění.
 
+> **Zapnutí:** návrhář je ve výchozím stavu **vypnutý**. Zapíná se v **Settings → Features → Enable Collection Designer**
+> (nastavení `designer_enabled`, uložené v DB). Dokud je vypnutý, jeho stránky `/admin/designer*` i celé API
+> `/api/v1/designer/*` odpovídají `404` (jako by neexistovaly), položka v menu i odkazy na stránkách Collections
+> a Templates jsou skryté a kolekce a šablony se upravují v editorech YAML. Přepnutí platí okamžitě (bez restartu)
+> a zapíše se do [auditu](AUDIT.md) (`op: update_settings`, `changed: ["designer_enabled"]`).
+
 ---
 
 ## Jak to funguje?

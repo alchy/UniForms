@@ -15,9 +15,11 @@
         <small class="text-muted">Manage collections – data sets with their own workflow, ID format and list columns.</small>
     </div>
     <div class="d-flex gap-2">
+        {% if designer_enabled %}
         <a href="/admin/designer" class="btn btn-outline-primary btn-sm" title="Create and edit collections without writing YAML">
             <i class="bi bi-bricks me-1"></i>Collection Designer
         </a>
+        {% endif %}
         <a href="/admin/collections/new" class="btn btn-success btn-sm" title="New collection in the raw YAML editor">
             <i class="bi bi-plus-circle me-1"></i>New collection
         </a>
@@ -74,6 +76,7 @@
 
 {% block scripts %}
 <script>
+    const DESIGNER_ENABLED = {{ (designer_enabled or false) | tojson }};
     let allCollections = [];
     let pendingDeleteId = null;
     const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
@@ -112,9 +115,9 @@
                 <td class="align-middle small">${colLabels || '<span class="text-muted fst-italic">–</span>'}</td>
                 <td class="align-middle text-end pe-3">
                     <div class="d-flex gap-1 justify-content-end">
-                        <a href="/admin/designer/${encodeURIComponent(col.id)}/edit" class="btn btn-primary btn-sm" title="Open in Collection Designer">
+                        ${DESIGNER_ENABLED ? `<a href="/admin/designer/${encodeURIComponent(col.id)}/edit" class="btn btn-primary btn-sm" title="Open in Collection Designer">
                             <i class="bi bi-bricks"></i>
-                        </a>
+                        </a>` : ''}
                         <a href="/admin/collections/${encodeURIComponent(col.id)}/edit" class="btn btn-secondary btn-sm" title="Edit raw YAML">
                             <i class="bi bi-pencil"></i>
                         </a>

@@ -179,10 +179,50 @@
         </div>
     </div>
 </div>
+{# ── Features ────────────────────────────────────────────────────── #}
+<div class="card border shadow-sm mt-4" style="max-width: 640px;" id="features-card">
+    <div class="card-header bg-white py-2">
+        <span class="fw-semibold small"><i class="bi bi-toggles me-1 text-primary"></i>Features</span>
+        <span class="text-muted small ms-2">Editable at runtime</span>
+    </div>
+    <div class="card-body">
+        <div id="features-alert" class="d-none mb-3"></div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="designer_enabled"
+                   {% if settings.get('designer_enabled') == 'true' %}checked{% endif %}>
+            <label class="form-check-label fw-semibold" for="designer_enabled">Enable Collection Designer</label>
+        </div>
+        <div class="form-text">
+            Drag &amp; drop editor for collections and templates (Admin → Collection Designer).
+            Off by default – while off, its pages and API answer 404 and the menu item is hidden;
+            collections and templates can still be edited in the YAML editors. Changes are recorded in the audit.
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+(() => {
+    const sw = document.getElementById('designer_enabled');
+    const box = document.getElementById('features-alert');
+    sw.addEventListener('change', async () => {
+        sw.disabled = true;
+        const r = await apiFetch('/api/v1/settings/', {method: 'PATCH', body: JSON.stringify({designer_enabled: sw.checked ? 'true' : 'false'})});
+        sw.disabled = false;
+        if (r.ok) {
+            box.className = 'alert alert-success py-2 small';
+            box.textContent = `Collection Designer ${sw.checked ? 'enabled' : 'disabled'} – reloading the menu…`;
+            setTimeout(() => window.location.reload(), 900);
+        } else {
+            const data = await r.json().catch(() => ({}));
+            sw.checked = !sw.checked;
+            box.className = 'alert alert-danger py-2 small';
+            box.textContent = data.detail || 'Save failed.';
+        }
+    });
+})();
 (() => {
     const $ = id => document.getElementById(id);
     const FIELDS = ['url', 'realm', 'admin_group', 'user_group', 'auth_provider', 'ca'];

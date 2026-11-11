@@ -36,7 +36,7 @@ from uniforms.core.security import require_admin
 from uniforms.core.validation import require_slug
 from uniforms.services import collection_service
 from uniforms.services import designer_service as ds
-from uniforms.services.settings_service import get_collections_dir, get_schemas_dir
+from uniforms.services.settings_service import designer_enabled, get_collections_dir, get_schemas_dir
 
 async def _limit_body(request: Request) -> None:
     """Odmitne prilis velke telo pozadavku (413) drive, nez se zacne zpracovavat."""
@@ -51,10 +51,16 @@ async def _limit_body(request: Request) -> None:
 
 # system_admin se vynucuje na urovni routeru – plati pro KAZDOU routu, i pro ty,
 # ktere nekdo prida pozdeji; jednotlive routy uz zavislost neopakuji.
+async def _require_enabled(db: aiosqlite.Connection = Depends(get_db)) -> None:
+    """Settings → Collection Designer off (default): the API does not exist (404)."""
+    if not await designer_enabled(db):
+        raise HTTPException(404, detail="Not Found")
+
+
 router = APIRouter(
     prefix="/designer",
     tags=["Admin – Collection Designer"],
-    dependencies=[Depends(require_admin), Depends(_limit_body)],
+    dependencies=[Depends(_require_enabled), Depends(require_admin), Depends(_limit_body)],
 )
 
 _STATUS = {

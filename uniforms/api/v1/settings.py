@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 # ---------------------------------------------------------------------------
 # API endpointy pro runtime nastavení aplikace. Vyžadují roli system_admin.
@@ -13,12 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from uniforms.core.database import get_db
 from uniforms.core.security import require_admin
 from uniforms.models.user import User
-from uniforms.services.settings_service import get_all_settings, set_setting
+from uniforms.services.settings_service import BOOL_SETTINGS, get_all_settings, get_bool_setting, set_setting
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 # Pouze tato nastaveni lze menit pres GUI; branding a terminologie jsou v uniforms.yaml
-_ALLOWED_KEYS = {"records_dir", "schemas_dir", "collections_dir"}
+_ALLOWED_KEYS = {"records_dir", "schemas_dir", "collections_dir", *BOOL_SETTINGS}
 
 
 @router.get("/", summary="Current path settings (admin)")
@@ -27,22 +27,35 @@ async def get_settings(
     current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict[str, str]:
-    return await get_all_settings(db)
+    current = await get_all_settings(db)
+    for key in BOOL_SETTINGS:
+        current[key] = "true" if await get_bool_setting(db, key) else "false"
+    return current
 
 
 @router.patch("/", summary="Update path settings (admin)")
 # Aktualizuje nastaveni cest; ignoruje nezname klice a overuje existenci adresare; vyzaduje system_admin
 async def update_settings(
+    request: Request,
     updates: dict[str, str],
     current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict[str, str]:
+    request.state.audit = {"changed": sorted(updates)[:20]}   # names only
     for key, value in updates.items():
         if key not in _ALLOWED_KEYS:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Unknown setting '{key}'. Allowed: {', '.join(sorted(_ALLOWED_KEYS))}",
             )
+        if key in BOOL_SETTINGS:
+            if value not in ("true", "false"):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Value for '{key}' must be 'true' or 'false'.",
+                )
+            await set_setting(db, key, value)
+            continue
         if not value or not value.strip():
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

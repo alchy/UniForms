@@ -20,10 +20,12 @@
             {{ templates | length }} templates
         </span>
         {% if user and user.role == 'system_admin' %}
+        {% if designer_enabled %}
         <a href="/admin/designer/{{ collection_id | urlencode }}/edit#templates" class="btn btn-outline-primary btn-sm"
            title="Design templates by drag &amp; drop">
             <i class="bi bi-bricks me-1"></i>Designer
         </a>
+        {% endif %}
         <a href="/templates/{{ collection_id }}/new" class="btn btn-outline-success btn-sm">
             <i class="bi bi-plus-circle me-1"></i>New template
         </a>
@@ -117,10 +119,12 @@
                 </button>
                 {% if user and user.role == 'system_admin' %}
                 <div class="d-flex gap-1">
+                    {% if designer_enabled %}
                     <a href="/admin/designer/{{ collection_id | urlencode }}/edit#template={{ tmpl.template_id | urlencode }}"
                        class="btn btn-primary btn-sm" title="Open in Collection Designer">
                         <i class="bi bi-bricks"></i>
                     </a>
+                    {% endif %}
                     <a href="/templates/{{ collection_id }}/{{ tmpl.template_id }}/edit"
                        class="btn btn-secondary btn-sm flex-fill" title="{{ term.btn_edit }} template">
                         <i class="bi bi-pencil me-1"></i>{{ term.btn_edit }}
@@ -150,9 +154,15 @@
         <p class="mb-1 fw-semibold">This collection has no form template yet</p>
         <p class="small mb-3">Records are created from a template – it defines the form's sections and fields.</p>
         {% if user and user.role == 'system_admin' %}
+        {% if designer_enabled %}
         <a href="/admin/designer/{{ collection_id | urlencode }}/edit#templates" class="btn btn-success btn-sm">
             <i class="bi bi-bricks me-1"></i>Design a template in Collection Designer
         </a>
+        {% else %}
+        <a href="/templates/{{ collection_id | urlencode }}/new" class="btn btn-success btn-sm">
+            <i class="bi bi-plus-circle me-1"></i>New template (YAML editor)
+        </a>
+        {% endif %}
         {% else %}
         <small>Ask an administrator to add one.</small>
         {% endif %}

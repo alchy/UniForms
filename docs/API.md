@@ -849,7 +849,7 @@ Nastavení access-manageru (`am.*`, včetně aplikačního klíče) `GET /api/v1
 
 ### `PATCH /api/v1/settings/`
 
-Aktualizuje cesty k datovým adresářům. Každá hodnota musí být existující adresář bez `..` v cestě. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir`.
+Aktualizuje cesty k datovým adresářům a přepínače funkcí. Cesta musí být existující adresář bez `..`. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir`, `designer_enabled`. Do auditu jdou jen názvy změněných klíčů.
 
 ```bash
 curl -s -b /tmp/uf.cookies \
@@ -883,6 +883,13 @@ curl -s -b /tmp/uf.cookies \
 | `records_dir` | | Adresář pro JSON soubory záznamů (výchozí: `data/records`) |
 | `collections_dir` | | Adresář pro YAML definice kolekcí (výchozí: `data/collections`) |
 | `schemas_dir` | | Adresář pro YAML šablony kolekcí (výchozí: `data/schemas`) |
+| `designer_enabled` | | `"true"` / `"false"` (výchozí `"false"`): zapne [Collection Designer](COLLECTION_DESIGNER.md). Vypnutý = `/admin/designer*` i `/api/v1/designer/*` vrací `404`. Jiná hodnota → `422` |
+
+```bash
+# Zapnutí Collection Designeru (Settings → Features)
+curl -s -b /tmp/uf.cookies -X PATCH http://localhost:8080/api/v1/settings/ \
+  -H "Content-Type: application/json" -d '{"designer_enabled": "true"}'
+```
 
 > **Pozor:** Zadaná cesta musí existovat na serveru a nesmí obsahovat `..`. Neplatná cesta vrátí `400 Bad Request`.
 
@@ -980,6 +987,8 @@ curl -s -b /tmp/uf.cookies \
 ---
 
 ## Admin – Collection Designer – `/api/v1/designer`
+
+> **Vypnuto ve výchozím stavu.** Celé API (i stránky `/admin/designer*`) odpovídá `404`, dokud není v Settings zapnuto `designer_enabled` – viz [`PATCH /api/v1/settings/`](#patch-apiv1settings). Kontrola běží jako první závislost routeru, ještě před ověřením role.
 
 API návrháře kolekcí a šablon ([COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md)) s vlastním routerem a jmenným prostorem. Vyžaduje globální roli `system_admin`. Na rozdíl od `/admin/collections` a `/templates` nepracuje s textem YAML, ale s **modelem** — JSON objektem, který odpovídá YAML souboru jedna ku jedné (nenormalizovaný; neznámé klíče se zachovávají). Převod na YAML, validaci a zápis dělá server.
 
