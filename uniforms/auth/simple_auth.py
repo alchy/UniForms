@@ -3,8 +3,7 @@ from typing import Optional
 
 import aiosqlite
 
-from uniforms import config
-from uniforms.auth.access_manager_auth import AUTH_SOURCE_AM, OtpResult, is_configured, verify_otp
+from uniforms.auth.access_manager_auth import AUTH_SOURCE_AM, OtpResult, auth_provider, is_configured, verify_otp
 from uniforms.auth.auth_provider import AuthProvider
 from uniforms.core.security import hash_password, verify_password
 from uniforms.models.user import User
@@ -64,7 +63,7 @@ class SimpleAuthProvider(AuthProvider):
         self, username: str, password: str, client_origin: Optional[str] = None
     ) -> Optional[User]:
         row = await self._row(username)
-        global_am = config.settings.auth_provider == "access_manager"
+        global_am = auth_provider() == "access_manager"
 
         if row is None:
             # Unknown locally: a member of the realm's user/admin group gets an

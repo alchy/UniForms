@@ -49,6 +49,11 @@ async def _lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     _warn_insecure_defaults()
     await init_db()
+    # access-manager settings saved in the GUI (Settings) override .env
+    from uniforms.auth.access_manager_auth import load_overrides
+    from uniforms.core.database import get_db
+    async for db in get_db():
+        await load_overrides(db)
     yield
 
 
@@ -75,7 +80,7 @@ def create_app(
     from uniforms.api.v1 import (
         admin_collections, auth, collection_roles, collections,
         info, records, settings as settings_api, templates, users,
-        audit as audit_api, access_overview,
+        audit as audit_api, access_overview, access_manager_config,
     )
     from uniforms.web import routes as web_routes
 
@@ -107,7 +112,7 @@ def create_app(
     for router_module in (
         auth, info, collections, templates, records,
         collection_roles, settings_api, users, admin_collections, audit_api,
-        access_overview,
+        access_overview, access_manager_config,
     ):
         app.include_router(router_module.router, prefix=api_v1)
 

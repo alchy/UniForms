@@ -117,7 +117,8 @@ async def require_auth(
             detail="Invalid authentication token",
         )
     role = payload.role
-    if settings.auth_provider in ("simple", "access_manager"):
+    from uniforms.auth.access_manager_auth import auth_provider  # lazy: avoids import cycle
+    if auth_provider() in ("simple", "access_manager"):
         role = await _current_db_role(db, payload.sub)
         if role is None:
             raise HTTPException(

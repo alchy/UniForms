@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from uniforms.config import DEFAULT_JWT_SECRET, uniforms, settings as app_settings
+from uniforms.auth import access_manager_auth as am_auth
 from uniforms.core.database import get_db
 from uniforms.core.security import COOKIE_NAME, WebAdminRequired, WebLoginRequired, decode_token
 from uniforms.models.user import TokenPayload
@@ -229,7 +230,7 @@ async def settings_page(
     init_settings = {
         "admin_username": app_settings.admin_username,
         "database_path": app_settings.database_path,
-        "auth_provider": app_settings.auth_provider,
+        "auth_provider": am_auth.auth_provider(),
         "jwt_algorithm": app_settings.jwt_algorithm,
         "jwt_expire_minutes": app_settings.jwt_expire_minutes,
         "jwt_secret_safe": "*** (default – change in .env!)" if app_settings.jwt_secret_key == DEFAULT_JWT_SECRET else "*** (custom key set)",

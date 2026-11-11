@@ -52,6 +52,75 @@
     </div>
 </div>
 
+{# ── access-manager connection ───────────────────────────────────── #}
+<div class="card border shadow-sm mb-4" style="max-width: 640px;" id="am-card">
+    <div class="card-header bg-white py-2 d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-semibold small"><i class="bi bi-shield-lock me-1 text-info"></i>Remote authentication – access-manager</span>
+        <span class="badge border" id="am-status"></span>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Sign-in with an OTP code verified by <a href="https://github.com/alchy/access-manager" target="_blank" rel="noopener">access-manager</a>.
+            UniForms only <em>asks</em> access-manager – it never creates or changes anything there.
+            Register the application and issue its key in the access-manager console
+            (realm → Applications), allowing this server's address; then enter the server, realm and key here.
+        </p>
+        <div id="am-alert" class="d-none mb-3"></div>
+        <form id="am-form" autocomplete="off">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label fw-semibold" for="am-url">Server URL <span class="am-src" data-f="url"></span></label>
+                    <input type="url" class="form-control" id="am-url" placeholder="https://access-manager.example.com">
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold" for="am-realm">Realm <span class="am-src" data-f="realm"></span></label>
+                    <input type="text" class="form-control" id="am-realm" placeholder="uniforms.example.com">
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold" for="am-key">Application key <span class="am-src" data-f="key"></span></label>
+                    <input type="password" class="form-control" id="am-key" autocomplete="new-password" placeholder="am_k…">
+                    <div class="form-text" id="am-key-state"></div>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold" for="am-admin_group">Admin group <span class="am-src" data-f="admin_group"></span></label>
+                    <input type="text" class="form-control" id="am-admin_group" placeholder="uniforms-admin">
+                    <div class="form-text">Members become System Admin.</div>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold" for="am-user_group">User group <span class="am-src" data-f="user_group"></span></label>
+                    <input type="text" class="form-control" id="am-user_group" placeholder="uniforms-user">
+                    <div class="form-text">Members become System Reader. Neither group = no access.</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold" for="am-auth_provider">Sign-in mode <span class="am-src" data-f="auth_provider"></span></label>
+                    <select class="form-select" id="am-auth_provider">
+                        <option value="simple">Local passwords + access-manager (OTP accounts and realm members)</option>
+                        <option value="access_manager">Everyone through access-manager (local passwords disabled)</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <details>
+                        <summary class="small text-muted">Advanced</summary>
+                        <label class="form-label fw-semibold mt-2" for="am-ca">Custom CA bundle <span class="am-src" data-f="ca"></span></label>
+                        <input type="text" class="form-control" id="am-ca" placeholder="/etc/pki/tls/certs/my-ca.pem">
+                        <div class="form-text">Only when the server certificate is not signed by a public CA. Certificate verification cannot be turned off.</div>
+                    </details>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mt-4 flex-wrap">
+                <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-floppy me-1"></i>{{ term.btn_save }}</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="am-test">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="am-test-spin"></span><i class="bi bi-plug me-1"></i>Test connection
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm ms-auto d-none" id="am-clear-key">
+                    <i class="bi bi-x-circle me-1"></i>Remove key saved here
+                </button>
+            </div>
+            <div class="form-text mt-2">Empty field = value from <code>.env</code> (or the default). Values saved here take precedence over <code>.env</code>.</div>
+        </form>
+    </div>
+</div>
+
 {# ── Init-time settings (read-only / ghost) ──────────────────────── #}
 <div class="card border shadow-sm" style="max-width: 640px;">
     <div class="card-header bg-white py-2 d-flex align-items-center gap-2">
@@ -113,6 +182,104 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+(() => {
+    const $ = id => document.getElementById(id);
+    const FIELDS = ['url', 'realm', 'admin_group', 'user_group', 'auth_provider', 'ca'];
+    const SRC = {
+        gui:     '<span class="badge bg-info-subtle text-info border border-info-subtle fw-normal">set here</span>',
+        env:     '<span class="badge bg-secondary-subtle text-secondary border fw-normal">.env</span>',
+        default: '<span class="badge bg-light text-muted border fw-normal">default</span>',
+    };
+    let loaded = null;
+
+    function alertBox(kind, msg) {
+        const el = $('am-alert');
+        el.className = `alert alert-${kind} py-2 small`;
+        el.textContent = msg;
+    }
+
+    function render(cfg) {
+        loaded = cfg;
+        FIELDS.forEach(f => {
+            const v = cfg.fields[f];
+            // GUI value is editable in place; .env / default value is shown as placeholder only
+            const el = $(`am-${f}`);
+            if (f === 'auth_provider') el.value = v.value || 'simple';
+            else { el.value = v.source === 'gui' ? v.value : ''; if (v.value) el.placeholder = v.value; }
+        });
+        document.querySelectorAll('.am-src').forEach(s => {
+            const f = s.dataset.f;
+            const src = f === 'key' ? cfg.key.source : cfg.fields[f]?.source;
+            s.innerHTML = src ? SRC[src] : '';
+        });
+        $('am-key').value = '';
+        $('am-key-state').innerHTML = cfg.key.set
+            ? `Key <code>${escapeHtml(cfg.key.key_id || '?')}</code> is set ${cfg.key.source === 'env' ? 'in <code>.env</code>' : 'here'} – it is never shown. Enter a new one to replace it.`
+            : 'No key set.';
+        $('am-clear-key').classList.toggle('d-none', cfg.key.source !== 'gui');
+        const st = $('am-status');
+        st.className = 'badge border ' + (cfg.configured ? 'bg-success-subtle text-success border-success-subtle' : 'bg-light text-muted');
+        st.textContent = cfg.configured ? 'connected configuration' : 'not configured';
+        if (cfg.local_mode) st.textContent += ' (local ACCESS_MANAGER_HOME)';
+    }
+
+    function payload() {
+        const body = {};
+        FIELDS.forEach(f => {
+            const v = $(`am-${f}`).value.trim();
+            const cur = loaded.fields[f];
+            if (f === 'auth_provider') {
+                if (v !== (cur.value || 'simple')) body[f] = v;
+            } else if (v !== (cur.source === 'gui' ? cur.value : '')) {
+                body[f] = v;        // "" removes the value saved here
+            }
+        });
+        const key = $('am-key').value.trim();
+        if (key) body.key = key;
+        return body;
+    }
+
+    async function load() {
+        const r = await apiFetch('/api/v1/admin/access-manager/');
+        if (r.ok) render(await r.json());
+    }
+
+    $('am-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const body = payload();
+        if (Object.keys(body).length === 0) { alertBox('secondary', 'Nothing changed.'); return; }
+        const r = await apiFetch('/api/v1/admin/access-manager/', {method: 'PUT', body: JSON.stringify(body)});
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) { alertBox('danger', data.detail || 'Save failed.'); return; }
+        render(data);
+        alertBox('success', `Saved: ${data.changed.join(', ')}. Use “Test connection” to verify.`);
+    });
+
+    $('am-test').addEventListener('click', async () => {
+        $('am-test-spin').classList.remove('d-none');
+        try {
+            const body = payload();
+            const r = await apiFetch('/api/v1/admin/access-manager/test', {method: 'POST', body: JSON.stringify(body)});
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) { alertBox('danger', data.detail || 'Test failed.'); return; }
+            alertBox(data.ok ? 'success' : 'warning', data.message);
+        } finally {
+            $('am-test-spin').classList.add('d-none');
+        }
+    });
+
+    $('am-clear-key').addEventListener('click', async () => {
+        if (!confirm('Remove the application key saved here? The key from .env (if any) will apply.')) return;
+        const r = await apiFetch('/api/v1/admin/access-manager/', {method: 'PUT', body: JSON.stringify({key: ''})});
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) { render(data); alertBox('success', 'Key removed.'); }
+        else alertBox('danger', data.detail || 'Failed.');
+    });
+
+    load();
+})();
+</script>
 <script>
     document.getElementById('settings-form').addEventListener('submit', async (e) => {
         e.preventDefault();

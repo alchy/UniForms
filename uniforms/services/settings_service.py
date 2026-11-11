@@ -31,6 +31,12 @@ async def set_setting(db: aiosqlite.Connection, key: str, value: str) -> None:
 
 
 async def get_all_settings(db: aiosqlite.Connection) -> dict[str, str]:
+    """All PUBLIC settings – access-manager configuration (am.*, incl. the
+    application key) is excluded and only reachable through its own API."""
+    return {k: v for k, v in (await _all_rows(db)).items() if not k.startswith("am.")}
+
+
+async def _all_rows(db: aiosqlite.Connection) -> dict[str, str]:
     """Vrátí všechna nastavení jako slovník."""
     async with db.execute("SELECT key, value FROM settings") as cursor:
         rows = await cursor.fetchall()

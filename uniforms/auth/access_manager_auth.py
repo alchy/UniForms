@@ -30,6 +30,57 @@ AUTH_SOURCE_AM = "access_manager"
 AUTH_SOURCES = (AUTH_SOURCE_LOCAL, AUTH_SOURCE_AM)
 
 
+# ── Effective configuration: GUI (Settings → access-manager, SQLite) over .env ──
+# The GUI values live in the settings table under "am.<field>" and are loaded
+# into memory at startup and after every save, so the sync code below can read
+# them without a DB round-trip. Empty / missing GUI value → .env / default.
+FIELDS = {
+    "url": "access_manager_url",
+    "key": "access_manager_key",
+    "realm": "access_manager_realm",
+    "ca": "access_manager_ca",
+    "home": "access_manager_home",
+    "admin_group": "access_manager_admin_group",
+    "user_group": "access_manager_user_group",
+    "auth_provider": "auth_provider",
+}
+DB_PREFIX = "am."
+_overrides: dict[str, str] = {}
+
+
+def cfg(name: str) -> str:
+    return _overrides.get(name) or getattr(config.settings, FIELDS[name]) or ""
+
+
+def source(name: str) -> str:
+    if _overrides.get(name):
+        return "gui"
+    return "env" if getattr(config.settings, FIELDS[name]) else "default"
+
+
+def auth_provider() -> str:
+    return cfg("auth_provider") or "simple"
+
+
+def set_overrides(values: dict[str, str]) -> None:
+    """Replace the GUI overrides (keys without prefix) and drop the cached client."""
+    global _overrides
+    _overrides = {k: v for k, v in values.items() if k in FIELDS and v}
+    reset_client()
+
+
+async def load_overrides(db) -> None:
+    async with db.execute("SELECT key, value FROM settings WHERE key LIKE 'am.%'") as cur:
+        rows = await cur.fetchall()
+    set_overrides({r[0][len(DB_PREFIX):]: r[1] for r in rows})
+
+
+def key_id_of(key: str) -> str | None:
+    """Public part of an application key ("am_k6_<secret>" → "k6"); never the secret."""
+    parts = (key or "").split("_")
+    return parts[1] if len(parts) >= 3 and parts[0] == "am" else None
+
+
 @dataclass(frozen=True)
 class OtpResult:
     ok: bool
@@ -40,10 +91,9 @@ class OtpResult:
 
     def role(self) -> Optional[str]:
         """UniForms system role derived from realm groups; None = no access."""
-        s = config.settings
-        if f"group:{s.access_manager_admin_group}" in self.principals:
+        if f"group:{cfg('admin_group')}" in self.principals:
             return "system_admin"
-        if f"group:{s.access_manager_user_group}" in self.principals:
+        if f"group:{cfg('user_group')}" in self.principals:
             return "system_reader"
         return None
 
@@ -53,33 +103,31 @@ class AccessManagerNotConfigured(RuntimeError):
 
 
 def is_configured() -> bool:
-    s = config.settings
-    return bool((s.access_manager_url and s.access_manager_key)
-                or (s.access_manager_home and s.access_manager_realm))
+    return bool((cfg("url") and cfg("key")) or (cfg("home") and cfg("realm")))
 
 
-@lru_cache(maxsize=1)
-def _access():
-    """Build the client once (remote checks API version and realm at startup)."""
+def build_client(url: str = "", key: str = "", realm: str = "", ca: str = "", home: str = ""):
+    """Construct an access-manager client. Remote construction already checks the
+    API version and that the key belongs to `realm` (fails loudly otherwise)."""
     try:
         from access_manager import Access
     except ImportError as exc:  # pragma: no cover
         raise AccessManagerNotConfigured(
             "access-manager client is not installed – pip install -r requirements-access-manager.txt"
         ) from exc
-    s = config.settings
-    if s.access_manager_home:
-        if not s.access_manager_realm:
-            raise AccessManagerNotConfigured("ACCESS_MANAGER_HOME requires ACCESS_MANAGER_REALM")
-        return Access.local(s.access_manager_home, realm=s.access_manager_realm)
-    if s.access_manager_url and s.access_manager_key:
-        return Access.remote(
-            s.access_manager_url, key=s.access_manager_key,
-            realm=s.access_manager_realm or None, ca=s.access_manager_ca or None,
-        )
-    raise AccessManagerNotConfigured(
-        "set ACCESS_MANAGER_URL + ACCESS_MANAGER_KEY (service) or ACCESS_MANAGER_HOME + ACCESS_MANAGER_REALM"
-    )
+    if home:
+        if not realm:
+            raise AccessManagerNotConfigured("ACCESS_MANAGER_HOME requires a realm")
+        return Access.local(home, realm=realm)
+    if url and key:
+        return Access.remote(url, key=key, realm=realm or None, ca=ca or None)
+    raise AccessManagerNotConfigured("access-manager server URL and application key are not set")
+
+
+@lru_cache(maxsize=1)
+def _access():
+    """The client for the effective configuration, built once."""
+    return build_client(cfg("url"), cfg("key"), cfg("realm"), cfg("ca"), cfg("home"))
 
 
 def reset_client() -> None:

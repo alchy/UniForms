@@ -3,7 +3,6 @@ import logging
 import aiosqlite
 from fastapi import APIRouter, Depends
 
-from uniforms import config
 from uniforms.auth import access_manager_auth as am
 from uniforms.core.database import get_db
 from uniforms.core.security import require_admin
@@ -32,8 +31,7 @@ async def access_overview(
     current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
-    s = config.settings
-    global_am = s.auth_provider == "access_manager"
+    global_am = am.auth_provider() == "access_manager"
     rows = await _local_rows(db)
 
     # ── Local accounts: password login, role from the local DB ────────────
@@ -50,13 +48,13 @@ async def access_overview(
         local.append({**r, "is_active": bool(r["is_active"]), "access": access, "reason": reason})
 
     result = {
-        "auth_provider": s.auth_provider,
+        "auth_provider": am.auth_provider(),
         "local": local,
         "access_manager": {
             "configured": am.is_configured(),
-            "realm": s.access_manager_realm or None,
-            "admin_group": s.access_manager_admin_group,
-            "user_group": s.access_manager_user_group,
+            "realm": am.cfg("realm") or None,
+            "admin_group": am.cfg("admin_group"),
+            "user_group": am.cfg("user_group"),
             "error": None,
             "users": [],
         },
@@ -83,7 +81,7 @@ async def access_overview(
         elif not d["enabled"]:
             access, reason = None, "disabled in realm"
         elif d["role"] is None:
-            access, reason = None, f"not in {s.access_manager_user_group} / {s.access_manager_admin_group}"
+            access, reason = None, f"not in {am.cfg('user_group')} / {am.cfg('admin_group')}"
         elif row and not row["is_active"]:
             access, reason = None, "blocked locally (inactive)"
         else:

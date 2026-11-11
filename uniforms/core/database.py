@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -92,3 +93,9 @@ async def init_db() -> None:
             )
 
         await db.commit()
+
+    # The DB holds password hashes and the access-manager application key
+    try:
+        os.chmod(settings.database_path, 0o600)
+    except OSError:
+        pass
