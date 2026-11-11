@@ -14,10 +14,13 @@ UniForms je doménově nezávislý. Stejný engine může pohánět IT helpdesk 
 - **Knihovna i aplikace** — `create_app()` vrací FastAPI aplikaci, kterou lze spustit samostatně, nebo namountovat do hostitelské aplikace; služby a rozhraní (`StorageBackend`, `AuthProvider`) lze použít i bez HTTP vrstvy
 - **Konfigurovatelná terminologie** — doménové pojmy („Ticket ID", „Assigned To"…) čte engine z `uniforms.yaml`; kolekce je mohou přepsat per-kolekce
 - **Souborové úložiště** — záznamy jsou JSON soubory na disku; cesta je konfigurovatelná; žádná externí databáze (SQLite jen pro uživatele a nastavení)
-- **JWT autentizace** — httpOnly cookie (`uniforms_token`), role `system_admin` / `system_reader` + role per kolekce, konfigurovatelná délka session
+- **JWT autentizace** — httpOnly cookie (`uniforms_token`), role `system_admin` / `system_reader` + role per kolekce, konfigurovatelná délka session; role a aktivita účtu se ověřují v DB při každém požadavku
+- **Přihlášení přes access-manager (OTP)** — volitelně ověří kód z autentikátoru služba [access-manager](https://github.com/alchy/access-manager); role ze skupin realmu (`uniforms-admin`, `uniforms-user`), napojení se nastaví v GUI (Settings) a Admin → Users ukazuje efektivní přístup lokálních i realmových uživatelů
+- **Auditní stopa** — přihlášení a každá změna přes API (i odmítnutá) v denních JSONL souborech; Admin → Audit
 - **Workflow stavy** — každá kolekce definuje vlastní sadu stavů s barvami a popisky
 - **Dědičnost šablon** — šablona může dědit sekce z nadřazené šablony; podporovány abstraktní základní šablony
-- **Zamykání záznamů** — brání souběžné editaci; zámek je vynucen i na serveru (PATCH zamčeného záznamu vrací HTTP 423)
+- **Zamykání záznamů** — brání souběžné editaci; zámek je vynucen i na serveru (PATCH zamčeného záznamu vrací HTTP 423), vyprší po 30 min a editor ho obnovuje / při zavření stránky uvolní
+- **Validace na serveru** — kolekce, šablony a stav záznamu se při uložení ověřují (neplatná konfigurace se nezapíše)
 - **Tisková verze** — čistý tiskový layout přes `window.print()` nebo uložení do PDF
 
 ## Rychlý start (samostatná aplikace)
@@ -93,7 +96,7 @@ Parametry `create_app(settings=..., uniforms_config=...)` přepíší konfigurac
 JWT_SECRET_KEY=vygeneruj-silny-klic-min-32-znaku   # POVINNÉ — změň!
 JWT_EXPIRE_MINUTES=480
 COOKIE_SECURE=true          # v produkci za HTTPS
-AUTH_PROVIDER=simple        # simple | ldap | oauth
+AUTH_PROVIDER=simple        # simple | access_manager (viz docs/ACCESS_MANAGER.md)
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin        # změň!
 DATABASE_PATH=data/uniforms.db
@@ -166,6 +169,8 @@ data/                runtime data (SQLite, záznamy, šablony, kolekce)
 | [docs/INSTALACE.md](docs/INSTALACE.md) | Instalace, konfigurace, produkční nasazení |
 | [docs/API.md](docs/API.md) | REST API — přehled všech endpointů |
 | [docs/AUTENTIZACE.md](docs/AUTENTIZACE.md) | Auth, role, JWT, správa uživatelů |
+| [docs/ACCESS_MANAGER.md](docs/ACCESS_MANAGER.md) | Přihlášení přes access-manager (OTP) — napojení, role ze skupin, řešení problémů |
+| [docs/AUDIT.md](docs/AUDIT.md) | Auditní stopa — co se zapisuje, formát událostí, čtení |
 | [docs/KOLEKCE.md](docs/KOLEKCE.md) | Formát `collection.yaml` — workflow, terminologie, id_format |
 | [docs/SABLONY.md](docs/SABLONY.md) | YAML šablony — typy sekcí, pole, pipeline, dědičnost |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Web routing, uniforms.js renderer, JS moduly |

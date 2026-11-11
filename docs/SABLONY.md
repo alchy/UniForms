@@ -62,6 +62,17 @@ UniRecord uložený do databáze
 
 Každá fáze pipeline je bezstavová — šablona na disku se nemění, záznam je kompletně samostatný dokument.
 
+### Validace při uložení šablony
+
+Editor šablon (GUI) i API (`POST` / `PUT /api/v1/templates/…`) šablonu před zápisem
+**zkusí načíst celou pipeline** – YAML, `template_id`, dědičnost `extends`, normalizaci
+a model `UniTemplate`. Chyba vrátí `400` s popisem a soubor se nezapíše, takže
+rozbitá šablona už nemůže tiše zmizet ze seznamu.
+
+- `template_id` nelze při uložení změnit – pro nové ID vytvořte novou šablonu.
+- Šablona se stejným `template_id` jako existující se nevytvoří (`409`).
+- Při zakládání přes API ukládejte **nejdřív rodiče** (`abstract: true`), pak potomky.
+
 ---
 
 ## 3. Rychlý start
@@ -635,7 +646,7 @@ Pole s klíčem `auto:` je vždy read-only (`editable: false`). Jeho hodnota se 
 | `template_version` | Verze šablony (řetězec, např. `"2.0"`) |
 | `current_user` | Username přihlášeného uživatele v okamžiku vytvoření záznamu |
 | `now` | Čas vytvoření záznamu ve formátu `YYYY-MM-DDTHH:MM` (lokální timezone) |
-| `last_saved` | Čas posledního uložení záznamu; aktualizuje se při každém `PUT /api/v1/records/…` |
+| `last_saved` | Čas posledního uložení záznamu; aktualizuje se při každém `PATCH /api/v1/records/…` |
 | `meta.<klíč>` | Hodnota z bloku `meta:` šablony (např. `meta.mitre_tactic`, `meta.sla_hodiny`) |
 
 > **Poznámka:** Pokud hodnota v `meta:` je seznam, je spojena čárkou do jednoho řetězce (např. `"EDR, SIEM, Firewall"`).

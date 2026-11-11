@@ -92,6 +92,13 @@ Po prvním přihlášení doporučené kroky:
 3. V **Admin → Collections** vytvořte první kolekci.
 4. Přidejte šablonu pro kolekci přes **Templates → New**.
 5. Vytvořte první záznam tlačítkem na stránce šablon.
+6. Volitelně: napojte přihlášení přes access-manager (OTP) – **Settings → Remote authentication – access-manager**, viz [ACCESS_MANAGER.md](ACCESS_MANAGER.md).
+
+> **Ukázková data:** `data/demo/` obsahuje hotové záznamy pro kolekce `soc`, `datasource` a `zoo` (fiktivní firma, smyšlené osoby). Nahrání viz [`data/demo/README.md`](../data/demo/README.md):
+>
+> ```bash
+> for c in soc datasource zoo; do mkdir -p data/records/$c && cp data/demo/records/$c/*.json data/records/$c/; done
+> ```
 
 > **Krok za krokem:** kompletní návod od kolekce k prvnímu záznamu (s hotovými YAML příklady) je v [PRVNI_FORMULAR.md](PRVNI_FORMULAR.md).
 
@@ -126,8 +133,14 @@ ADMIN_PASSWORD=admin
 JWT_EXPIRE_MINUTES=480         # platnost session v minutách (výchozí: 8 hodin)
 JWT_ALGORITHM=HS256            # algoritmus podepisování tokenu
 COOKIE_SECURE=false            # true v produkci za HTTPS (Secure flag cookie)
-AUTH_PROVIDER=simple           # simple | ldap | oauth
+AUTH_PROVIDER=simple           # simple | access_manager (ldap / oauth zatím jen rozhraní)
 DATABASE_PATH=data/uniforms.db # cesta k SQLite databázi
+AUDIT_DIR=data/audit           # auditní stopa, denní JSONL soubory
+AUDIT_RETENTION_DAYS=365       # starší dny se mažou; 0 = nemazat
+# access-manager (OTP) – raději nastavte v GUI: Settings → Remote authentication
+# ACCESS_MANAGER_URL=https://access-manager.example.com
+# ACCESS_MANAGER_REALM=uniforms.example.com
+# ACCESS_MANAGER_KEY=am_k1_...
 TIMEZONE=UTC                   # IANA název časového pásma (např. Europe/Prague)
 DEFAULT_RECORDS_DIR=data/records
 DEFAULT_SCHEMAS_DIR=data/schemas
@@ -143,8 +156,11 @@ DEFAULT_COLLECTIONS_DIR=data/collections
 | `ADMIN_PASSWORD` | ✓ | Heslo prvního admin účtu — ihned změňte! |
 | `JWT_EXPIRE_MINUTES` | | Platnost tokenu v minutách (výchozí: `480`) |
 | `JWT_ALGORITHM` | | Algoritmus JWT (výchozí: `HS256`) |
-| `AUTH_PROVIDER` | | Poskytovatel autentizace: `simple`, `ldap`, `oauth` (výchozí: `simple`) |
-| `DATABASE_PATH` | | Cesta k SQLite souboru (výchozí: `data/uniforms.db`) |
+| `AUTH_PROVIDER` | | Poskytovatel autentizace: `simple`, `access_manager` (výchozí: `simple`; `ldap`/`oauth` jsou zatím jen rozhraní) |
+| `DATABASE_PATH` | | Cesta k SQLite souboru (výchozí: `data/uniforms.db`; aplikace mu nastaví práva `0600`) |
+| `AUDIT_DIR` | | Adresář auditní stopy (výchozí: `data/audit`) – viz [AUDIT.md](AUDIT.md) |
+| `AUDIT_RETENTION_DAYS` | | Retence auditu ve dnech (výchozí: `365`, `0` = nemazat) |
+| `ACCESS_MANAGER_*` | | Napojení na access-manager; hodnoty z GUI (Settings) mají přednost – viz [ACCESS_MANAGER.md](ACCESS_MANAGER.md#reference--konfigurace) |
 | `TIMEZONE` | | IANA název časového pásma pro záznamy (výchozí: `UTC`) |
 | `DEFAULT_RECORDS_DIR` | | Adresář pro záznamy (výchozí: `data/records`) |
 | `DEFAULT_SCHEMAS_DIR` | | Adresář pro šablony (výchozí: `data/schemas`) |
@@ -249,19 +265,25 @@ UniForms/
 │   ├── records/                   JSON záznamy per-kolekce (generuje se za běhu)
 │   │   └── helpdesk/
 │   │       └── REC-202603-0001.json
-│   └── uniforms.db                SQLite databáze (uživatelé, nastavení, zámky)
+│   ├── audit/                     auditní stopa RRRR-MM-DD.jsonl (0700, neverzovat)
+│   ├── demo/records/              ukázková data (soc, datasource, zoo)
+│   └── uniforms.db                SQLite databáze (uživatelé, role, nastavení vč. klíče access-manageru; 0600)
 ├── docs/                          tato dokumentace
 ├── scripts/
-│   └── download_vendors.py        stáhne JS/CSS knihovny do static/vendor/
+│   ├── download_vendors.py        stáhne JS/CSS knihovny do static/vendor/
+│   └── seed_demo_*.py             vygenerují ukázková data přes REST API
 ├── .env                           tajné klíče (neverzovat!)
 ├── .env.example                   šablona pro .env
 ├── uniforms.yaml                  doménová konfigurace aplikace
 ├── uniforms.yaml.example          dokumentovaný příklad konfigurace
 ├── requirements.txt               Python závislosti
+├── requirements-access-manager.txt  volitelný klient access-manageru (OTP přihlášení)
 └── start.py                       spouštěč serveru
 ```
 
 > **Tip:** Záloha aplikace = záloha adresáře `data/` + souborů `.env` a `uniforms.yaml`. Zdrojový kód lze kdykoli znovu naklonovat.
+>
+> **Pozor:** `data/uniforms.db` obsahuje hashe hesel a (je-li nastaven v GUI) aplikační klíč access-manageru – se zálohou zacházejte jako s tajemstvím.
 
 ---
 
@@ -404,6 +426,22 @@ systemctl status uniforms
 journalctl -u uniforms -f
 ```
 
+Za reverzní proxy spouštějte uvicorn s `--proxy-headers --forwarded-allow-ips 127.0.0.1`
+(nebo adresou proxy), jinak audit a access-manager uvidí místo adresy klienta adresu proxy:
+
+```ini
+ExecStart=/opt/uniforms/app/.venv/bin/uvicorn uniforms.main:app --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1
+```
+
+**Volitelně – přihlášení přes access-manager (OTP):**
+
+```bash
+sudo -u uniforms /opt/uniforms/app/.venv/bin/pip install -r requirements-access-manager.txt
+systemctl restart uniforms
+```
+
+Pak Settings → *Remote authentication – access-manager* ([ACCESS_MANAGER.md](ACCESS_MANAGER.md)).
+
 ### Krok 6 — nginx jako reverzní proxy
 
 Odstraňte výchozí blok `server {}` z `/etc/nginx/nginx.conf` a vytvořte `/etc/nginx/conf.d/uniforms.conf`.
@@ -508,6 +546,8 @@ Před zpřístupněním aplikace uživatelům ověřte:
 - [ ] systemd service je nastaven na automatický start: `systemctl is-enabled uniforms`
 - [ ] Zálohovací cron job je nastaven: `crontab -l`
 - [ ] SELinux nakonfigurován (RHEL/Rocky): `getsebool httpd_can_network_connect` → `on`
+- [ ] Audit se zapisuje: Admin → Audit ukazuje vaše přihlášení; `ls -ld data/audit` → `drwx------`
+- [ ] Je-li napojen access-manager: Settings → **Test connection** hlásí „groups OK“ a v Admin → Users jsou vidět uživatelé realmu
 
 ### Vestavěné bezpečnostní vrstvy
 
@@ -519,6 +559,10 @@ Před zpřístupněním aplikace uživatelům ověřte:
 | `X-Requested-With` | Všechna AJAX volání přes `apiFetch` odesílají `X-Requested-With: XMLHttpRequest` |
 | Role-based access | Admin endpointy vyžadují roli `system_admin`; operace s kolekcí vyžadují `collection_admin` nebo `collection_user` |
 | Bcrypt hesla | Hesla se nikdy neukládají v plaintextu; cost factor ~12 |
+| Role z DB při každém požadavku | Deaktivace, smazání nebo změna role účtu platí okamžitě, ne až po vypršení JWT |
+| Auditní stopa | Přihlášení a všechny změny přes API (i odmítnuté) – [AUDIT.md](AUDIT.md) |
+| Zámky s platností | Zámek editace vyprší po 30 min; editor ho obnovuje a při zavření stránky uvolní |
+| Validace při ukládání | Kolekce, šablony a stav záznamu se ověřují na serveru (422/400) |
 | XSS ochrana | Veškerý HTML obsah z JSON prochází sanitizací v `uniforms.js` |
 
 ---
@@ -528,4 +572,6 @@ Před zpřístupněním aplikace uživatelům ověřte:
 - Psaní šablon: [SABLONY.md](SABLONY.md)
 - REST API: [API.md](API.md)
 - Autentizace a role: [AUTENTIZACE.md](AUTENTIZACE.md)
+- Přihlášení přes access-manager: [ACCESS_MANAGER.md](ACCESS_MANAGER.md)
+- Auditní stopa: [AUDIT.md](AUDIT.md)
 - Frontend a renderer: [FRONTEND.md](FRONTEND.md)

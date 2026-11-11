@@ -3,8 +3,10 @@
 Přístup do UniForms je chráněn třemi pilíři:
 
 1. **Konfigurace v `.env`** — JWT secret, doba platnosti tokenu, volba auth provideru a init admin účet.
-2. **Úložiště hesel** — hesla jsou hashována algoritmem bcrypt; plain text se nikde neukládá.
-3. **Session přes JWT cookie** — po přihlášení dostane prohlížeč httpOnly cookie `uniforms_token`; ta se posílá automaticky s každým dalším requestem.
+2. **Ověření identity** — lokální heslo (bcrypt hash; plain text se nikde neukládá), nebo jednorázový kód (OTP) ověřený službou [access-manager](ACCESS_MANAGER.md).
+3. **Session přes JWT cookie** — po přihlášení dostane prohlížeč httpOnly cookie `uniforms_token`; ta se posílá automaticky s každým dalším requestem. Role a aktivita účtu se přitom při každém požadavku ověřují v lokální DB.
+
+Každé přihlášení (i neúspěšné) je v [auditní stopě](AUDIT.md).
 
 ---
 
@@ -14,13 +16,14 @@ Přístup do UniForms je chráněn třemi pilíři:
 Prohlížeč                      FastAPI /api/v1/auth/login
    |                                     |
    |-- POST {username, password} ------> |
-   |                                     |-- ověř auth provider (simple/ldap/oauth)
+   |                                     |-- auth_source účtu = local?
    |                                     |       |
-   |                                     |       +-- chyba --> sleep(1) --> HTTP 401
-   |                                     |
-   |                                     |-- bcrypt.verify(password, hashed_password)
+   |                                     |       +-- ano: bcrypt.verify(password, hashed_password)
+   |                                     |       +-- ne / účet neexistuje: OTP kód přes access-manager
+   |                                     |             (role ze skupin realmu, viz ACCESS_MANAGER.md)
    |                                     |       |
    |                                     |       +-- neplatné --> sleep(1) --> HTTP 401
+   |                                     |       +-- příliš mnoho pokusů (access-manager) --> HTTP 429
    |                                     |
    |                                     |-- vytvoř JWT
    |                                     |   { sub: username, role: system_role, exp: now+JWT_EXPIRE_MINUTES }
@@ -31,6 +34,8 @@ Prohlížeč                      FastAPI /api/v1/auth/login
    |                                     |
    |-- GET /api/v1/... ---------------> |
    |   Cookie: uniforms_token=<JWT>      |-- decode_token() → TokenPayload
+   |                                     |-- role + is_active z tabulky users
+   |                                     |   (smazaný / deaktivovaný účet → 401 hned)
    |                                     |-- require_auth() / require_admin()
    |<-- 200 OK / 401 / 403 ------------ |
 ```
@@ -46,7 +51,8 @@ Prohlížeč                      FastAPI /api/v1/auth/login
 | `JWT_SECRET_KEY` | ✓ | `change-me-in-production` | Podepisovací klíč JWT. Nastavte silný náhodný řetězec (min. 32 znaků). |
 | `JWT_EXPIRE_MINUTES` | | `480` | Platnost tokenu v minutách (výchozí 8 hodin). Po vypršení je nutné se znovu přihlásit. |
 | `JWT_ALGORITHM` | | `HS256` | Algoritmus podpisu JWT. Výchozí `HS256` je dostačující pro interní nasazení. |
-| `AUTH_PROVIDER` | | `simple` | Způsob ověření identity: `simple`, `ldap`, nebo `oauth`. |
+| `AUTH_PROVIDER` | | `simple` | Způsob ověření identity: `simple`, `access_manager`, `ldap`, nebo `oauth`. Hodnotu `simple` / `access_manager` lze přepsat i v Settings. |
+| `ACCESS_MANAGER_*` | | – | Napojení na access-manager – raději přes Settings, viz [ACCESS_MANAGER.md](ACCESS_MANAGER.md#reference--konfigurace). |
 | `ADMIN_USERNAME` | | `admin` | Uživatelské jméno init admin účtu vytvořeného při prvním startu. |
 | `ADMIN_PASSWORD` | | `admin` | Heslo init admin účtu. **Okamžitě změňte po prvním spuštění.** |
 | `DATABASE_PATH` | | `data/uniforms.db` | Cesta k SQLite databázi s uživateli a collection rolemi. |
@@ -63,17 +69,42 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 ## 3. Auth providery
 
-UniForms podporuje tři způsoby ověření identity, volba se provádí klíčem `AUTH_PROVIDER` v `.env`.
+Volba se provádí klíčem `AUTH_PROVIDER` v `.env` (`simple` a `access_manager` i v Settings).
 
 ### `simple` — lokální databáze (výchozí)
 
-Hesla jsou uložena jako bcrypt hash v SQLite databázi. Vhodné pro malé týmy a interní nástroje bez LDAP/SSO infrastruktury.
+Každý účet v tabulce `users` má **zdroj ověření** `auth_source`:
+
+| `auth_source` | Jak se ověřuje | Odkud je role |
+|---------------|----------------|---------------|
+| `local` | bcrypt heslo v SQLite | lokální DB (Admin → Users) |
+| `access_manager` | OTP kód přes access-manager | skupiny realmu, propsané do DB při každém přihlášení |
+
+Je-li access-manager nakonfigurovaný, jméno, které lokálně neexistuje, se ověří přes
+něj a člen skupiny `uniforms-user` / `uniforms-admin` dostane lokální účet při prvním
+přihlášení sám. Bez access-manageru je to čistě lokální databáze hesel.
 
 ```ini
 AUTH_PROVIDER=simple
 ```
 
-### `ldap` — podnikový adresář
+### `access_manager` — všichni přes access-manager
+
+Každé přihlášení – i účtů s `auth_source=local` – ověřuje access-manager; lokální hesla
+se nepoužijí. Režim nejde zapnout správcem přihlášeným lokálním heslem (zamkl by se).
+Podrobně v [ACCESS_MANAGER.md](ACCESS_MANAGER.md).
+
+```ini
+AUTH_PROVIDER=access_manager
+```
+
+### `ldap` a `oauth` — rozhraní, zatím bez implementace
+
+> **Stav:** `LDAPProvider` a `OAuthProvider` (`uniforms/auth/ldap_auth.py`, `oauth_auth.py`)
+> jsou zatím jen kostry – jejich metody vyhazují `NotImplementedError`. Níže je zamýšlené
+> použití; pro centrální přihlášení dnes použijte `access_manager`.
+
+#### `ldap` — podnikový adresář
 
 Ověření probíhá bind operací na LDAP/Active Directory serveru. Hesla se v UniForms vůbec neukládají. Vhodné pro organizace s centrálním AD.
 
@@ -85,7 +116,7 @@ LDAP_BASE_DN=DC=example,DC=com
 
 > **Poznámka:** I při LDAP provideru jsou systémové a collection role uloženy v SQLite — LDAP slouží pouze k ověření hesla.
 
-### `oauth` — externího poskytovatele (SSO)
+#### `oauth` — externího poskytovatele (SSO)
 
 Přihlášení přes OAuth 2.0 / OIDC (např. Google, GitHub, Azure AD). Po úspěšném OAuth flow UniForms vydá vlastní JWT cookie. Vhodné pro SaaS nasazení nebo organizace s existujícím SSO.
 
@@ -100,11 +131,13 @@ OAUTH_DISCOVERY_URL=https://accounts.google.com/.well-known/openid-configuration
 
 ## 4. Rolový systém
 
-Přístupová práva jsou dvouvrstvá: **systémová role** (v JWT, platí globálně) + **collection role** (v SQLite, platí pro konkrétní kolekci).
+Přístupová práva jsou dvouvrstvá: **systémová role** (v tabulce `users`, platí globálně) + **collection role** (v SQLite, platí pro konkrétní kolekci).
 
 ### 4.1 Systémové role
 
-Systémová role se ukládá do JWT claimu `role` při přihlášení.
+Systémová role je uložena v tabulce `users` a zapisuje se i do JWT claimu `role`. Při každém požadavku se ale bere **z DB**, ne z JWT – změna role, deaktivace nebo smazání účtu tak platí okamžitě, ne až po vypršení tokenu. U OTP účtů ji určují skupiny realmu (`uniforms-admin` → `system_admin`, `uniforms-user` → `system_reader`).
+
+**Admin → Users** ukazuje efektivní přístup všech – lokálních účtů i uživatelů realmu access-manageru – bez ohledu na to, kdo je autentizační a kdo autorizační autorita.
 
 | Role | Popis |
 |------|-------|
@@ -176,6 +209,14 @@ curl -s -b cookies.txt -X POST http://localhost:8080/api/v1/users \
   }'
 ```
 
+OTP účet (přihlášení přes access-manager) se zakládá bez hesla:
+
+```bash
+curl -s -b cookies.txt -X POST http://localhost:8080/api/v1/users/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "hana", "role": "system_reader", "auth_source": "access_manager"}'
+```
+
 ### Přiřazení collection role
 
 ```bash
@@ -228,7 +269,13 @@ JWT_EXPIRE_MINUTES=60
 ```
 
 **Brute-force ochrana**
-Server vždy čeká 1 sekundu před odesláním chybové odpovědi `401`. Toto zpomalení je vestavěné a nelze ho vypnout konfigurací.
+Server vždy čeká 1 sekundu před odesláním chybové odpovědi `401`. Toto zpomalení je vestavěné a nelze ho vypnout konfigurací. U OTP přihlášení navíc omezuje pokusy access-manager (podle adresy klienta, kterou mu UniForms předává) – UniForms pak vrací `429` s časem dalšího pokusu.
+
+**Deaktivace a smazání účtu**
+Platí okamžitě: `require_auth` při každém požadavku čte roli a `is_active` z DB. Smazání uživatele maže i jeho role v kolekcích, takže je nový účet se stejným jménem nezdědí.
+
+**Databáze**
+`data/uniforms.db` obsahuje hashe hesel a případně aplikační klíč access-manageru (uložený v Settings); aplikace jí při startu nastaví práva `0600`. Zahrňte ji do zálohování jako tajemství.
 
 **Rotace klíče**
 Při podezření na kompromitaci stačí změnit `JWT_SECRET_KEY` v `.env` — všechny existující tokeny přestanou být platné a uživatelé se musí znovu přihlásit.
@@ -245,7 +292,7 @@ Při podezření na kompromitaci stačí změnit `JWT_SECRET_KEY` v `.env` — v
 | `verify_password(plain, hashed)` | `auth.py` — login endpoint | Porovná plain heslo s uloženým hashem. Vrací `bool`. |
 | `create_access_token(data, expires_delta)` | `auth.py` — login endpoint | Vytvoří podepsaný JWT s claimy `sub`, `role`, `exp`. |
 | `decode_token(token)` | `require_auth` | Dekóduje a ověří JWT podpis a expiraci. Vyhazuje PyJWT výjimky při neplatném tokenu. |
-| `require_auth` | FastAPI `Depends()` na chráněných endpointech | Načte `uniforms_token` cookie, dekóduje JWT, vrátí `User`. Vrátí `401` pokud cookie chybí nebo je neplatná. |
+| `require_auth` | FastAPI `Depends()` na chráněných endpointech | Načte `uniforms_token` cookie, dekóduje JWT, u `simple`/`access_manager` načte aktuální roli a `is_active` z DB a vrátí `User`. Vrátí `401`, pokud cookie chybí, je neplatná, nebo je účet smazaný / deaktivovaný. |
 | `require_admin` | FastAPI `Depends()` na admin endpointech | Zavolá `require_auth`, zkontroluje `role == "system_admin"`. Vrátí `403` jinak. |
 | `require_collection_access` | `collection_deps.py` | Projde pro `system_admin` nebo uživatele s `collection_admin`/`collection_user` pro danou kolekci. Jinak `403`. |
 | `require_collection_admin` | `collection_deps.py` | Projde pro `system_admin` nebo uživatele s `collection_admin` pro danou kolekci. Jinak `403`. |
@@ -255,7 +302,7 @@ Při podezření na kompromitaci stačí změnit `JWT_SECRET_KEY` v `.env` — v
 ```python
 class User(BaseModel):
     username: str
-    role: str = "system_reader"   # systémová role uložená v JWT
+    role: str = "system_reader"   # systémová role (z DB při každém požadavku)
     is_active: bool = True
 
 class TokenPayload(BaseModel):

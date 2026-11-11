@@ -12,7 +12,7 @@ Veškerá komunikace probíhá ve formátu JSON. Autentizace je řešena přes h
 
 ## Jak to funguje
 
-Každý požadavek prochází JWT middleware, který ověří token a nastaví identitu uživatele. Teprve poté handler zkontroluje oprávnění a zavolá příslušnou service vrstvu.
+Každý mutující požadavek (POST/PUT/PATCH/DELETE) nejdřív zachytí audit middleware a CSRF guard (`Content-Type: application/json`). Závislost `require_auth` pak ověří JWT a načte aktuální roli a aktivitu účtu z DB. Teprve poté handler zkontroluje oprávnění a zavolá příslušnou service vrstvu.
 
 ```
 Prohlížeč / klient
@@ -22,8 +22,10 @@ Prohlížeč / klient
 ┌──────────────────────────────────────────────────┐
 │  FastAPI (uvicorn, port 8080)                    │
 │                                                  │
-│  JWT middleware                                  │
-│    │  ověří token → request.state.user           │
+│  AuditMiddleware → data/audit/*.jsonl            │
+│  SecurityMiddleware (CSRF guard, hlavičky)       │
+│    ▼                                             │
+│  require_auth: JWT + role/is_active z DB         │
 │    ▼                                             │
 │  Route handler                                   │
 │    │                                             │
@@ -34,7 +36,9 @@ Prohlížeč / klient
 │    ├── /api/v1/templates/*     šablony           │
 │    ├── /api/v1/users/*         správa uživatelů  │
 │    ├── /api/v1/settings/*      nastavení cest    │
-│    └── /api/v1/admin/*         admin správa      │
+│    └── /api/v1/admin/*         admin: kolekce,   │
+│                                role, audit,      │
+│                                přístup, AM       │
 │    ▼                                             │
 │  Service vrstva → JSON soubory / SQLite          │
 └──────────────────────────────────────────────────┘
@@ -405,6 +409,18 @@ curl -s -b /tmp/uf.cookies \
 | `status` | | Nový stav workflow (musí být platný stav pro danou kolekci) |
 | `data` | | Objekt `{ "sections": [...] }` s aktualizovanými daty záznamu |
 
+Stav mimo workflow kolekce vrací `422` s výčtem povolených stavů. Nezměněný stav projde
+vždy – i u staršího záznamu, jehož stav ve workflow už není (jde ho dál ukládat).
+
+```json
+// Odpověď 422 — neznámý stav
+{ "detail": "Unknown status 'bogus' – allowed: new, open, in_progress, on_hold, closed" }
+```
+
+`record_id` v cestě smí obsahovat jen písmena, číslice, `_` a `-`; jinak `400`
+(u všech endpointů záznamů a zámků). Změna stavu a seznam změněných polí se zapisují
+do [auditu](AUDIT.md).
+
 ### `DELETE /api/v1/records/{collection_id}/{record_id}`
 
 Trvale smaže záznam. Vyžaduje roli `collection_admin` v dané kolekci nebo globální `system_admin`.
@@ -421,6 +437,11 @@ curl -s -b /tmp/uf.cookies \
 ### Zámky editace – `lock`
 
 Zámek zabraňuje souběžné editaci stejného záznamu dvěma uživateli. Před zahájením editace zámek získejte, po uložení ho uvolněte. `system_admin` může uvolnit cizí zámek.
+
+**Platnost zámku je 30 minut** od posledního získání. Starší zámek se považuje za uvolněný
+(zavřená záložka, pád prohlížeče) a kdokoli ho může převzít. Opakovaný `POST …/lock`
+vlastníkem zámek obnoví – editor v prohlížeči to dělá každých 5 minut (heartbeat)
+a při zavření stránky zámek uvolní (`pagehide`, `keepalive`).
 
 #### `POST /api/v1/records/{collection_id}/{record_id}/lock`
 
@@ -497,7 +518,7 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/templates/soc/
 
 ### `POST /api/v1/templates/{collection_id}/`
 
-Vytvoří nový soubor šablony. Pokud soubor s daným názvem již existuje, vrátí `409 Conflict`. Pokud obsah není platný YAML, vrátí `400 Bad Request`.
+Vytvoří nový soubor šablony. Pokud soubor s daným názvem nebo šablona se stejným `template_id` již existuje, vrátí `409 Conflict`. Obsah se před uložením ověří – musí jít načíst jako šablona (YAML, `template_id`, dědičnost `extends`, normalizace, model `UniTemplate`); jinak `400 Bad Request` s popisem chyby. Rodičovská šablona (`extends`) proto musí existovat dřív než potomek.
 
 ```bash
 curl -s -b /tmp/uf.cookies \
@@ -565,7 +586,7 @@ curl -s -b /tmp/uf.cookies \
 
 ### `PUT /api/v1/templates/{collection_id}/{template_id}`
 
-Přepíše zdrojový YAML šablony. Pokud obsah není platný YAML, vrátí `400 Bad Request`.
+Přepíše zdrojový YAML šablony. Obsah se ověří stejně jako u `POST` (`400` s popisem chyby). `template_id` uvnitř YAML **nelze změnit** – pro nové ID vytvořte novou šablonu (jinak `400`).
 
 ```bash
 curl -s -b /tmp/uf.cookies \
@@ -627,17 +648,23 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/users/
     "username": "admin",
     "role": "system_admin",
     "is_active": true,
-    "created_at": "2026-01-01T00:00:00"
+    "created_at": "2026-01-01T00:00:00",
+    "auth_source": "local"
   },
   {
     "id": 2,
     "username": "jsmith",
     "role": "system_reader",
     "is_active": true,
-    "created_at": "2026-03-05T14:30:22"
+    "created_at": "2026-03-05T14:30:22",
+    "auth_source": "access_manager"
   }
 ]
 ```
+
+`auth_source`: `local` = přihlášení heslem, `access_manager` = OTP kód přes
+access-manager (viz [ACCESS_MANAGER.md](ACCESS_MANAGER.md)). Efektivní přístup
+včetně uživatelů realmu bez lokálního účtu vrací [`GET /api/v1/admin/access/`](#admin--přehled-přístupu--apiv1adminaccess).
 
 ### `POST /api/v1/users/`
 
@@ -667,8 +694,9 @@ curl -s -b /tmp/uf.cookies \
 | Klíč | ✓ | Popis |
 |------|---|-------|
 | `username` | ✓ | Uživatelské jméno (musí být unikátní) |
-| `password` | ✓ | Heslo v plaintextu — server uloží bcrypt hash |
-| `role` | ✓ | Systémová role: `system_admin` nebo `system_reader` |
+| `password` | ◐ | Heslo v plaintextu — server uloží bcrypt hash. Povinné pro `auth_source: "local"` (jinak `422`), u OTP účtu se ignoruje |
+| `role` | | Systémová role: `system_admin` nebo `system_reader` (výchozí `system_reader`). U OTP účtu ji při každém přihlášení přepíšou skupiny realmu |
+| `auth_source` | | `local` (výchozí) nebo `access_manager` |
 
 ### `GET /api/v1/users/{username}`
 
@@ -714,12 +742,15 @@ curl -s -b /tmp/uf.cookies \
 | `role` | | Nová systémová role: `system_admin` nebo `system_reader` (jiná hodnota → `422`) |
 | `is_active` | | Aktivace (`true`) nebo deaktivace (`false`) účtu |
 | `password` | | Nové heslo v plaintextu — server uloží bcrypt hash |
+| `auth_source` | | Změna zdroje ověření: `local` nebo `access_manager` |
+
+Deaktivace platí okamžitě (role a `is_active` se ověřují v DB při každém požadavku).
 
 Vlastnímu účtu nelze odebrat admin roli ani ho deaktivovat (vrátí `400 Bad Request`) — ochrana proti zamknutí se ven z aplikace.
 
 ### `DELETE /api/v1/users/{username}`
 
-Trvale smaže uživatelský účet. Nelze smazat vlastní účet (vrátí `400 Bad Request`).
+Trvale smaže uživatelský účet i jeho role v kolekcích (nový účet se stejným jménem je nezdědí). Nelze smazat vlastní účet (vrátí `400 Bad Request`).
 
 ```bash
 curl -s -b /tmp/uf.cookies \
@@ -813,6 +844,9 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/settings/
 }
 ```
 
+Nastavení access-manageru (`am.*`, včetně aplikačního klíče) `GET /api/v1/settings/`
+**nevrací** – mají vlastní API [`/api/v1/admin/access-manager`](#admin--access-manager--apiv1adminaccess-manager).
+
 ### `PATCH /api/v1/settings/`
 
 Aktualizuje cesty k datovým adresářům. Každá hodnota musí být existující adresář bez `..` v cestě. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir`.
@@ -885,14 +919,26 @@ curl -s -b /tmp/uf.cookies \
   "content": "id: helpdesk\nname: Helpdesk\n..."
 }
 
-// Odpověď 200
-{ "ok": true, "id": "helpdesk" }
+// Odpověď 201
+{ "collection_id": "helpdesk", "filename": "helpdesk.yaml" }
 ```
 
 | Klíč | ✓ | Popis |
 |------|---|-------|
 | `filename` | ✓ | Slug kolekce `[a-z0-9_-]` (bez přípony `.yaml`) |
 | `content` | ✓ | Celý YAML obsah definice kolekce |
+
+Obsah se před uložením přísně ověří (stejně u `PUT`), jinak `422` s popisem:
+
+| Kontrola | Příklad chyby |
+|----------|---------------|
+| platný YAML, mapování | `Invalid YAML: …` |
+| `id` = název souboru (role se párují podle `id`) | `Collection id 'zoo2' must match the file name 'zoo'` |
+| `workflow.initial_state` je mezi `workflow.states` | `workflow.initial_state 'sleeping' is not one of: received, quarantine, …` |
+| model `CollectionConfig` | `Invalid collection: 1 validation error …` |
+
+Existující soubor se špatným `initial_state` se při načítání nezahodí – použije se první
+stav a zaloguje varování.
 
 ### `GET /api/v1/admin/collections/{id}/source`
 
@@ -917,7 +963,7 @@ curl -s -b /tmp/uf.cookies \
 
 ```json
 // Odpověď 200
-{ "ok": true }
+{ "collection_id": "helpdesk" }
 ```
 
 ### `DELETE /api/v1/admin/collections/{id}`
@@ -1016,6 +1062,205 @@ curl -s -b /tmp/uf.cookies \
 
 ---
 
+## Admin – Audit – `/api/v1/admin/audit`
+
+Čtení auditní stopy (přihlášení a všechny změny přes API, i odmítnuté). Formát událostí
+a význam polí: [AUDIT.md](AUDIT.md).
+
+| Metoda | Endpoint | Popis | Auth |
+|--------|----------|-------|------|
+| `GET` | `/api/v1/admin/audit/` | Události, nejnovější první | system_admin |
+
+### `GET /api/v1/admin/audit/`
+
+```bash
+curl -s -b /tmp/uf.cookies \
+  "http://localhost:8080/api/v1/admin/audit/?day_from=2026-11-01&who=demo&outcome=denied&limit=50"
+```
+
+```json
+// Odpověď 200
+{
+  "day_from": "2026-11-01",
+  "day_to": "2026-11-11",
+  "count": 1,
+  "truncated": false,
+  "retention_days": 365,
+  "events": [
+    {
+      "t": "2026-11-11T11:24:10+00:00",
+      "kind": "write",
+      "op": "update_record",
+      "actor": "user:demo",
+      "collection_id": "soc",
+      "record_id": "UIB-11112026-8099",
+      "method": "PATCH",
+      "path": "/api/v1/records/soc/UIB-11112026-8099",
+      "status": 423,
+      "outcome": "denied",
+      "error": "Record is locked by another user"
+    }
+  ]
+}
+```
+
+| Parametr | ✓ | Popis |
+|----------|:-:|-------|
+| `day_from`, `day_to` | | `RRRR-MM-DD`, včetně; výchozí posledních 7 dní |
+| `who` | | podřetězec aktéra nebo subjektu (`demo` najde `user:demo`) |
+| `kind` | | `auth` \| `write` |
+| `outcome` | | `ok` \| `denied` \| `rejected` \| `error` |
+| `collection_id` | | jen události dané kolekce |
+| `text` | | fulltext přes celou událost (ID záznamu, IP …) |
+| `limit` | | 1–5000, výchozí 500; `truncated: true` = výsledků je víc |
+
+---
+
+## Admin – Přehled přístupu – `/api/v1/admin/access`
+
+Kdo se do UniForms dostane a v jaké roli – lokální účty i uživatelé realmu access-manageru,
+bez ohledu na to, kdo je autentizační a kdo autorizační autorita. Podklad stránky
+Admin → Users.
+
+| Metoda | Endpoint | Popis | Auth |
+|--------|----------|-------|------|
+| `GET` | `/api/v1/admin/access/` | Efektivní přístup všech účtů | system_admin |
+
+### `GET /api/v1/admin/access/`
+
+```bash
+curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/admin/access/
+```
+
+```json
+// Odpověď 200
+{
+  "auth_provider": "simple",
+  "local": [
+    { "username": "demo", "role": "system_admin", "is_active": true, "auth_source": "local",
+      "created_at": "2026-11-11 09:38:45", "access": "system_admin", "reason": null }
+  ],
+  "access_manager": {
+    "configured": true,
+    "realm": "uniforms.example.com",
+    "admin_group": "uniforms-admin",
+    "user_group": "uniforms-user",
+    "error": null,
+    "users": [
+      { "username": "hana", "enabled": true, "groups": ["uniforms-user", "user"],
+        "role": "system_reader", "in_realm": true, "local": null,
+        "access": "system_reader", "reason": null },
+      { "username": "petr", "enabled": true, "groups": ["user"],
+        "role": null, "in_realm": true, "local": null,
+        "access": null, "reason": "not in uniforms-user / uniforms-admin" }
+    ]
+  }
+}
+```
+
+| Pole | Popis |
+|------|-------|
+| `access` | efektivní role v UniForms, nebo `null` = bez přístupu |
+| `reason` | proč bez přístupu: `inactive`, `disabled in realm`, `not in <user> / <admin>`, `blocked locally (inactive)`, `name taken by a local password account`, `not in realm – cannot sign in`, `password login disabled (AUTH_PROVIDER=access_manager)` |
+| `access_manager.users[].role` | role, kterou dávají skupiny realmu |
+| `access_manager.users[].local` | lokální řádek (`null` = vznikne při prvním přihlášení) |
+| `access_manager.users[].in_realm` | `false` = lokální OTP účet, jehož identita z realmu zmizela |
+| `access_manager.error` | access-manager nedostupný – lokální část se vrátí i tak |
+
+---
+
+## Admin – Access-manager – `/api/v1/admin/access-manager`
+
+Napojení na access-manager z GUI (Settings). Hodnoty mají přednost před `.env`.
+Aplikační klíč je **jen pro zápis** – žádný endpoint ho nevrací. Postup a význam polí:
+[ACCESS_MANAGER.md](ACCESS_MANAGER.md).
+
+| Metoda | Endpoint | Popis | Auth |
+|--------|----------|-------|------|
+| `GET` | `/api/v1/admin/access-manager/` | Efektivní konfigurace a zdroj hodnot | system_admin |
+| `PUT` | `/api/v1/admin/access-manager/` | Uložení | system_admin |
+| `POST` | `/api/v1/admin/access-manager/test` | Test připojení (i neuložených hodnot) | system_admin |
+
+### `GET /api/v1/admin/access-manager/`
+
+```json
+// Odpověď 200
+{
+  "configured": true,
+  "fields": {
+    "url":           { "value": "https://access-manager.example.com", "source": "gui" },
+    "realm":         { "value": "uniforms.example.com", "source": "gui" },
+    "ca":            { "value": "", "source": "default" },
+    "admin_group":   { "value": "uniforms-admin", "source": "default" },
+    "user_group":    { "value": "uniforms-user", "source": "default" },
+    "auth_provider": { "value": "simple", "source": "env" }
+  },
+  "key": { "set": true, "source": "gui", "key_id": "k1" },
+  "local_mode": false
+}
+```
+
+`source`: `gui` (uloženo v Settings) | `env` | `default`. `key_id` je veřejná část klíče
+(`am_k1_…` → `k1`).
+
+### `PUT /api/v1/admin/access-manager/`
+
+```bash
+curl -s -b /tmp/uf.cookies \
+  -X PUT http://localhost:8080/api/v1/admin/access-manager/ \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://access-manager.example.com", "realm": "uniforms.example.com", "key": "am_k1_<klíč z konzole>"}'
+```
+
+```json
+// Odpověď 200 — tvar jako GET + seznam změněných polí
+{
+  "ok": true,
+  "changed": ["key", "realm", "url"],
+  "configured": true,
+  "fields": { "url": { "value": "https://access-manager.example.com", "source": "gui" } },
+  "key": { "set": true, "source": "gui", "key_id": "k1" },
+  "local_mode": false
+}
+```
+
+| Klíč | ✓ | Popis |
+|------|:-:|-------|
+| `url` | | `https://…`; plain `http` jen na loopback (jinak `422`) |
+| `realm` | | název realmu |
+| `key` | | aplikační klíč `am_k…_…` (jinak `422`); `""` odebere klíč uložený v GUI |
+| `admin_group`, `user_group` | | skupiny realmu pro `system_admin` / `system_reader` |
+| `auth_provider` | | `simple` \| `access_manager`; `""` = zpět na `.env` |
+| `ca` | | cesta k vlastní CA |
+
+Vynechané pole se nemění, prázdný řetězec vrátí platnost `.env` / výchozí hodnotě.
+`auth_provider: "access_manager"` uložený správcem přihlášeným lokálním heslem vrací
+`409` (zamkl by se). Do auditu jdou jen názvy změněných polí.
+
+### `POST /api/v1/admin/access-manager/test`
+
+Tělo má tvar jako `PUT` (všechna pole volitelná – chybějící se doplní z efektivní
+konfigurace). Nic se neukládá.
+
+```json
+// Odpověď 200 — úspěch
+{
+  "ok": true,
+  "message": "Connected to realm 'uniforms.example.com': 4 users, groups OK.",
+  "ready": true,
+  "not_ready_reason": null,
+  "users": 4,
+  "groups": ["uniforms-admin", "uniforms-user", "user"],
+  "missing_groups": [],
+  "realm": "uniforms.example.com"
+}
+
+// Odpověď 200 — neúspěch (HTTP 200, ok: false)
+{ "ok": false, "message": "RuntimeError: realm nesouhlasi: ocekavano 'soc.example.com', sluzba hlasi 'uniforms.example.com'" }
+```
+
+---
+
 ## Vzory chybových odpovědí
 
 Všechny chyby vracejí JSON tělo ve standardním formátu:
@@ -1058,6 +1303,12 @@ Typické scénáře:
 | Neplatná cesta (settings) | 400 | popis chyby validace |
 | Záznam zamkl jiný uživatel | 423 | objekt s `locked_by` a `locked_at` |
 | Pokus smazat vlastní účet | 400 | `"Nelze smazat vlastní účet"` |
+| Neplatné `record_id` v cestě | 400 | `"Invalid record_id – only letters, digits, '_' and '-' are allowed"` |
+| Neplatná šablona při uložení / změna `template_id` | 400 | `"Invalid template: …"` |
+| Neplatná kolekce při uložení | 422 | `"workflow.initial_state … is not one of: …"` apod. |
+| Stav záznamu mimo workflow | 422 | `"Unknown status 'X' – allowed: …"` |
+| Účet deaktivován / smazán během session | 401 | `"Account disabled or removed – please log in again"` |
+| Příliš mnoho pokusů o OTP přihlášení | 429 | `"Příliš mnoho pokusů – zkuste to znovu za N s"` |
 
 ---
 
@@ -1074,8 +1325,9 @@ Typické scénáře:
 | `404` | Not Found | Záznam, šablona, kolekce nebo uživatel neexistuje |
 | `409` | Conflict | Duplicitní username nebo soubor se zadaným názvem již existuje |
 | `415` | Unsupported Media Type | Chybí `Content-Type: application/json` u POST/PUT/PATCH |
-| `422` | Unprocessable Entity | Validační chyba těla požadavku (Pydantic) |
+| `422` | Unprocessable Entity | Validační chyba těla požadavku (Pydantic), neplatná kolekce, stav mimo workflow |
 | `423` | Locked | Záznam zamkl jiný uživatel |
+| `429` | Too Many Requests | access-manager omezil pokusy o přihlášení |
 
 ---
 
@@ -1084,6 +1336,8 @@ Typické scénáře:
 - Interaktivní dokumentace (Swagger UI): `http://localhost:8080/api/docs`
 - Interaktivní dokumentace (ReDoc): `http://localhost:8080/api/redoc`
 - Autentizace a konfigurace: [AUTENTIZACE.md](AUTENTIZACE.md)
+- Přihlášení přes access-manager: [ACCESS_MANAGER.md](ACCESS_MANAGER.md)
+- Auditní stopa: [AUDIT.md](AUDIT.md)
 - Tvorba šablon a záznamů: [SABLONY.md](SABLONY.md)
 - Konfigurace kolekcí: [KOLEKCE.md](KOLEKCE.md)
 - Frontend rendering: [FRONTEND.md](FRONTEND.md)

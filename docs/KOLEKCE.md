@@ -26,7 +26,7 @@ data/
 
 Výchozí cesty jsou `data/collections/` a `data/schemas/`. Obě lze změnit v Nastavení aplikace (GUI nebo API: `PATCH /api/v1/settings/`). Adresáře musí existovat — aplikace je nevytváří.
 
-> **Poznámka:** Název souboru musí odpovídat poli `id` v YAML (bez přípony). Soubor `autobazar.yaml` musí obsahovat `id: autobazar`. Pokud pole `id` chybí, aplikace ho doplní automaticky ze jména souboru.
+> **Poznámka:** Název souboru musí odpovídat poli `id` v YAML (bez přípony). Soubor `autobazar.yaml` musí obsahovat `id: autobazar`. Pokud pole `id` chybí, aplikace ho doplní automaticky ze jména souboru. Při uložení přes GUI nebo API se shoda vynucuje – jiné `id` než název souboru vrátí `422` (role uživatelů se párují podle `id`).
 
 ---
 
@@ -125,8 +125,13 @@ Definuje stavy, kterými může záznam procházet — od vytvoření po uzavře
 
 | Klíč | ✓ | Popis |
 |------|---|-------|
-| `initial_state` | | ID stavu, ve kterém se vytváří nový záznam. Výchozí: `new`. |
+| `initial_state` | | ID stavu, ve kterém se vytváří nový záznam. Výchozí: `new`. **Musí být jedním z `states`.** |
 | `states` | ✓ | Seznam stavů; každý stav je objekt s klíči `id`, `label`, `color`. |
+
+> **Validace:** Uložení kolekce, jejíž `initial_state` není mezi `states`, GUI i API odmítnou
+> (`422 workflow.initial_state 'x' is not one of: …`). Soubor s touto chybou, který už na
+> disku je, se při načítání nezahodí: použije se první stav a do logu jde varování.
+> Server také odmítne změnu stavu záznamu na stav, který workflow nezná (`422`).
 
 Každý stav (`WorkflowState`):
 
@@ -374,6 +379,8 @@ curl -X POST http://localhost:8080/api/v1/admin/collections/ \
 ```
 
 > **Pozor:** Parametr `filename` smí obsahovat pouze malá písmena, číslice, podtržítko (`_`) a pomlčku (`-`). Při pokusu o jiný název API vrátí HTTP 400.
+>
+> Obsah se před uložením přísně ověří (YAML, `id` = `filename`, `initial_state` mezi `states`, model `CollectionConfig`) – chyba vrátí `422` s popisem a soubor se nezapíše.
 
 ### Přečíst zdrojový YAML existující kolekce
 
