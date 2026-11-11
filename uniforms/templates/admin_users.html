@@ -21,7 +21,11 @@
 
 <div id="users-alert" class="d-none mb-3"></div>
 
-<!-- Users table -->
+<!-- Local accounts -->
+<div class="d-flex align-items-baseline gap-2 mb-2">
+    <h6 class="fw-bold mb-0"><i class="bi bi-hdd me-1 text-muted"></i>Local accounts</h6>
+    <small class="text-muted">password sign-in · role set here</small>
+</div>
 <div class="card border shadow-sm">
     <div class="card-body p-0">
         <div id="users-loading" class="text-center text-muted py-4">
@@ -41,6 +45,34 @@
                 </thead>
                 <tbody id="users-tbody"></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Access-manager realm -->
+<div id="realm-section" class="d-none mt-4">
+    <div class="d-flex align-items-baseline gap-2 mb-2 flex-wrap">
+        <h6 class="fw-bold mb-0"><i class="bi bi-shield-lock me-1 text-info"></i>Access-manager</h6>
+        <small class="text-muted" id="realm-subtitle"></small>
+    </div>
+    <div id="realm-error" class="alert alert-warning py-2 small d-none"></div>
+    <div class="card border shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">{{ term.col_username }}</th>
+                            <th>Access in UniForms</th>
+                            <th>Realm groups</th>
+                            <th>Local account</th>
+                            <th>Collections</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="realm-tbody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -239,19 +271,118 @@
 
     // ── Users table ───────────────────────────────────────────────────────
 
+    let access = null;   // /api/v1/admin/access – effective access overview
+
     async function loadUsers() {
-        const resp = await apiFetch('/api/v1/users/');
+        const [resp, accResp] = await Promise.all([
+            apiFetch('/api/v1/users/'), apiFetch('/api/v1/admin/access/'),
+        ]);
         if (!resp.ok) return;
         allUsers = await resp.json();
+        access = accResp.ok ? await accResp.json() : null;
         document.getElementById('users-loading').classList.add('d-none');
         document.getElementById('users-table-wrap').classList.remove('d-none');
         renderUsers();
+        renderRealm();
+    }
+
+    const ROLE_BADGE = {
+        system_admin:  '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">System Admin</span>',
+        system_reader: '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">System Reader</span>',
+    };
+    function accessBadge(role, reason) {
+        if (role) return ROLE_BADGE[role] || escapeHtml(role);
+        return '<span class="badge bg-light text-muted border">No access</span>' +
+            (reason ? `<div class="small text-muted mt-1">${escapeHtml(reason)}</div>` : '');
+    }
+
+    function renderRealm() {
+        const am = access?.access_manager;
+        const section = document.getElementById('realm-section');
+        if (!am || !am.configured) { section.classList.add('d-none'); return; }
+        section.classList.remove('d-none');
+        document.getElementById('realm-subtitle').innerHTML =
+            `realm <code>${escapeHtml(am.realm || '?')}</code> · OTP sign-in · role from groups: ` +
+            `<code>${escapeHtml(am.admin_group)}</code> → System Admin, ` +
+            `<code>${escapeHtml(am.user_group)}</code> → System Reader`;
+        const err = document.getElementById('realm-error');
+        err.classList.toggle('d-none', !am.error);
+        err.textContent = am.error || '';
+
+        const tbody = document.getElementById('realm-tbody');
+        tbody.innerHTML = '';
+        if (am.users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No users in the realm.</td></tr>';
+            return;
+        }
+        am.users.forEach(u => {
+            const tr = document.createElement('tr');
+            if (!u.access) tr.classList.add('text-muted');
+            const realmState = !u.in_realm
+                ? '<span class="badge bg-warning-subtle text-warning border border-warning-subtle ms-2 fw-normal">removed from realm</span>'
+                : (u.enabled ? '' : '<span class="badge bg-secondary-subtle text-secondary border ms-2 fw-normal">disabled in realm</span>');
+            const groups = u.groups.map(g => {
+                const key = g === am.admin_group || g === am.user_group;
+                return `<span class="badge ${key ? 'bg-info-subtle text-info border-info-subtle' : 'bg-light text-secondary'} border me-1">${escapeHtml(g)}</span>`;
+            }).join('') || '<span class="text-muted small">–</span>';
+            let local = '<span class="text-muted small">created at first sign-in</span>';
+            if (u.local) {
+                local = (u.local.is_active
+                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'
+                    : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Inactive</span>');
+                if (u.local.auth_source === 'local')
+                    local += ' <span class="small text-muted">password account</span>';
+                else if (u.role && u.local.role !== u.role)
+                    local += ` <span class="small text-muted" title="The role is taken from the realm groups at every sign-in">stored ${escapeHtml(u.local.role)} – updates at next sign-in</span>`;
+            }
+            tr.innerHTML = `
+                <td class="ps-3 align-middle fw-semibold">${escapeHtml(u.username)}${u.username === CURRENT_USER ? ' <span class="text-muted small fw-normal">(you)</span>' : ''}${realmState}</td>
+                <td class="align-middle">${accessBadge(u.access, u.reason)}</td>
+                <td class="align-middle">${groups}</td>
+                <td class="align-middle">${local}</td>
+                <td class="align-middle" id="col-badges-am-${escapeHtml(u.username)}">${u.local ? '<span class="text-muted small">…</span>' : '<span class="text-muted small">–</span>'}</td>
+                <td class="align-middle text-end pe-3"></td>`;
+            const actions = tr.lastElementChild;
+            if (u.local && u.local.auth_source === 'access_manager') {
+                const b = document.createElement('button');
+                b.className = 'btn btn-secondary btn-sm';
+                b.title = 'Local settings: block, collection roles';
+                b.innerHTML = '<i class="bi bi-pencil"></i>';
+                b.addEventListener('click', () => openEditModal(u.username));
+                actions.appendChild(b);
+            } else if (!u.local && u.role) {
+                const b = document.createElement('button');
+                b.className = 'btn btn-outline-secondary btn-sm';
+                b.title = 'Create the local account now, e.g. to assign collection roles before the first sign-in';
+                b.innerHTML = '<i class="bi bi-person-plus"></i>';
+                b.addEventListener('click', () => prepareRealmAccount(u));
+                actions.appendChild(b);
+            }
+            tbody.appendChild(tr);
+            if (u.local) loadUserCollectionBadges(u.username, `col-badges-am-${u.username}`);
+        });
+    }
+
+    async function prepareRealmAccount(u) {
+        const resp = await apiFetch('/api/v1/users/', {
+            method: 'POST',
+            body: JSON.stringify({username: u.username, role: u.role, auth_source: 'access_manager'}),
+        });
+        if (!resp.ok) {
+            const e = await resp.json().catch(() => ({}));
+            showToast(e.detail || 'Cannot create the account', 'danger');
+            return;
+        }
+        await loadUsers();
+        openEditModal(u.username);
     }
 
     function renderUsers() {
         const tbody = document.getElementById('users-tbody');
         tbody.innerHTML = '';
-        allUsers.forEach(u => {
+        // OTP accounts are listed in the access-manager section (unless AM is not configured)
+        const amShown = access?.access_manager?.configured;
+        allUsers.filter(u => !amShown || u.auth_source !== 'access_manager').forEach(u => {
             const isSelf = u.username === CURRENT_USER;
             const tr = document.createElement('tr');
 
@@ -325,8 +456,8 @@
         });
     }
 
-    async function loadUserCollectionBadges(username) {
-        const cell = document.getElementById(`col-badges-${username}`);
+    async function loadUserCollectionBadges(username, cellId = `col-badges-${username}`) {
+        const cell = document.getElementById(cellId);
         if (!cell) return;
         try {
             const resp = await apiFetch(`/api/v1/users/${username}/collection-roles`);
@@ -342,7 +473,7 @@
                         ? 'bg-warning-subtle text-warning border-warning-subtle'
                         : 'bg-primary-subtle text-primary border-primary-subtle';
                     const label = role === 'collection_admin' ? 'Collection Admin' : 'Collection User';
-                    return `<span class="badge border ${cls} me-1">${name}: ${label}</span>`;
+                    return `<span class="badge border ${cls} me-1">${escapeHtml(name)}: ${label}</span>`;
                 }).join('');
             }
         } catch { cell.innerHTML = ''; }

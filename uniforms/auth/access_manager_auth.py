@@ -110,3 +110,38 @@ async def verify_otp(username: str, code: str, client_origin: Optional[str] = No
         logger.error("access-manager login failed for %r: %s", username, exc)
         reset_client()  # rebuild on next attempt (service restarted, key rotated …)
         return OtpResult(ok=False, outcome="unavailable", reason=type(exc).__name__)
+
+
+def role_for_principals(principals) -> Optional[str]:
+    """Same mapping as OtpResult.role(), for directory listings."""
+    return OtpResult(ok=True, outcome="ok", principals=frozenset(principals)).role()
+
+
+def _directory_sync() -> list[dict]:
+    access = _access()
+    out = []
+    for name in access.users():
+        user = access.user(name)
+        if user is None:  # removed between the two calls
+            continue
+        principals = frozenset(user.principals)
+        out.append({
+            "username": name,
+            "enabled": bool(user.enabled),
+            "groups": sorted(p.removeprefix("group:") for p in principals
+                             if p.startswith("group:") and p != "group:public"),
+            "role": role_for_principals(principals),
+        })
+    return out
+
+
+async def realm_directory() -> list[dict]:
+    """All realm users with their groups and the UniForms role the groups give.
+    Raises AccessManagerNotConfigured / transport errors – the caller reports them."""
+    try:
+        return await asyncio.to_thread(_directory_sync)
+    except AccessManagerNotConfigured:
+        raise
+    except Exception:
+        reset_client()
+        raise
