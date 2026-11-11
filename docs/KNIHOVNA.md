@@ -140,4 +140,4 @@ ds.save_collection(Path("data/collections"), "helpdesk", loaded["model"],
                    base_hash=loaded["source"]["hash"])
 ```
 
-Stránky návrháře se registrují jen při `include_web=True`; jeho REST API (`/api/v1/admin/designer/*`) je dostupné i v headless režimu.
+Stránky návrháře se registrují jen při `include_web=True`; jeho REST API (`/api/v1/designer/*`) je dostupné i v headless režimu.

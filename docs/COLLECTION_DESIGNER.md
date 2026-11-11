@@ -29,7 +29,7 @@ data/schemas/zoo/zoo_pstros_v1.yaml
     ▼  designer_service.load_template()        yaml.safe_load, bez normalizace
 model (dict)  +  source {hash, comments, …}
     │
-    ▼  GET /api/v1/admin/designer/collections/zoo/templates/zoo-pstros-v1
+    ▼  GET /api/v1/designer/collections/zoo/templates/zoo-pstros-v1
 prohlížeč: designer_model.js upravuje model
     │        (přidání, přesun, smazání, změna atributu)
     │
@@ -202,7 +202,7 @@ Každé uložení z návrháře je zápis přes `/api/v1`, a tedy auditní udál
   "op": "designer_update_template",
   "actor": "user:admin",
   "method": "PUT",
-  "path": "/api/v1/admin/designer/collections/soc/templates/uib-bec-v2",
+  "path": "/api/v1/designer/collections/soc/templates/uib-bec-v2",
   "collection_id": "soc",
   "template_id": "uib-bec-v2",
   "status": 200,
@@ -243,7 +243,7 @@ Atributy, pro které má návrhář ovládací prvek. Ostatní klíče se zobraz
 | skupina kroků | `title`, `id`, `note`, `hints` |
 | krok | `action`, `hint`, `example`, `id` |
 
-Typ sekce se volí při vložení z palety a dál se nemění. Seznam typů sekcí, polí, barev stavů a tokenů formátu ID vrací `GET /api/v1/admin/designer/catalog` — paleta se staví z něj.
+Typ sekce se volí při vložení z palety a dál se nemění. Seznam typů sekcí, polí, barev stavů a tokenů formátu ID vrací `GET /api/v1/designer/catalog` — paleta se staví z něj.
 
 ---
 
@@ -251,11 +251,23 @@ Typ sekce se volí při vložení z palety a dál se nemění. Seznam typů sekc
 
 ### Bezpečnost
 
-- **Přístup:** stránky chrání `require_web_admin` (jiná role je přesměrována na `/dashboard`), API `require_admin` (`403`). Role kolekce (`collection_admin`) k návrháři nestačí.
-- **Validace:** rozhoduje server; kontroly v prohlížeči jsou jen pohodlí.
-- **Cesty:** ID kolekce a název souboru šablony musí být slug `[a-z0-9_-]`, `template_id` jen `[A-Za-z0-9_-]`. Neznámá kolekce vrací `404` dřív, než se sáhne na adresář šablon.
-- **XSS:** stránka skládá DOM přes `textContent` a vlastnosti prvků, uživatelská data se nikdy nespojují do HTML. Náhled kreslí `UniForms.render`, který HTML sanitizuje. Hodnoty ze serveru se do skriptu dostávají jen přes `|tojson`.
-- **CSRF:** zápisy vyžadují `Content-Type: application/json` jako zbytek API.
+Návrhář zapisuje soubory, které řídí celou aplikaci, proto má vlastní router (`/api/v1/designer`) s ochranami na jednom místě. Uvažované hrozby a opatření:
+
+| Hrozba | Opatření |
+|--------|----------|
+| Volání bez oprávnění (jiná role, nepřihlášený, zapomenutá kontrola na nové routě) | `require_admin` je závislost **routeru**, ne jednotlivých rout — platí pro každý endpoint, i později přidaný. Role kolekce (`collection_admin`) nestačí. Stránky chrání `require_web_admin` (přesměrování na `/dashboard`). |
+| CSRF z cizí stránky | API je pod `/api/v1` → platí kontrola `Content-Type: application/json`; cookie je `SameSite`. |
+| Zápis mimo datový adresář (path traversal) | Klient nikdy neposílá cestu. Posílá jen ID kolekce a název souboru šablony, oba omezené na slug `[a-z0-9_-]` (pydantic `pattern` i kontrola ve službě); `template_id` jen `[A-Za-z0-9_-]`. Neznámá kolekce vrací `404` dřív, než se sáhne na adresář šablon. |
+| Podstrčení škodlivého YAML | Klient YAML neposílá vůbec — posílá JSON model a YAML z něj skládá server (`yaml.SafeDumper`). Soubory se čtou výhradně přes `yaml.safe_load`. |
+| Nevalidní definice, která rozbije kolekci | Před každým zápisem se výsledný YAML znovu ověří stávajícími validátory (`parse_collection_yaml`, `TemplateService._validate`) a lintem návrháře; při chybě se nezapíše nic. |
+| Zahlcení serveru obřím modelem | Tělo požadavku max. 2 MB (`413`); model max. 50 000 hodnot, hloubka 12, 500 položek v seznamu (sekce, pole, options, řádky), 200 klíčů v objektu, 20 000 znaků na text (`422`). Obálky požadavků mají `extra="forbid"`. |
+| Dva administrátoři si potichu přepíší změny | `base_hash` (SHA-256 načteného souboru) je u `PUT` povinný; nesedí-li, uložení skončí `409 stale`. |
+| Poškozený soubor při pádu uprostřed zápisu | Zápis jde do dočasného souboru a přejmenováním (`os.replace`). Každé uložení se týká jednoho souboru — kolekce a šablony se neukládají společně, takže nevzniká napůl zapsaná sada. |
+| Tichá ztráta ručně psaného obsahu | Potvrzení přepisu, záloha v `.designer_backup/`, zachování úvodního komentáře a neznámých klíčů (viz výše). |
+| XSS přes názvy, popisky a hodnoty | Stránka skládá DOM přes `textContent` a vlastnosti prvků — uživatelská data se nikdy nespojují do HTML ani do inline `onclick`. Náhled kreslí `UniForms.render`, který HTML sanitizuje. Hodnoty ze serveru jdou do skriptu jen přes `|tojson`. |
+| Nedohledatelná změna | Každý zápis i odmítnutý pokus je auditní událost s `collection_id`, `template_id`, `change`, `changed_keys` — bez hodnot a těl požadavků. |
+
+> **Poznámka:** Návrhář nepřidává žádnou novou moc: `system_admin` mohl tytéž soubory přepsat už editorem surového YAML. Šablona nemůže spouštět kód — je to deklarativní popis formuláře a renderer její texty sanitizuje.
 
 ### Použití bez webové vrstvy
 
@@ -292,13 +304,14 @@ V režimu `create_app(include_web=False)` zůstává API návrháře dostupné; 
 - Čísla zapsaná jako `1.0` se po průchodu prohlížečem uloží jako `1`.
 - Typ existující sekce nelze změnit; vlastní typy sekcí, starší zápis sloupců tabulky (seznam řetězců), blok `result` checklistu, `workflow` šablony a `option_hints` se zachovávají, ale upravují se jen v editoru YAML.
 - Šablony se ukládají jednotlivě; rozpracované změny žijí jen v otevřené stránce.
+- Počáteční stav `done` kroku a `hints` u jiných sekcí než `table` nemají ovládací prvek (zobrazí se v *Other attributes*).
 - Smazání a přejmenování kolekce zůstává na stránce Admin → Collections.
 
 ---
 
 ## Přehled API / funkcí
 
-### REST API – `/api/v1/admin/designer` (vše `system_admin`)
+### REST API – `/api/v1/designer` (vše `system_admin`, vynuceno na routeru)
 
 | Metoda | Endpoint | Popis |
 |--------|----------|-------|
@@ -313,7 +326,7 @@ V režimu `create_app(include_web=False)` zůstává API návrháře dostupné; 
 | `PUT` | `/collections/{id}/templates/{template_id}` | Uložení modelu šablony |
 | `POST` | `/collections/{id}/check-template` | Kontrola, náhled a YAML šablony — nic nezapisuje |
 
-Podrobnosti a příklady: [API.md](API.md#admin--collection-designer--apiv1admindesigner).
+Podrobnosti a příklady: [API.md](API.md#admin--collection-designer--apiv1designer).
 
 ### `designer_service`
 

@@ -41,7 +41,7 @@
     };
 
     async function load() {
-        const resp = await apiFetch('/api/v1/admin/designer/collections');
+        const resp = await apiFetch('/api/v1/designer/collections');
         document.getElementById('dzl-loading').classList.add('d-none');
         if (!resp.ok) {
             const box = document.getElementById('dzl-alert');

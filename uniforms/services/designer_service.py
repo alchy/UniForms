@@ -34,7 +34,6 @@ import copy
 import hashlib
 import logging
 import math
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,10 +46,21 @@ from uniforms.models.template import UniTemplate
 from uniforms.services import collection_service
 from uniforms.services.record_service import _strip_examples
 from uniforms.services.template_service import (
-    TemplateService, _normalize_template, _resolve_extends, _slugify,
+    TemplateService, _normalize_template, _resolve_extends, _slugify, atomic_write_text,
 )
 
 logger = logging.getLogger(__name__)
+
+# Size limits of a model accepted from a client (see limits_violation()).
+LIMITS = {
+    "max_nodes": 50_000,       # values in the whole model
+    "max_depth": 12,           # nesting levels
+    "max_list": 500,           # sections / fields / options / rows / steps per list
+    "max_keys": 200,           # keys per mapping
+    "max_string": 20_000,      # characters per text value
+    "max_key_length": 128,
+}
+MAX_BODY_BYTES = 2 * 1024 * 1024   # request body accepted by the designer API
 
 BACKUP_DIR_NAME = ".designer_backup"
 BACKUP_KEEP = 10
@@ -106,7 +116,7 @@ class DesignerInvalid(DesignerError):
 
 # ---------------------------------------------------------------------------
 # Catalog – what the designer palette and attribute panel offer.
-# Single source of truth for the GUI (served by GET /admin/designer/catalog).
+# Single source of truth for the GUI (served by GET /api/v1/designer/catalog).
 # ---------------------------------------------------------------------------
 
 SECTION_TYPES = [
@@ -367,9 +377,45 @@ def _parse_for_designer(content: str, what: str) -> dict:
     return data
 
 
+def limits_violation(model: Any) -> Optional[str]:
+    """Return why the model exceeds the designer's size limits, or None.
+
+    The limits are far above any real definition (the largest shipped template has
+    ~2 500 values); they only stop a client from making the server dump, validate
+    and write an arbitrarily large or deep document.
+    """
+    count = 0
+    stack: list[tuple[Any, int, str]] = [(model, 0, "")]
+    while stack:
+        node, depth, path = stack.pop()
+        count += 1
+        if count > LIMITS["max_nodes"]:
+            return f"model is too large (more than {LIMITS['max_nodes']} values)"
+        if depth > LIMITS["max_depth"]:
+            return f"{path or 'model'}: nested deeper than {LIMITS['max_depth']} levels"
+        if isinstance(node, str):
+            if len(node) > LIMITS["max_string"]:
+                return f"{path or 'value'}: text longer than {LIMITS['max_string']} characters"
+        elif isinstance(node, list):
+            if len(node) > LIMITS["max_list"]:
+                return f"{path or 'list'}: more than {LIMITS['max_list']} items"
+            stack.extend((item, depth + 1, f"{path}[{i}]") for i, item in enumerate(node))
+        elif isinstance(node, dict):
+            if len(node) > LIMITS["max_keys"]:
+                return f"{path or 'mapping'}: more than {LIMITS['max_keys']} keys"
+            for key, value in node.items():
+                if isinstance(key, str) and len(key) > LIMITS["max_key_length"]:
+                    return f"{path or 'mapping'}: key longer than {LIMITS['max_key_length']} characters"
+                stack.append((value, depth + 1, f"{path}.{key}" if path else str(key)))
+    return None
+
+
 def _check_model(model: Any) -> dict:
     if not isinstance(model, dict):
         raise DesignerInvalid("Model must be a mapping")
+    too_big = limits_violation(model)
+    if too_big:
+        raise DesignerInvalid(f"Model exceeds the designer limits – {too_big}")
     reason = json_unsafe_reason(model)
     if reason:
         raise DesignerInvalid(f"Model holds an unsupported value ({reason})")
@@ -379,12 +425,6 @@ def _check_model(model: Any) -> dict:
 # ---------------------------------------------------------------------------
 # File helpers (atomic write, backups)
 # ---------------------------------------------------------------------------
-
-def _atomic_write(path: Path, content: str) -> None:
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(content, encoding="utf-8")
-    os.replace(tmp, path)
-
 
 def _backup(path: Path) -> Optional[str]:
     """Copy the current file to ``.designer_backup/`` next to it; returns the backup name."""
@@ -671,7 +711,7 @@ def save_collection(
     else:
         collections_dir.mkdir(parents=True, exist_ok=True)
 
-    _atomic_write(path, text)
+    atomic_write_text(path, text)
     result["change"] = "updated" if exists else "created"
     result["source"] = analyze_source(text, model)
     return result
@@ -712,9 +752,24 @@ def new_template_model(template_id: str = "", name: str = "") -> dict:
     }
 
 
-# Read-only overviews parse every template of a collection; libyaml (when PyYAML was
-# built with it) gives the same result as safe_load an order of magnitude faster.
-_FastLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+# Read-only overviews parse every template of a collection on each request. Parsing is
+# always yaml.safe_load; the result is cached per file and reused while the file's
+# mtime and size stay the same. Callers must treat the cached data as read-only.
+_PARSE_CACHE: dict[str, tuple[int, int, Any]] = {}
+_PARSE_CACHE_MAX = 512
+
+
+def _safe_load_cached(path: Path) -> Any:
+    stat = path.stat()
+    key = str(path)
+    hit = _PARSE_CACHE.get(key)
+    if hit and hit[0] == stat.st_mtime_ns and hit[1] == stat.st_size:
+        return hit[2]
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if len(_PARSE_CACHE) >= _PARSE_CACHE_MAX:
+        _PARSE_CACHE.clear()
+    _PARSE_CACHE[key] = (stat.st_mtime_ns, stat.st_size, data)
+    return data
 
 
 def _raw_templates(collection_dir: Path) -> list[tuple[Path, Any]]:
@@ -724,7 +779,7 @@ def _raw_templates(collection_dir: Path) -> list[tuple[Path, Any]]:
         return out
     for path in sorted(collection_dir.glob("*.yaml")):
         try:
-            out.append((path, yaml.load(path.read_text(encoding="utf-8"), Loader=_FastLoader)))
+            out.append((path, _safe_load_cached(path)))
         except Exception:
             out.append((path, None))
     return out

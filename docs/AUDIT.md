@@ -106,7 +106,7 @@ tail -n 5 data/audit/$(date -u +%F).jsonl | python3 -m json.tool --json-lines
   "actor": "user:admin",
   "origin": "193.0.231.250",
   "method": "PUT",
-  "path": "/api/v1/admin/designer/collections/soc/templates/uib-bec-v2",
+  "path": "/api/v1/designer/collections/soc/templates/uib-bec-v2",
   "collection_id": "soc",
   "template_id": "uib-bec-v2",
   "status": 200,

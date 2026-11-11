@@ -7,7 +7,7 @@
  *   template designer   palette (drag or click) | canvas | attribute panel, live preview, YAML
  *
  * The page edits a *model* (the object a YAML file parses to) and sends it to
- * /api/v1/admin/designer/*; the server converts it to YAML, validates and writes
+ * /api/v1/designer/*; the server converts it to YAML, validates and writes
  * it. All structural edits go through DesignerModel (designer_model.js).
  *
  * Security: every value is put into the DOM with textContent / properties via
@@ -22,7 +22,7 @@
 
 const M = window.DesignerModel;
 const BOOT = window.DESIGNER_BOOT || {};
-const API = '/api/v1/admin/designer';
+const API = '/api/v1/designer';
 const $ = id => document.getElementById(id);
 
 const STEPS = [
@@ -1311,7 +1311,7 @@ function linesControl(getList, setList, placeholder, rows) {
 }
 
 function otherAttributes(node, kind) {
-    const keys = M.otherKeys(node, kind);
+    const keys = M.otherKeys(node, kind).filter(k => !(kind === 'section' && node.type === 'table' && k === 'hints'));
     if (!keys.length) return null;
     return h('div', {class: 'dz-other mt-3'},
         h('div', {class: 'small fw-semibold mb-1'}, icon('bi-shield-check', 'me-1'), 'Other attributes (kept as they are)'),

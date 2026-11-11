@@ -979,28 +979,28 @@ curl -s -b /tmp/uf.cookies \
 
 ---
 
-## Admin – Collection Designer – `/api/v1/admin/designer`
+## Admin – Collection Designer – `/api/v1/designer`
 
-API návrháře kolekcí a šablon ([COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md)). Vyžaduje globální roli `system_admin`. Na rozdíl od `/admin/collections` a `/templates` nepracuje s textem YAML, ale s **modelem** — JSON objektem, který odpovídá YAML souboru jedna ku jedné (nenormalizovaný; neznámé klíče se zachovávají). Převod na YAML, validaci a zápis dělá server.
+API návrháře kolekcí a šablon ([COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md)) s vlastním routerem a jmenným prostorem. Vyžaduje globální roli `system_admin`. Na rozdíl od `/admin/collections` a `/templates` nepracuje s textem YAML, ale s **modelem** — JSON objektem, který odpovídá YAML souboru jedna ku jedné (nenormalizovaný; neznámé klíče se zachovávají). Převod na YAML, validaci a zápis dělá server.
 
 | Metoda | Endpoint | Popis | Auth |
 |--------|----------|-------|------|
-| `GET` | `/api/v1/admin/designer/catalog` | Typy sekcí a polí, barvy, tokeny, výchozí modely | system_admin |
-| `GET` | `/api/v1/admin/designer/collections` | Přehled kolekcí s počtem šablon | system_admin |
-| `GET` | `/api/v1/admin/designer/collections/{id}` | Model kolekce + šablony + klíče polí | system_admin |
-| `POST` | `/api/v1/admin/designer/collections` | Vytvoření kolekce z modelu | system_admin |
-| `PUT` | `/api/v1/admin/designer/collections/{id}` | Uložení modelu kolekce | system_admin |
-| `POST` | `/api/v1/admin/designer/collections/{id}/check` | Kontrola modelu kolekce (nic nezapisuje) | system_admin |
-| `GET` | `/api/v1/admin/designer/collections/{id}/templates/{template_id}` | Model šablony + zděděné sekce | system_admin |
-| `POST` | `/api/v1/admin/designer/collections/{id}/templates` | Vytvoření šablony z modelu | system_admin |
-| `PUT` | `/api/v1/admin/designer/collections/{id}/templates/{template_id}` | Uložení modelu šablony | system_admin |
-| `POST` | `/api/v1/admin/designer/collections/{id}/check-template` | Kontrola, náhled a YAML šablony (nic nezapisuje) | system_admin |
+| `GET` | `/api/v1/designer/catalog` | Typy sekcí a polí, barvy, tokeny, výchozí modely | system_admin |
+| `GET` | `/api/v1/designer/collections` | Přehled kolekcí s počtem šablon | system_admin |
+| `GET` | `/api/v1/designer/collections/{id}` | Model kolekce + šablony + klíče polí | system_admin |
+| `POST` | `/api/v1/designer/collections` | Vytvoření kolekce z modelu | system_admin |
+| `PUT` | `/api/v1/designer/collections/{id}` | Uložení modelu kolekce | system_admin |
+| `POST` | `/api/v1/designer/collections/{id}/check` | Kontrola modelu kolekce (nic nezapisuje) | system_admin |
+| `GET` | `/api/v1/designer/collections/{id}/templates/{template_id}` | Model šablony + zděděné sekce | system_admin |
+| `POST` | `/api/v1/designer/collections/{id}/templates` | Vytvoření šablony z modelu | system_admin |
+| `PUT` | `/api/v1/designer/collections/{id}/templates/{template_id}` | Uložení modelu šablony | system_admin |
+| `POST` | `/api/v1/designer/collections/{id}/check-template` | Kontrola, náhled a YAML šablony (nic nezapisuje) | system_admin |
 
-### `GET /api/v1/admin/designer/collections/{id}`
+### `GET /api/v1/designer/collections/{id}`
 
 ```bash
 curl -s -b /tmp/uf.cookies \
-  http://localhost:8080/api/v1/admin/designer/collections/zoo
+  http://localhost:8080/api/v1/designer/collections/zoo
 ```
 
 ```json
@@ -1032,11 +1032,11 @@ curl -s -b /tmp/uf.cookies \
 
 `GET …/templates/{template_id}` vrací stejný tvar (`model`, `source`, `filename`) a navíc `inherited` — sekce zděděné od rodičů (`chain`, `sections`, `error`).
 
-### `POST /api/v1/admin/designer/collections`
+### `POST /api/v1/designer/collections`
 
 ```bash
 curl -s -b /tmp/uf.cookies \
-  -X POST http://localhost:8080/api/v1/admin/designer/collections \
+  -X POST http://localhost:8080/api/v1/designer/collections \
   -H "Content-Type: application/json" \
   -d '{
     "collection_id": "helpdesk",
@@ -1080,11 +1080,11 @@ curl -s -b /tmp/uf.cookies \
 
 `POST …/collections/{id}/templates` má tělo `{"filename": "helpdesk_request_v1", "model": {…}}` (`filename` je slug bez přípony; `model.template_id` jen `[A-Za-z0-9_-]`) a vrací navíc `template_id`. Rodič uvedený v `extends` musí existovat.
 
-### `PUT /api/v1/admin/designer/collections/{id}`
+### `PUT /api/v1/designer/collections/{id}`
 
 ```bash
 curl -s -b /tmp/uf.cookies \
-  -X PUT http://localhost:8080/api/v1/admin/designer/collections/helpdesk \
+  -X PUT http://localhost:8080/api/v1/designer/collections/helpdesk \
   -H "Content-Type: application/json" \
   -d '{"model": {"id": "helpdesk", "name": "Helpdesk 2"}, "base_hash": "9a41…", "confirm_rewrite": false}'
 ```
@@ -1099,16 +1099,16 @@ curl -s -b /tmp/uf.cookies \
 | Klíč | ✓ | Popis |
 |------|---|-------|
 | `model` | ✓ | Celý nový obsah definice |
-| `base_hash` | | `source.hash` z načtení; nesedí-li se souborem na disku, vrátí `409 stale` |
+| `base_hash` | ✓ | `source.hash` z načtení (SHA-256, 64 hex znaků); nesedí-li se souborem na disku, vrátí `409 stale` |
 | `confirm_rewrite` | | `true` = souhlas se ztrátou komentářů / kotev ručně psaného souboru |
 
 `change` je `updated`, nebo `unchanged`, když se obsah neliší — soubor se pak nepřepisuje. `PUT …/templates/{template_id}` má stejné tělo; `model.template_id` se nesmí lišit od ID v URL.
 
-### `POST /api/v1/admin/designer/collections/{id}/check-template`
+### `POST /api/v1/designer/collections/{id}/check-template`
 
 ```bash
 curl -s -b /tmp/uf.cookies \
-  -X POST http://localhost:8080/api/v1/admin/designer/collections/helpdesk/check-template \
+  -X POST http://localhost:8080/api/v1/designer/collections/helpdesk/check-template \
   -H "Content-Type: application/json" \
   -d '{"model": {"template_id": "hd-v1", "name": "Požadavek", "sections": [
         {"title": "Detail", "type": "form", "fields": [{"key": "kind", "label": "Druh", "type": "select"}]}]}}'
@@ -1149,6 +1149,9 @@ Chybová odpověď má v `detail` objekt `{code, message, …}`:
 | `409` | `rewrite_not_confirmed` | uložení by zahodilo komentáře; `detail` nese `comments_lost`, `anchors` |
 | `422` | `invalid` | model neprošel validací; `detail.issues` je seznam nálezů |
 | `422` | `unsupported` | soubor obsahuje hodnoty, které nelze přenést přes JSON (např. datum bez uvozovek) |
+| `413` | `too_large` | tělo požadavku je větší než 2 MB |
+
+Těla požadavků neznají jiné klíče než uvedené (`extra="forbid"` → `422`). Model je omezen velikostí (50 000 hodnot, hloubka 12, 500 položek v seznamu, 20 000 znaků na text) — překročení vrací `422 invalid`. Oprávnění `system_admin` je vynuceno závislostí routeru pro všechny endpointy. Hrozby a opatření shrnuje [COLLECTION_DESIGNER.md](COLLECTION_DESIGNER.md#bezpečnost).
 
 ---
 

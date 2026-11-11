@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # API endpointy Collection Designeru (GUI návrhář kolekcí a šablon).
@@ -10,16 +10,20 @@ from pydantic import BaseModel, Field
 # (dict odpovídající YAML souboru); převod model ↔ YAML, validaci a bezpečný
 # zápis řeší services/designer_service.py – routy jsou jen tenká HTTP vrstva.
 #
-# GET  /admin/designer/catalog                               – paleta (typy sekcí, polí…)
-# GET  /admin/designer/collections                           – přehled kolekcí
-# GET  /admin/designer/collections/{id}                      – model kolekce + šablony
-# POST /admin/designer/collections                           – vytvoření kolekce z modelu
-# PUT  /admin/designer/collections/{id}                      – uložení modelu kolekce
-# POST /admin/designer/collections/{id}/check                – kontrola modelu (nic nezapisuje)
-# GET  /admin/designer/collections/{id}/templates/{tid}      – model šablony
-# POST /admin/designer/collections/{id}/templates            – vytvoření šablony z modelu
-# PUT  /admin/designer/collections/{id}/templates/{tid}      – uložení modelu šablony
-# POST /admin/designer/collections/{id}/check-template       – kontrola + náhled (nic nezapisuje)
+# GET  /designer/catalog                               – paleta (typy sekcí, polí…)
+# GET  /designer/collections                           – přehled kolekcí
+# GET  /designer/collections/{id}                      – model kolekce + šablony
+# POST /designer/collections                           – vytvoření kolekce z modelu
+# PUT  /designer/collections/{id}                      – uložení modelu kolekce
+# POST /designer/collections/{id}/check                – kontrola modelu (nic nezapisuje)
+# GET  /designer/collections/{id}/templates/{tid}      – model šablony
+# POST /designer/collections/{id}/templates            – vytvoření šablony z modelu
+# PUT  /designer/collections/{id}/templates/{tid}      – uložení modelu šablony
+# POST /designer/collections/{id}/check-template       – kontrola + náhled (nic nezapisuje)
+#
+# Bezpečnost: system_admin a limit velikosti těla jsou závislosti na úrovni routeru
+# (platí pro každou routu); těla požadavků mají extra="forbid"; klient nikdy neposílá
+# YAML ani cestu – jen model a identifikátory, ze kterých server sestaví název souboru.
 #
 # Audit: zápisy zaznamená AuditMiddleware (op = název funkce); routy doplňují
 # identifikátory a výsledek (change, changed_keys…) přes request.state.audit –
@@ -30,12 +34,28 @@ from uniforms import config
 from uniforms.core.database import get_db
 from uniforms.core.security import require_admin
 from uniforms.core.validation import require_slug
-from uniforms.models.user import User
 from uniforms.services import collection_service
 from uniforms.services import designer_service as ds
 from uniforms.services.settings_service import get_collections_dir, get_schemas_dir
 
-router = APIRouter(prefix="/admin/designer", tags=["Admin – Collection Designer"])
+async def _limit_body(request: Request) -> None:
+    """Odmitne prilis velke telo pozadavku (413) drive, nez se zacne zpracovavat."""
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > ds.MAX_BODY_BYTES:
+        raise HTTPException(413, detail={"code": "too_large",
+                                         "message": f"Request body is larger than {ds.MAX_BODY_BYTES} bytes"})
+    if request.method in ("POST", "PUT") and len(await request.body()) > ds.MAX_BODY_BYTES:
+        raise HTTPException(413, detail={"code": "too_large",
+                                         "message": f"Request body is larger than {ds.MAX_BODY_BYTES} bytes"})
+
+
+# system_admin se vynucuje na urovni routeru – plati pro KAZDOU routu, i pro ty,
+# ktere nekdo prida pozdeji; jednotlive routy uz zavislost neopakuji.
+router = APIRouter(
+    prefix="/designer",
+    tags=["Admin – Collection Designer"],
+    dependencies=[Depends(require_admin), Depends(_limit_body)],
+)
 
 _STATUS = {
     ds.DesignerNotFound: 404,
@@ -49,23 +69,30 @@ _STATUS = {
 
 # --- Modely ---
 
-class CollectionCreateBody(BaseModel):
-    collection_id: str = Field(min_length=1, max_length=64)
+class _StrictBody(BaseModel):
+    """Obalka pozadavku: nezname klice se odmitaji (422). Obsah `model` je volny dict –
+    jeho velikost, hloubku a delky retezcu hlida designer_service.limits_violation()."""
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+
+class CollectionCreateBody(_StrictBody):
+    collection_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_-]+$")
     model: dict[str, Any]
 
 
-class ModelSaveBody(BaseModel):
+class ModelSaveBody(_StrictBody):
     model: dict[str, Any]
-    base_hash: Optional[str] = Field(default=None, max_length=64)
+    # sha256 zdroje, ktery editor nacetl – povinny, aby se dva admini potichu neprepsali
+    base_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     confirm_rewrite: bool = False
 
 
-class ModelCheckBody(BaseModel):
+class ModelCheckBody(_StrictBody):
     model: dict[str, Any]
 
 
-class TemplateCreateBody(BaseModel):
-    filename: str = Field(min_length=1, max_length=128)  # slug bez pripony .yaml
+class TemplateCreateBody(_StrictBody):
+    filename: str = Field(min_length=1, max_length=128, pattern=r"^[a-z0-9_-]+$")  # slug bez pripony .yaml
     model: dict[str, Any]
 
 
@@ -117,14 +144,13 @@ def _field_keys(template_dir) -> set[str]:
 
 @router.get("/catalog", summary="Designer palette: section/field types, colors, tokens")
 # Vrati katalog typu sekci, poli, barev a tokenu, ze kterych designer sklada paletu
-async def designer_catalog(current_user: User = Depends(require_admin)) -> dict:
+async def designer_catalog() -> dict:
     return ds.catalog(config.uniforms.terminology.model_dump())
 
 
 @router.get("/collections", summary="List collections for the designer")
 # Vrati prehled kolekci vcetne poctu sablon; vyzaduje system_admin
 async def designer_list_collections(
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> list[dict]:
     collections_dir = await get_collections_dir(db)
@@ -147,7 +173,6 @@ async def designer_list_collections(
 # Vrati model kolekce (dict z YAML), informace o zdroji, seznam sablon a klice poli
 async def designer_get_collection(
     collection_id: str,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     collections_dir, template_dir = await _collection_dirs(db, collection_id)
@@ -165,7 +190,6 @@ async def designer_check_collection(
     collection_id: str,
     body: ModelCheckBody,
     request: Request,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     request.state.audit_skip = True
@@ -179,7 +203,6 @@ async def designer_check_collection(
 async def designer_create_collection(
     body: CollectionCreateBody,
     request: Request,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     require_slug(body.collection_id, "collection_id")
@@ -200,7 +223,6 @@ async def designer_update_collection(
     collection_id: str,
     body: ModelSaveBody,
     request: Request,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     _audit(request, via="designer")
@@ -225,7 +247,6 @@ async def designer_update_collection(
 async def designer_get_template(
     collection_id: str,
     template_id: str,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     _collections_dir, template_dir = await _collection_dirs(db, collection_id)
@@ -246,7 +267,6 @@ async def designer_check_template(
     collection_id: str,
     body: ModelCheckBody,
     request: Request,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     request.state.audit_skip = True
@@ -264,7 +284,6 @@ async def designer_create_template(
     collection_id: str,
     body: TemplateCreateBody,
     request: Request,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     new_id = body.model.get("template_id")
@@ -287,7 +306,6 @@ async def designer_update_template(
     template_id: str,
     body: ModelSaveBody,
     request: Request,
-    current_user: User = Depends(require_admin),
     db: aiosqlite.Connection = Depends(get_db),
 ) -> dict:
     _audit(request, via="designer")

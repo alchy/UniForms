@@ -36,14 +36,14 @@
     const KNOWN_KEYS = {
         template: ['template_id', 'name', 'version', 'category', 'status', 'description',
                    'abstract', 'extends', 'meta', 'sections'],
-        section: ['id', 'title', 'type', 'description', 'hint', 'hints', 'note', 'always_expanded',
+        section: ['id', 'title', 'type', 'description', 'hint', 'note', 'always_expanded',
                   'fields', 'columns', 'rows', 'append_row_template', 'allow_append_row',
                   'allow_delete_row', 'steps', 'step_groups', 'subsections'],
         field: ['key', 'label', 'type', 'options', 'editable', 'required', 'auto', 'auto_value',
                 'placeholder', 'hint', 'example', 'value', 'visible_if', 'required_if'],
         column: ['key', 'label', 'type', 'options', 'editable'],
         group: ['id', 'title', 'note', 'hints', 'steps'],
-        step: ['id', 'action', 'hint', 'example', 'done'],
+        step: ['id', 'action', 'hint', 'example'],
     };
 
     function clone(value) {

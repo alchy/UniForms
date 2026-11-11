@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -38,6 +39,17 @@ logger = logging.getLogger(__name__)
 #
 # Full format (existing templates) is preserved unchanged (backwards-compatible).
 # ---------------------------------------------------------------------------
+
+def atomic_write_text(path: Path, content: str) -> None:
+    """Write a file through a temporary sibling + rename, so readers never see a partial file."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
 
 def _slugify(text: str) -> str:
     text = unicodedata.normalize("NFD", text)
@@ -284,7 +296,7 @@ class TemplateService:
                 f"template_id cannot be changed on save ('{template_id}' → '{data['template_id']}'); "
                 "create a new template instead"
             )
-        path.write_text(content, encoding="utf-8")
+        atomic_write_text(path, content)
         return path.name
 
     async def create(self, filename: str, content: str) -> str:
@@ -304,7 +316,7 @@ class TemplateService:
         target = self.collection_dir / f"{filename}.yaml"
         if target.exists():
             raise FileExistsError(f"File '{filename}.yaml' already exists")
-        target.write_text(content, encoding="utf-8")
+        atomic_write_text(target, content)
         return data["template_id"]
 
     async def delete(self, template_id: str) -> None:
