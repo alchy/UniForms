@@ -217,4 +217,6 @@ async def delete_user(
     if not row:
         raise HTTPException(status_code=404, detail=f"Uživatel '{username}' nenalezen")
     await db.execute("DELETE FROM users WHERE username = ?", (username,))
+    # Drop collection roles too – a new user with the same name must not inherit them
+    await db.execute("DELETE FROM collection_roles WHERE username = ?", (username,))
     await db.commit()

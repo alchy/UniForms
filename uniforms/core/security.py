@@ -74,9 +74,30 @@ def decode_token(token: str) -> TokenPayload:
 # FastAPI dependencies – ochrana API endpointu
 # ---------------------------------------------------------------------------
 
-# Vyzaduje platny JWT cookie; vrati objekt User nebo HTTP 401
+async def _db():
+    # Lazy import: core.database imports this module (hash_password)
+    from uniforms.core.database import get_db
+    async for conn in get_db():
+        yield conn
+
+
+async def _current_db_role(db, username: str) -> Optional[str]:
+    """Current role of an active local user, or None if the user is missing/deactivated."""
+    async with db.execute(
+        "SELECT role, is_active FROM users WHERE username = ?", (username,)
+    ) as cur:
+        row = await cur.fetchone()
+    if not row or not row["is_active"]:
+        return None
+    return row["role"]
+
+
+# Vyzaduje platny JWT cookie; vrati objekt User nebo HTTP 401.
+# U lokalnich uctu (AUTH_PROVIDER=simple) se role a aktivita overuji v DB pri kazdem
+# requestu – deaktivace, smazani ci zmena role tak plati okamzite, ne az po expiraci JWT.
 async def require_auth(
     uniforms_token: Optional[str] = Cookie(default=None, alias=COOKIE_NAME),
+    db=Depends(_db),
 ) -> User:
     if not uniforms_token:
         raise HTTPException(
@@ -85,7 +106,6 @@ async def require_auth(
         )
     try:
         payload = decode_token(uniforms_token)
-        return User(username=payload.sub, role=payload.role)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -96,6 +116,15 @@ async def require_auth(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
         )
+    role = payload.role
+    if settings.auth_provider == "simple":
+        role = await _current_db_role(db, payload.sub)
+        if role is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account disabled or removed – please log in again",
+            )
+    return User(username=payload.sub, role=role)
 
 
 # Vyzaduje roli system_admin; jinak HTTP 403
