@@ -269,6 +269,28 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/collections/soc
 |-------------|---|-------|
 | `id` | ✓ | ID kolekce (slug, např. `soc`) |
 
+### `GET /api/v1/collections/{id}/members`
+
+Uživatelé, které nabízí pole `type: user` (číselník stanovený aplikací – viz
+[SABLONY.md](SABLONY.md#user--uživatel-kolekce)). Vrací jen aktivní účty. Vyžaduje přístup ke kolekci.
+
+```bash
+curl -s -b /tmp/uf.cookies "http://localhost:8080/api/v1/collections/zoo/members?source=collection_members"
+```
+
+```json
+// Odpověď 200
+[
+  { "username": "marie", "role": "collection_user" },
+  { "username": "root", "role": "system_admin" },
+  { "username": "zoolog", "role": "collection_admin" }
+]
+```
+
+| Klíč (query) | ✓ | Popis |
+|--------------|---|-------|
+| `source` | | `collection_members` (výchozí) = system admini + každý s rolí v kolekci \| `collection_admin` = system admini + `collection_admin` \| `collection_user` = jen `collection_user`; jiná hodnota → `422` |
+
 ---
 
 ## Záznamy – `/api/v1/records/{collection_id}`
@@ -416,6 +438,24 @@ vždy – i u staršího záznamu, jehož stav ve workflow už není (jde ho dá
 // Odpověď 422 — neznámý stav
 { "detail": "Unknown status 'bogus' – allowed: new, open, in_progress, on_hold, closed" }
 ```
+
+Server dál kontroluje **změněné** hodnoty typovaných polí. Typ pole bere z uloženého záznamu,
+ne z poslaných dat; nezměněné starší hodnoty se nekontrolují.
+
+| Typ pole / sloupce | Nová hodnota musí být | Jinak |
+|--------------------|-----------------------|-------|
+| `user` | aktivní uživatel podle `source` pole (viz [`members`](#get-apiv1collectionsidmembers)) | `422` |
+| `datetime` | ISO 8601 s pásmem, např. `2026-10-13T09:04:00Z` | `422` |
+| `date` | platné `YYYY-MM-DD` | `422` |
+| `time` | `HH:MM` (00–23 h) | `422` |
+
+```json
+// Odpověď 422 — příklady
+{ "detail": "Field 'record_owner': 'nobody' is not a user of this collection (collection_members)" }
+{ "detail": "Table column 'feeding.time': expected HH:MM (24h, local time), e.g. 07:00" }
+```
+
+Automatické časy (`auto: now`, `auto: last_saved`) zapisuje server v UTC – viz [CAS.md](CAS.md).
 
 `record_id` v cestě smí obsahovat jen písmena, číslice, `_` a `-`; jinak `400`
 (u všech endpointů záznamů a zámků). Změna stavu a seznam změněných polí se zapisují
@@ -820,7 +860,7 @@ curl -s -b /tmp/uf.cookies \
 
 ## Nastavení – `/api/v1/settings`
 
-Konfigurace datových adresářů. Změny se projeví okamžitě bez restartu serveru. Všechny endpointy vyžadují globální roli `system_admin`. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir` — neznámý klíč vrací `422`.
+Konfigurace datových adresářů, přepínačů funkcí a zobrazení času. Změny se projeví okamžitě bez restartu serveru. Všechny endpointy vyžadují globální roli `system_admin`. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir`, `designer_enabled`, `time_zone`, `date_format`, `time_format` — neznámý klíč vrací `422`.
 
 > **Poznámka:** Nastavení z `.env` a `uniforms.yaml` (branding, auth provider, expirace JWT) jsou načtena pouze při startu a vyžadují restart serveru. Přes API lze měnit pouze nastavení cest uložená v SQLite.
 
@@ -840,16 +880,22 @@ curl -s -b /tmp/uf.cookies http://localhost:8080/api/v1/settings/
 {
   "records_dir": "data/records",
   "collections_dir": "data/collections",
-  "schemas_dir": "data/schemas"
+  "schemas_dir": "data/schemas",
+  "designer_enabled": "true",
+  "time_zone": "Europe/Prague",
+  "date_format": "DD.MM.YYYY",
+  "time_format": "24h"
 }
 ```
+
+Časové klíče vrací vždy platnou hodnotu – neuložené mají výchozí (pásmo z `.env`, `DD.MM.YYYY`, `24h`).
 
 Nastavení access-manageru (`am.*`, včetně aplikačního klíče) `GET /api/v1/settings/`
 **nevrací** – mají vlastní API [`/api/v1/admin/access-manager`](#admin--access-manager--apiv1adminaccess-manager).
 
 ### `PATCH /api/v1/settings/`
 
-Aktualizuje cesty k datovým adresářům a přepínače funkcí. Cesta musí být existující adresář bez `..`. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir`, `designer_enabled`. Do auditu jdou jen názvy změněných klíčů.
+Aktualizuje cesty k datovým adresářům, přepínače funkcí a zobrazení času. Cesta musí být existující adresář bez `..`. Povolené klíče: `records_dir`, `schemas_dir`, `collections_dir`, `designer_enabled`, `time_zone`, `date_format`, `time_format`. Do auditu jdou jen názvy změněných klíčů.
 
 ```bash
 curl -s -b /tmp/uf.cookies \
@@ -884,11 +930,19 @@ curl -s -b /tmp/uf.cookies \
 | `collections_dir` | | Adresář pro YAML definice kolekcí (výchozí: `data/collections`) |
 | `schemas_dir` | | Adresář pro YAML šablony kolekcí (výchozí: `data/schemas`) |
 | `designer_enabled` | | `"true"` / `"false"` (výchozí `"false"`): zapne [Collection Designer](COLLECTION_DESIGNER.md). Vypnutý = `/admin/designer*` i `/api/v1/designer/*` vrací `404`. Jiná hodnota → `422` |
+| `time_zone` | | IANA pásmo zobrazení časů (např. `Europe/Prague`, `UTC`); neplatné → `422`. Data se ukládají v UTC, mění se jen zobrazení – viz [CAS.md](CAS.md) |
+| `date_format` | | `DD.MM.YYYY` \| `YYYY-MM-DD` \| `MM/DD/YYYY` \| `DD/MM/YYYY` |
+| `time_format` | | `24h` \| `12h` |
 
 ```bash
 # Zapnutí Collection Designeru (Settings → Features)
 curl -s -b /tmp/uf.cookies -X PATCH http://localhost:8080/api/v1/settings/ \
   -H "Content-Type: application/json" -d '{"designer_enabled": "true"}'
+
+# Zobrazení času (Settings → Date & time)
+curl -s -b /tmp/uf.cookies -X PATCH http://localhost:8080/api/v1/settings/ \
+  -H "Content-Type: application/json" \
+  -d '{"time_zone": "Europe/Prague", "date_format": "DD.MM.YYYY", "time_format": "24h"}'
 ```
 
 > **Pozor:** Zadaná cesta musí existovat na serveru a nesmí obsahovat `..`. Neplatná cesta vrátí `400 Bad Request`.
@@ -994,13 +1048,13 @@ API návrháře kolekcí a šablon ([COLLECTION_DESIGNER.md](COLLECTION_DESIGNER
 
 | Metoda | Endpoint | Popis | Auth |
 |--------|----------|-------|------|
-| `GET` | `/api/v1/designer/catalog` | Typy sekcí a polí, barvy, tokeny, výchozí modely | system_admin |
+| `GET` | `/api/v1/designer/catalog` | Typy sekcí, polí a sloupců, zdroje uživatelů (`user_sources`), barvy, tokeny, výchozí modely | system_admin |
 | `GET` | `/api/v1/designer/collections` | Přehled kolekcí s počtem šablon | system_admin |
 | `GET` | `/api/v1/designer/collections/{id}` | Model kolekce + šablony + klíče polí | system_admin |
 | `POST` | `/api/v1/designer/collections` | Vytvoření kolekce z modelu | system_admin |
 | `PUT` | `/api/v1/designer/collections/{id}` | Uložení modelu kolekce | system_admin |
 | `POST` | `/api/v1/designer/collections/{id}/check` | Kontrola modelu kolekce (nic nezapisuje) | system_admin |
-| `GET` | `/api/v1/designer/collections/{id}/templates/{template_id}` | Model šablony + zděděné sekce | system_admin |
+| `GET` | `/api/v1/designer/collections/{id}/templates/{template_id}` | Model šablony + bloky knihovny + vložené bloky | system_admin |
 | `POST` | `/api/v1/designer/collections/{id}/templates` | Vytvoření šablony z modelu | system_admin |
 | `PUT` | `/api/v1/designer/collections/{id}/templates/{template_id}` | Uložení modelu šablony | system_admin |
 | `POST` | `/api/v1/designer/collections/{id}/check-template` | Kontrola, náhled a YAML šablony (nic nezapisuje) | system_admin |
@@ -1024,7 +1078,9 @@ curl -s -b /tmp/uf.cookies \
   },
   "templates": [
     { "template_id": "zoo-pstros-v1", "name": "Pštros dvouprstý", "filename": "zoo_pstros_v1.yaml",
-      "status": "active", "abstract": false, "extends": "zoo-zvire-base-v1", "sections": 1, "loadable": true }
+      "status": "active", "abstract": false, "extends": "zoo-zvire-base-v1", "sections": 2, "removes": 0,
+      "section_titles": ["Pštrosí specifika"], "section_ids": ["ostrich"],
+      "uses": ["zoo-ptaci-bloky-v1#ringing"], "loadable": true }
   ],
   "field_keys": [ { "key": "animal_name", "label": "Jméno zvířete" } ]
 }
@@ -1036,10 +1092,37 @@ curl -s -b /tmp/uf.cookies \
 | `source.hash` | SHA-256 souboru; posílá se zpět jako `base_hash` |
 | `source.comments_lost` | Počet řádků komentářů, které by přepis zahodil |
 | `source.rewrite_lossy` | `true` = uložení změny vyžaduje `confirm_rewrite` |
-| `templates` | Všechny šablony kolekce včetně abstraktních; `loadable: false` = jen editor YAML |
+| `templates` | Všechny šablony kolekce včetně knihoven bloků; `loadable: false` = jen editor YAML |
+| `templates[].sections` | Počet vlastních sekcí (bez položek `override` / `remove`; vložený blok `use` se počítá) |
+| `templates[].section_ids`, `section_titles` | Bloky, které šablona sama definuje – co lze vložit přes `use: <template_id>#<id>` |
+| `templates[].uses`, `removes` | Odkazy `use:` šablony a počet vynechaných bloků (`remove:`) |
 | `field_keys` | Klíče polí ze šablon — nápověda pro `list_columns`, `title_field`, `take_over` |
 
-`GET …/templates/{template_id}` vrací stejný tvar (`model`, `source`, `filename`) a navíc `inherited` — sekce zděděné od rodičů (`chain`, `sections`, `error`).
+`GET …/templates/{template_id}` vrací stejný tvar (`model`, `source`, `filename`) a navíc:
+
+```json
+{
+  "inherited": {
+    "chain": ["zoo-zvire-base-v1"],
+    "sections": [ { "id": "header", "title": "Hlavička", "type": "header", "fields": [] } ],
+    "origins": ["zoo-zvire-base-v1"],
+    "indexes": [0],
+    "ids": ["header"],
+    "error": null
+  },
+  "embedded": {
+    "zoo-ptaci-bloky-v1#ringing": { "section": { "id": "ringing", "title": "Kroužkování", "type": "form" },
+                                    "origin": "zoo-ptaci-bloky-v1", "index": 0, "error": null }
+  }
+}
+```
+
+| Klíč | Popis |
+|------|-------|
+| `inherited.sections` | Bloky knihovny v konečném pořadí (už s úpravami knihovny samotné) |
+| `inherited.origins[i]`, `indexes[i]` | Šablona, která blok definuje, a jeho pozice v ní – pro „Edit in library" |
+| `inherited.ids[i]` | `id` bloku – hodnota pro `override:` / `remove:` |
+| `embedded` | Obsah každého odkazu `use:` šablony, nebo `error` u neplatného odkazu |
 
 ### `POST /api/v1/designer/collections`
 
@@ -1133,7 +1216,8 @@ curl -s -b /tmp/uf.cookies \
   ],
   "sections": [ { "id": "detail", "title": "Detail", "type": "form",
                   "fields": [ { "key": "kind", "label": "Druh", "type": "select", "editable": true, "value": null } ] } ],
-  "inherited": { "chain": [], "sections": [], "error": null }
+  "inherited": { "chain": [], "sections": [], "error": null },
+  "embedded": {}
 }
 ```
 
@@ -1142,7 +1226,8 @@ curl -s -b /tmp/uf.cookies \
 | `ok` | `false`, pokud je mezi nálezy alespoň jedna chyba — takový model nejde uložit |
 | `yaml` | YAML, který by se zapsal |
 | `issues` | Nálezy: `level` (`error` \| `warning`), `path`, `message` |
-| `sections` | Normalizované sekce včetně zděděných — vstup pro `UniForms.render()` (náhled) |
+| `sections` | Normalizované výsledné sekce (bloky knihovny s `override`/`remove`, vložené bloky `use`) — vstup pro `UniForms.render()` (náhled) |
+| `inherited`, `embedded` | Stejné jako u `GET …/templates/{template_id}` – pro aktuální (neuložený) model |
 
 `POST …/collections/{id}/check` vrací pro model kolekce `ok`, `yaml` a `issues`. Kontrolní endpointy nic nezapisují a neauditují se.
 
@@ -1156,7 +1241,7 @@ Chybová odpověď má v `detail` objekt `{code, message, …}`:
 | `409` | `exists` | kolekce, `template_id` nebo soubor už existuje |
 | `409` | `stale` | soubor se od načtení změnil (`base_hash` nesedí) |
 | `409` | `rewrite_not_confirmed` | uložení by zahodilo komentáře; `detail` nese `comments_lost`, `anchors` |
-| `422` | `invalid` | model neprošel validací; `detail.issues` je seznam nálezů |
+| `422` | `invalid` | model neprošel validací; `detail.issues` je seznam nálezů – mj. neplatný `override`/`remove`/`use`, nebo změna knihovny, která by smazala či přejmenovala blok používaný jiným formulářem |
 | `422` | `unsupported` | soubor obsahuje hodnoty, které nelze přenést přes JSON (např. datum bez uvozovek) |
 | `413` | `too_large` | tělo požadavku je větší než 2 MB |
 

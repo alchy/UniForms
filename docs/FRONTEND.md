@@ -376,6 +376,48 @@ UniForms.setReadOnly(true);   // read-only (zamčený záznam, tiskový režim)
 UniForms.setReadOnly(false);  // editovatelné
 ```
 
+### `UniForms.setUserProvider(fn)`
+
+Dodá rendereru seznam uživatelů pro pole `type: user`. Funkce dostane `source` pole a vrátí
+(Promise) pole `[{username, role}]`. Stránka detailu záznamu ji nastaví na
+`GET /api/v1/collections/{id}/members?source=…` (s cache pro každý `source`). Bez providera
+(např. náhled v Collection Designeru) nebo když volání selže, se pole vykreslí jako textový vstup.
+
+```javascript
+UniForms.setUserProvider(source =>
+    apiFetch(`/api/v1/collections/${COLLECTION_ID}/members?source=${encodeURIComponent(source)}`)
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }));
+```
+
+Hodnota, která v seznamu není (starší volný text), zůstane jako volba „(not a user of this collection)".
+
+### `UniForms.time` — datum a čas
+
+Převody mezi UTC a pásmem zobrazení. Konfiguraci bere z globální proměnné `APP_TIME`, kterou
+`base.html` vkládá do každé stránky z nastavení (Settings → Date & time):
+
+```javascript
+// vloženo serverem
+const APP_TIME = { timezone: "Europe/Prague", date_format: "DD.MM.YYYY",
+                   time_format: "24h", legacy_timezone: "Europe/Prague" };
+
+UniForms.time.formatInstant("2026-10-13T09:04:00Z");          // "13.10.2026 11:04"
+UniForms.time.formatTyped("time", "18:30");                   // "18:30" (12h: "6:30 PM")
+UniForms.time.zoneLabel("Europe/Prague", new Date());         // "Europe/Prague (UTC+01:00)"
+```
+
+| Funkce | Popis |
+|--------|-------|
+| `parseInstant(value)` | Uložená hodnota → `Date`; hodnota bez pásma se čte v `legacy_timezone` |
+| `formatInstant(value, tz?)` | Okamžik podle `date_format` / `time_format` v pásmu `tz` (výchozí `timezone`) |
+| `formatDate(value)` / `formatTime(value)` | `YYYY-MM-DD` / `HH:MM` podle nastavení, bez převodu pásma |
+| `formatTyped(type, value, tz?)` | Text hodnoty pole nebo buňky typu `datetime`, `date`, `time` |
+| `zoneLabel(tz, date?)` | Značka pásma s posunem platným k danému datu |
+| `timezone`, `dateFormat` | Aktuální pásmo a formát data |
+
+Pole a sloupce `datetime` ukládá renderer v UTC (`…Z`), `date` a `time` tak, jak je analytik zadal.
+Podrobně: [CAS.md](CAS.md).
+
 ### `UniForms._helpers` — pomocné funkce
 
 Interní utility dostupné pro extension renderery:
@@ -485,6 +527,8 @@ UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
 | `UniForms.render` | `(sections, container)` | Vykreslí pole sekcí do DOM kontejneru |
 | `UniForms.registerRenderer` | `(type, fn)` | Zaregistruje custom renderer pro nový typ sekce |
 | `UniForms.setReadOnly` | `(readonly)` | Přepne všechny inputy na read-only nebo editovatelné |
+| `UniForms.setUserProvider` | `(fn)` | Zdroj uživatelů pro pole `type: user` |
+| `UniForms.time` | objekt | Převody a formátování data a času (UTC ↔ pásmo zobrazení) |
 | `UniForms._helpers` | objekt | Interní utility pro extension renderery |
 
 ### Vestavěné renderery (přepsatelné přes `registerRenderer`)
@@ -519,5 +563,6 @@ UniForms.registerRenderer('ioc_table', function renderIocTable(section) {
 ## Reference
 
 - Typy sekcí a polí, pipeline YAML → data, psaní šablon: [SABLONY.md](SABLONY.md)
+- Datum, čas a časová pásma: [CAS.md](CAS.md)
 - Konfigurace kolekce (workflow, terminologie, list_columns): [KOLEKCE.md](KOLEKCE.md)
 - REST API: [API.md](API.md)

@@ -172,7 +172,8 @@ data/                runtime data (SQLite, záznamy, šablony, kolekce)
 | [docs/ACCESS_MANAGER.md](docs/ACCESS_MANAGER.md) | Přihlášení přes access-manager (OTP) — napojení, role ze skupin, řešení problémů |
 | [docs/AUDIT.md](docs/AUDIT.md) | Auditní stopa — co se zapisuje, formát událostí, čtení |
 | [docs/KOLEKCE.md](docs/KOLEKCE.md) | Formát `collection.yaml` — workflow, terminologie, id_format |
-| [docs/SABLONY.md](docs/SABLONY.md) | YAML šablony — typy sekcí, pole, pipeline, dědičnost |
-| [docs/COLLECTION_DESIGNER.md](docs/COLLECTION_DESIGNER.md) | Collection Designer — návrh kolekcí a šablon v GUI (drag & drop) bez psaní YAML |
+| [docs/SABLONY.md](docs/SABLONY.md) | YAML šablony — typy sekcí, pole, pipeline, knihovny bloků a dědičnost |
+| [docs/CAS.md](docs/CAS.md) | Datum, čas a časová pásma — UTC, typy `datetime` / `date` / `time`, Settings → Date & time |
+| [docs/COLLECTION_DESIGNER.md](docs/COLLECTION_DESIGNER.md) | Collection Designer — návrh kolekcí, formulářů a knihoven bloků v GUI (drag & drop) bez psaní YAML |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Web routing, uniforms.js renderer, JS moduly |
 | [docs/HOW2WRITE.md](docs/HOW2WRITE.md) | Styl psaní technické dokumentace (pro přispěvatele) |

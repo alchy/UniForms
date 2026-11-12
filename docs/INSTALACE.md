@@ -141,7 +141,7 @@ AUDIT_RETENTION_DAYS=365       # starší dny se mažou; 0 = nemazat
 # ACCESS_MANAGER_URL=https://access-manager.example.com
 # ACCESS_MANAGER_REALM=uniforms.example.com
 # ACCESS_MANAGER_KEY=am_k1_...
-TIMEZONE=UTC                   # IANA název časového pásma (např. Europe/Prague)
+TIMEZONE=Europe/Prague         # výchozí pásmo zobrazení; přepíše ho Settings → Date & time
 DEFAULT_RECORDS_DIR=data/records
 DEFAULT_SCHEMAS_DIR=data/schemas
 DEFAULT_COLLECTIONS_DIR=data/collections
@@ -161,7 +161,7 @@ DEFAULT_COLLECTIONS_DIR=data/collections
 | `AUDIT_DIR` | | Adresář auditní stopy (výchozí: `data/audit`) – viz [AUDIT.md](AUDIT.md) |
 | `AUDIT_RETENTION_DAYS` | | Retence auditu ve dnech (výchozí: `365`, `0` = nemazat) |
 | `ACCESS_MANAGER_*` | | Napojení na access-manager; hodnoty z GUI (Settings) mají přednost – viz [ACCESS_MANAGER.md](ACCESS_MANAGER.md#reference--konfigurace) |
-| `TIMEZONE` | | IANA název časového pásma pro záznamy (výchozí: `UTC`) |
+| `TIMEZONE` | | IANA pásmo (výchozí: `Europe/Prague`). Výchozí pásmo zobrazení, dokud ho nezměníte v Settings → Date & time, a pásmo, ve kterém se čtou starší časy uložené bez pásma. Časy se ukládají v UTC – viz [CAS.md](CAS.md) |
 | `DEFAULT_RECORDS_DIR` | | Adresář pro záznamy (výchozí: `data/records`) |
 | `DEFAULT_SCHEMAS_DIR` | | Adresář pro šablony (výchozí: `data/schemas`) |
 | `DEFAULT_COLLECTIONS_DIR` | | Adresář pro kolekce (výchozí: `data/collections`) |
@@ -541,7 +541,7 @@ Před zpřístupněním aplikace uživatelům ověřte:
 - [ ] Aplikace je dostupná pouze přes HTTPS (nginx reverzní proxy)
 - [ ] `.env` není verzován v gitu a má omezená oprávnění (`chmod 600 .env`)
 - [ ] `uniforms.yaml` je nakonfigurován pro vaši doménu (název, terminologie, prefix ID)
-- [ ] Nastaveno správné časové pásmo: `TIMEZONE=Europe/Prague`
+- [ ] Nastaveno správné časové pásmo: `TIMEZONE=Europe/Prague` v `.env` a ověřeno v Settings → Date & time (viz [CAS.md](CAS.md))
 - [ ] Vendor knihovny jsou staženy: `ls uniforms/static/vendor/`
 - [ ] systemd service je nastaven na automatický start: `systemctl is-enabled uniforms`
 - [ ] Zálohovací cron job je nastaven: `crontab -l`

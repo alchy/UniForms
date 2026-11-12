@@ -11,7 +11,8 @@ YAML soubory zůstávají jedinou definicí (`data/collections/<id>.yaml`, `data
 Dosud se kolekce a šablony upravovaly v editoru surového YAML (Admin → Collections, Templates → Edit). To vyžaduje znát klíče, odsazení a pravidla formátu. Collection Designer nabízí totéž jako formulář:
 
 - **průvodce kolekcí** v šesti krocích — základ, stavy workflow, záznamy (formát ID, sloupce seznamu, titulek, převzetí), role a terminologie, šablony, kontrola a uložení,
-- **návrhář šablony** — paleta objektů (sekce, pole, sloupce, kroky), plátno formuláře s přetahováním, panel atributů vybraného objektu, živý náhled a zobrazení výsledného YAML.
+- **návrhář šablony** — paleta objektů (sekce, pole, sloupce, kroky, sdílené bloky), plátno formuláře s přetahováním, panel atributů vybraného objektu, živý náhled a zobrazení výsledného YAML,
+- **knihovny bloků** — sekce sdílené více formuláři; na plátně je u každého bloku vidět, odkud pochází, a jedním klikem se dá upravit v knihovně, jen pro jeden formulář, vynechat nebo nahradit jiným blokem.
 
 Editory surového YAML zůstávají a návrhář na ně odkazuje. Hodí se pro věci, které návrhář neumí (viz [Omezení](#omezení)), a pro soubory s komentáři, o které nechceš přijít.
 
@@ -64,7 +65,7 @@ Nová kolekce s jednou šablonou, bez jediného řádku YAML:
 2. Klikni **New collection**. V kroku *Basics* vyplň název — ID se navrhne samo (např. `IT Helpdesk` → `it-helpdesk`).
 3. Projdi kroky tlačítkem **Next**. Výchozí hodnoty (tři stavy, formát ID, role) jsou platné; uprav jen to, co potřebuješ.
 4. V kroku *Review & save* zkontroluj nálezy a YAML a klikni **Create collection**.
-5. Otevře se krok *Templates*. Klikni **New template**, vyplň název a potvrď **Start designing**.
+5. Otevře se krok *Templates* na záložce **Forms**. Klikni **New form**, vyplň název a potvrď **Start designing**.
 6. Z palety přetáhni na plátno sekci **Form** a do ní pole. Klikem na objekt se vpravo zobrazí jeho atributy.
 7. Přepni na **Preview**, zkontroluj formulář a klikni **Save template**.
 
@@ -84,7 +85,7 @@ Nová kolekce s jednou šablonou, bez jediného řádku YAML:
 | Workflow | stavy, jejich pořadí, barvy, počáteční stav | `workflow.states`, `workflow.initial_state` |
 | Records | prefix a formát ID, sloupce seznamu, pole titulku, tlačítko Převzít | `id_format`, `list_columns`, `title_field`, `take_over` |
 | Roles & terms | názvy dvou rolí kolekce, přepisy terminologie | `roles`, `terminology` |
-| Templates | seznam šablon kolekce, otevření návrháře šablony | soubory v `data/schemas/<id>/` |
+| Templates | záložky **Forms** (šablony pro záznamy) a **Building blocks** (knihovny bloků), otevření návrháře | soubory v `data/schemas/<id>/` |
 | Review & save | kontrola serverem, výsledný YAML, uložení | — |
 
 Změny v krocích se drží jen v prohlížeči, dokud je v posledním kroku neuložíš. Krok *Templates* je u nové kolekce zamčený, dokud kolekce neexistuje — šablony se ukládají do jejího adresáře.
@@ -99,8 +100,8 @@ Obrazovka má tři části:
 
 | Část | K čemu slouží |
 |------|---------------|
-| Paleta (vlevo) | Objekty k vložení: sekce, pole, sloupce tabulky, skupiny a kroky checklistu. |
-| Plátno (uprostřed) | Struktura šablony. Nahoře karta šablony, pod ní zděděné sekce (jen pro čtení) a vlastní sekce. |
+| Paleta (vlevo) | Objekty k vložení: sekce, **Building blocks (shared)** (bloky knihoven), pole, **System (app-defined)** (automatická hodnota, User, Record owner), sloupce tabulky (i datum/čas), skupiny a kroky checklistu. |
+| Plátno (uprostřed) | Struktura šablony. Nahoře karta šablony, pod ní bloky knihovny (každý jako samostatná fialová karta) a vlastní sekce formuláře. |
 | Atributy (vpravo) | Vlastnosti vybraného objektu a akce: posun nahoru/dolů, duplikace, smazání. |
 
 Objekt vložíš **přetažením** z palety na plátno, nebo **kliknutím** — vloží se k právě vybranému objektu. Existující objekty lze přetahovat v rámci sekce i mezi sekcemi. Plátno dovolí jen smysluplné umístění:
@@ -108,21 +109,63 @@ Objekt vložíš **přetažením** z palety na plátno, nebo **kliknutím** — 
 | Objekt | Kam ho lze umístit |
 |--------|--------------------|
 | sekce `header`, `section_group` | jen na nejvyšší úroveň |
+| sdílený blok (Building blocks) | jen na nejvyšší úroveň |
 | sekce `form`, `table`, `checklist` | na nejvyšší úroveň nebo do `section_group` |
 | pole | do sekce `header` nebo `form` |
 | sloupec | do sekce `table` |
 | skupina kroků | do sekce `checklist` |
 | krok | do checklistu bez skupin, nebo do skupiny kroků |
 
-Pod plátnem běží průběžná kontrola serverem (chyby a varování s cestou k objektu). Přepínač **Live preview below** zobrazí pod návrhem náhled, který se obnovuje při každé změně; záložka **Preview** ukáže náhled přes celou šířku a **YAML** výsledný soubor. Náhled kreslí stejný renderer jako detail záznamu (`UniForms.render`), včetně zděděných sekcí.
+Pod plátnem běží průběžná kontrola serverem (chyby a varování s cestou k objektu). Přepínač **Live preview below** zobrazí pod návrhem náhled, který se obnovuje při každé změně; záložka **Preview** ukáže náhled přes celou šířku a **YAML** výsledný soubor. Náhled kreslí stejný renderer jako detail záznamu (`UniForms.render`), včetně bloků knihoven – s vynechanými, upravenými i vloženými bloky přesně tak, jak je dostane nový záznam.
 
 Tlačítko **Undo** vrací poslední změny (až 60 kroků). Šablona se zapíše až tlačítkem **Save template**.
 
 > **Pozor:** `template_id` nelze po prvním uložení změnit. Pro jiné ID vytvoř novou šablonu.
 
-### Dědičnost šablon
+### Formuláře a knihovny bloků
 
-V dialogu nové šablony (nebo v atributech šablony) zvol *Extends*. Sekce rodiče se na plátně zobrazí šedě nad vlastními sekcemi a upravují se v rodičovské šabloně. Rodič musí existovat — nejdřív ulož rodiče (typicky `abstract`), potom potomka.
+Krok *Templates* má dvě záložky – to je první volba, co chceš upravovat:
+
+| Záložka | Obsahuje | Tlačítko |
+|---------|----------|----------|
+| **Forms** | šablony, ze kterých vznikají záznamy; u každé „LIBRARY · <knihovna>" a počet sekcí | **New form** |
+| **Building blocks** | knihovny bloků (`abstract: true`); jejich bloky jako štítky a „Used by" | **New block library** |
+
+Ve formuláři, který používá knihovnu (*Uses library*, v YAML `extends`), je každý blok knihovny
+samostatná fialová karta se zámkem, štítkem knihovny a přehledem polí. Kliknutí na kartu nabídne:
+
+| Volba | Co udělá | V YAML |
+|-------|----------|--------|
+| **Edit in library** | otevře knihovnu s vybraným blokem; změna platí pro všechny formuláře, které ho používají | — |
+| **Customize for this form only** | formulář dostane vlastní kopii bloku (oranžová karta „CUSTOMIZED") | `override: <id>` |
+| **Replace with another block…** | na místě bloku použije jiný sdílený blok („REPLACED") | `override: <id>` + `use: <ref>` |
+| **Remove from this form** (ikona 👁) | blok se ve formuláři nepoužije; zůstane přeškrtnutý s tlačítkem **Restore** | `remove: <id>` |
+
+Upravená nebo nahrazená karta má tlačítko **Reset to library version**, které vrátí blok z knihovny.
+
+Jednotlivý blok z jiné knihovny vložíš z palety **Building blocks (shared)** (kliknutím nebo
+přetažením). Vložený blok je živý odkaz (`use:`): karta „EMBEDDED" ukáže jeho obsah, **Edit in library**
+ho otevře v knihovně a **Detach (copy here)** z odkazu udělá vlastní kopii. V atributech lze vložený
+blok vyměnit za jiný nebo mu dát jiné `id`.
+
+Při úpravě knihovny (nebo formuláře, ze kterého jiné formuláře berou bloky) je nahoře žlutý pruh se
+seznamem dotčených formulářů a tlačítkem **Back to <formulář>**; uložení se ještě potvrdí. Změna
+knihovny se projeví jen u **nových** záznamů. Knihovnu nejde uložit, pokud by smazala nebo
+přejmenovala blok, který některý formulář upravuje, vynechává nebo vkládá.
+
+Pravidla a YAML: [SABLONY.md – Knihovny bloků a dědičnost](SABLONY.md#10-knihovny-bloků-a-dědičnost).
+
+> **Pozor:** Knihovna musí existovat dřív než formulář, který ji používá – nejdřív ulož knihovnu, potom formulář.
+
+### Pole aplikace a časová pole
+
+Skupina palety **System (app-defined)** obsahuje pole, jejichž hodnoty určuje aplikace, ne šablona:
+*Automatic value* (`auto:`), *User* a *Record owner* (`type: user` – výběr z uživatelů kolekce,
+atribut *Users from* = `source`). Pole typu User má na plátně odznak „app list".
+
+Časové typy: pole *Date & time* (okamžik, ukládá se v UTC – atribut *Time zone shown* = `display_tz`),
+*Date* a *Time of day* (denní čas bez převodu); v tabulkách sloupce *Date column*, *Time column*
+a *Date & time column*. Kdy který použít: [CAS.md](CAS.md).
 
 ---
 
@@ -241,15 +284,17 @@ Atributy, pro které má návrhář ovládací prvek. Ostatní klíče se zobraz
 
 | Objekt | Atributy |
 |--------|----------|
-| šablona | `template_id`, `name`, `version`, `status`, `category`, `description`, `abstract`, `extends`, `meta` |
+| šablona | `template_id`, `name`, `version`, `status`, `category`, `description`, `abstract` (*Block library*), `extends` (*Uses library*), `meta` |
 | sekce | `id`, `title`, `description`, `hint`; v `section_group` navíc `note`, `always_expanded` |
+| blok knihovny (karta) | akce *Customize* (`override`), *Replace…* (`override` + `use`), *Remove* (`remove`), *Restore*, *Reset to library version* |
+| vložený blok | `use` (*Block*), `id`; akce *Detach (copy here)* |
 | sekce `table` | `allow_append_row`, `allow_delete_row`, `hints`, `append_row_template`, `rows` |
-| pole | `key`, `label`, `type`, `options`, `auto` / `auto_value`, `editable`, `required`, `placeholder`, `example`, `value`, `hint`, `visible_if`, `required_if` |
-| sloupec | `key`, `label`, `type`, `options`, `editable` |
+| pole | `key`, `label`, `type`, `options`, `source` (jen `user`), `display_tz` (jen `datetime`), `auto` / `auto_value`, `editable`, `required`, `placeholder`, `example`, `value`, `hint`, `visible_if`, `required_if` |
+| sloupec | `key`, `label`, `type` (`text`, `select`, `textarea`, `date`, `time`, `datetime`), `options`, `display_tz`, `editable` |
 | skupina kroků | `title`, `id`, `note`, `hints` |
 | krok | `action`, `hint`, `example`, `id` |
 
-Typ sekce se volí při vložení z palety a dál se nemění. Seznam typů sekcí, polí, barev stavů a tokenů formátu ID vrací `GET /api/v1/designer/catalog` — paleta se staví z něj.
+Typ sekce se volí při vložení z palety a dál se nemění. Seznam typů sekcí, polí, sloupců, zdrojů uživatelů, barev stavů a tokenů formátu ID vrací `GET /api/v1/designer/catalog` — paleta se staví z něj. Bloky knihoven v paletě pocházejí z přehledu šablon (`section_ids`, `section_titles`).
 
 ---
 
@@ -312,6 +357,8 @@ V režimu `create_app(include_web=False)` zůstává API návrháře dostupné; 
 - Šablony se ukládají jednotlivě; rozpracované změny žijí jen v otevřené stránce.
 - Počáteční stav `done` kroku a `hints` u jiných sekcí než `table` nemají ovládací prvek (zobrazí se v *Other attributes*).
 - Smazání a přejmenování kolekce zůstává na stránce Admin → Collections.
+- Přesun sekce formuláře do knihovny („New block from selected section") zatím není – blok se do knihovny přidá v ní samotné.
+- Pořadí bloků knihovny ve formuláři nelze měnit; vlastní a vložené sekce následují za nimi.
 
 ---
 
@@ -327,10 +374,10 @@ V režimu `create_app(include_web=False)` zůstává API návrháře dostupné; 
 | `POST` | `/collections` | Vytvoření kolekce z modelu |
 | `PUT` | `/collections/{id}` | Uložení modelu kolekce |
 | `POST` | `/collections/{id}/check` | Kontrola modelu kolekce — nic nezapisuje |
-| `GET` | `/collections/{id}/templates/{template_id}` | Model šablony, `source`, zděděné sekce |
+| `GET` | `/collections/{id}/templates/{template_id}` | Model šablony, `source`, bloky knihovny (`inherited`), vložené bloky (`embedded`) |
 | `POST` | `/collections/{id}/templates` | Vytvoření šablony z modelu |
 | `PUT` | `/collections/{id}/templates/{template_id}` | Uložení modelu šablony |
-| `POST` | `/collections/{id}/check-template` | Kontrola, náhled a YAML šablony — nic nezapisuje |
+| `POST` | `/collections/{id}/check-template` | Kontrola, náhled a YAML šablony, `inherited` a `embedded` — nic nezapisuje |
 
 Podrobnosti a příklady: [API.md](API.md#admin--collection-designer--apiv1designer).
 
@@ -345,7 +392,9 @@ Podrobnosti a příklady: [API.md](API.md#admin--collection-designer--apiv1desig
 | `lint_collection(model)` / `lint_template(model, dir)` | Jen nálezy návrháře |
 | `dump_yaml(model, header)` | Model → kanonický YAML (ověřuje zpětné načtení) |
 | `analyze_source(content, data)` | Hash, komentáře, kotvy, kanoničnost souboru |
-| `list_templates(dir)` / `collection_field_keys(dir)` | Přehled šablon včetně abstraktních, klíče polí |
+| `list_templates(dir)` / `collection_field_keys(dir)` | Přehled šablon včetně knihoven (`section_ids`, `section_titles`, `uses`, `removes`), klíče polí |
+| `inherited_sections(dir, parent_id, own_id)` | Bloky knihovny v pořadí: `sections`, `origins`, `indexes`, `ids`, `chain` |
+| `embedded_blocks(dir, model)` | Obsah vložených bloků (`use:`) nebo chyba odkazu |
 
 ### Soubory
 

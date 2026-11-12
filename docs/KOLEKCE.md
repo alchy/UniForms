@@ -315,13 +315,30 @@ take_over:
   value_type: username
 ```
 
-Příklad s časovým razítkem:
+Cílové pole pro `value_type: username` má být v šabloně typu `user` – výběr z uživatelů kolekce,
+který server při uložení ověřuje (viz [SABLONY.md](SABLONY.md#user--uživatel-kolekce)):
+
+```yaml
+- key: record_owner
+  label: Řešitel
+  type: user
+  source: collection_members
+```
+
+Převzít může každý, kdo do pole patří podle `source` – system admin vždy, protože je členem
+`collection_members` i `collection_admin`.
+
+Příklad s časovým razítkem – cílové pole má být typu `datetime` (čas se uloží v UTC a zobrazí
+v pásmu ze Settings, viz [CAS.md](CAS.md)):
 
 ```yaml
 take_over:
   field: datum_prevzeti
   value_type: timestamp
 ```
+
+> **Pozor:** `value_type: timestamp` nekombinujte s polem typu `user` – časové razítko není
+> uživatel kolekce a server by uložení odmítl (`422`).
 
 > **Tip:** Kombinuj `take_over` s `title_field` a `list_columns` — nastav všechny tři na stejné pole (koordinátor/zodpovědná osoba) a získáš přehledný seznam s rychlým převzetím přímo z detailu záznamu.
 

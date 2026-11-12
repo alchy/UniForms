@@ -24,14 +24,16 @@ TemplateService.get_template()
     │
     ├─ 1. Parsování YAML → dict (PyYAML safe_load)
     │
-    ├─ 2. Dědičnost (extends:)
-    │      Načte rodičovskou šablonu, rekurzivně ji vyřeší,
-    │      a předřadí její sekce před sekce potomka.
+    ├─ 2. Knihovna bloků a dědičnost (extends:, override:, remove:, use:)
+    │      Načte rodičovskou šablonu (knihovnu), rekurzivně ji vyřeší,
+    │      předřadí její sekce, na místě nahradí (override) nebo vynechá
+    │      (remove) jednotlivé bloky a vloží odkazované bloky (use).
     │
     └─ 3. Normalizace
            • auto: <zdroj>  →  editable: false + auto_value: <zdroj>
            • example: hodnota  →  field.value (označí is_example: true)
            • Chybějící type  →  "text"
+           • type: user bez source  →  source: collection_members
            • Chybějící editable  →  true
            • Chybějící value  →  null
            • Flat steps:  →  step_groups: [{title: null, steps: [...]}]
@@ -71,7 +73,9 @@ rozbitá šablona už nemůže tiše zmizet ze seznamu.
 
 - `template_id` nelze při uložení změnit – pro nové ID vytvořte novou šablonu.
 - Šablona se stejným `template_id` jako existující se nevytvoří (`409`).
-- Při zakládání přes API ukládejte **nejdřív rodiče** (`abstract: true`), pak potomky.
+- Při zakládání přes API ukládejte **nejdřív knihovnu bloků** (`abstract: true`), pak šablony, které ji používají.
+- Knihovnu nelze uložit, pokud by změna přejmenovala nebo smazala blok, který jiná šablona
+  upravuje (`override`), vynechává (`remove`) nebo vkládá (`use`) – viz [kapitola 10](#10-knihovny-bloků-a-dědičnost).
 
 ---
 
@@ -108,6 +112,8 @@ sections:
         placeholder: 'např.: Tiskárna offline – budova B'
       - key: record_owner
         label: Řešitel
+        type: user
+        source: collection_members
 
   - id: details
     title: Podrobnosti
@@ -166,8 +172,8 @@ sections:
 | `status` | ✓ | `active` \| `draft` \| `deprecated`; nové šablony začínají jako `draft` |
 | `sections[]` | ✓ | Seznam sekcí šablony |
 | `description` | | 1–2 věty popisující účel šablony; zobrazí se v přehledu šablon |
-| `abstract` | | `true` = šablona slouží pouze jako základ pro dědičnost, nezobrazí se v dashboardu (výchozí: `false`) |
-| `extends` | | `template_id` rodičovské šablony; sekce rodiče jsou vloženy před sekce potomka |
+| `abstract` | | `true` = **knihovna bloků** – jen zdroj sekcí pro jiné šablony; nezobrazí se v seznamu šablon a nelze z ní založit záznam (výchozí: `false`) |
+| `extends` | | `template_id` knihovny (v UI „Uses library"); její bloky jsou vloženy před vlastní sekce – viz [kapitola 10](#10-knihovny-bloků-a-dědičnost) |
 | `meta{}` | | Libovolné doménové klíče; hodnoty jsou přístupné v polích přes `auto: meta.<klíč>` |
 | `workflow{}` | | Per-šablonový override workflow kolekce (pokročilé, výjimečné). Struktura je shodná s `workflow` v konfiguraci kolekce — viz [KOLEKCE.md § workflow](KOLEKCE.md#sekce-workflow). |
 
@@ -435,9 +441,25 @@ Plný příklad sekce (vzor 1):
 |------|:-:|-------|
 | `key` | ✓ | Klíč hodnoty v řádku |
 | `label` | ✓ | Nadpis sloupce |
-| `type` | | `text` \| `select` \| `textarea` (výchozí: `text`) |
+| `type` | | `text` \| `select` \| `textarea` \| `date` \| `time` \| `datetime` (výchozí: `text`); časové typy viz [kapitola 6](#6-typy-polí) |
 | `editable` | | `true` = editovatelný; `false` = read-only (výchozí: `false`) |
 | `options[]` | ◐ | Povinné pokud `type: select` |
+| `display_tz` | | Jen `type: datetime`: `local` (výchozí) \| `utc` – pásmo, ve kterém se čas zobrazí |
+
+Sloupce `date`, `time` a `datetime` se v nových řádcích zadávají výběrem data/času. U sloupce
+`time` hlavička ukazuje „(local time)", u `datetime` pásmo zobrazení, např. „(Europe/Prague (UTC+01:00))".
+
+```yaml
+- id: feeding
+  title: Krmný plán
+  type: table
+  allow_append_row: true
+  allow_delete_row: true
+  columns:
+    - { key: time,   label: "Čas", type: time }       # denní čas – místní, nepřevádí se
+    - { key: food,   label: "Krmivo", type: text }
+    - { key: given,  label: "Podáno", type: datetime } # okamžik – ukládá se v UTC
+```
 
 ---
 
@@ -554,17 +576,83 @@ Rozbalovací seznam předdefinovaných hodnot. Klíč `options:` je povinný.
   value: null
 ```
 
-### `datetime` — datum a čas
+### Časové typy — přehled
 
-Vstup pro datum a čas (HTML `datetime-local`). Hodnota se ukládá ve formátu `YYYY-MM-DDTHH:MM`.
+Časové typy jsou tři a liší se tím, **co** popisují. Podrobně (UTC, pásma, nastavení) viz [CAS.md](CAS.md).
+
+| Typ | Popisuje | Uložená hodnota | Převod pásma |
+|-----|----------|-----------------|:------------:|
+| `datetime` | okamžik, který nastal (vylíhnutí, prohlídka) | `2026-10-13T09:04:00Z` (UTC) | ano |
+| `date` | kalendářní den (datum narození) | `2026-10-13` | ne |
+| `time` | denní čas, rozvrh (krmení v 07:00) | `07:00` | ne |
+
+### `datetime` — okamžik (datum a čas)
+
+Okamžik se **ukládá v UTC** a zobrazuje i zadává v pásmu z nastavení aplikace (Settings → Date & time).
+Pod polem je značka pásma, např. „Time zone: Europe/Prague (UTC+02:00)". Klíč `display_tz: utc`
+zobrazí hodnotu v UTC.
 
 ```yaml
-- key: incident_time
-  label: Čas incidentu
+- key: born_at
+  label: Datum vylíhnutí
   type: datetime
   editable: true
   value: null
 ```
+
+Výsledek: analytik vybere `13.10.2026 11:04`, uloží se `2026-10-13T09:04:00Z`. Starší hodnoty bez
+pásma (`2026-10-13T11:04`) se čtou jako čas pásma z `.env` a zůstávají, dokud je nikdo nezmění.
+
+### `date` — kalendářní den
+
+Datum bez času. Nepřevádí se mezi pásmy – den je pro všechny stejný. Zobrazí se ve formátu ze Settings.
+
+```yaml
+- key: birth_date
+  label: Datum narození
+  type: date
+  editable: true
+  value: null
+```
+
+### `time` — denní čas
+
+Čas dne bez data, typicky rozvrh. Ukládá se jako `HH:MM` **v místním čase a nepřevádí se** – krmení
+„v 07:00" je v 07:00 v zimě i v létě. Pod polem je poznámka „Local time – not converted between time zones".
+
+```yaml
+- key: feeding_time
+  label: Čas krmení
+  type: time
+  editable: true
+  value: null
+```
+
+> **Pozor:** Pro okamžik, který skutečně nastal, použijte `datetime`, ne `date` + `time`. Jen
+> `datetime` se správně přepočítá při změně letního/zimního času i při změně pásma v Settings.
+
+### `user` — uživatel kolekce
+
+Výběr z uživatelů, kteří mají přístup ke kolekci – **číselník stanovený aplikací**, ne volné `options`.
+Seznam se načítá živě (`GET /api/v1/collections/{id}/members`) a server při uložení ověří, že
+nová hodnota je platný uživatel. Typické použití je `record_owner` pro tlačítko „Převzít".
+
+```yaml
+- key: record_owner
+  label: Ošetřovatel
+  type: user
+  source: collection_members
+  hint: "Vyplní se tlačítkem Převzít péči."
+```
+
+| `source` | Nabízí |
+|----------|--------|
+| `collection_members` | každého s přístupem ke kolekci: system admini + role v kolekci (výchozí) |
+| `collection_admin` | system admini + `collection_admin` |
+| `collection_user` | jen `collection_user` |
+
+Výsledek: pole se zobrazí jako výběr uživatelských jmen. Starší volný text (např. „Marie Krmivová")
+zůstane jako volba „(not a user of this collection)"; server ho při uložení neodmítne, dokud se nezmění.
 
 ### `number` — číslo
 
@@ -584,10 +672,12 @@ Vstup pro datum a čas (HTML `datetime-local`). Hodnota se ukládá ve formátu 
 |------|:-:|-------|
 | `key` | ✓ | Unikátní klíč v rámci sekce; používá se pro odkazování v `visible_if`/`required_if` |
 | `label` | ✓ | Zobrazovaný popis pole |
-| `type` | | `text` \| `textarea` \| `select` \| `datetime` \| `number` (výchozí: `text`) |
+| `type` | | `text` \| `textarea` \| `select` \| `number` \| `datetime` \| `date` \| `time` \| `user` (výchozí: `text`) |
 | `editable` | | `true` = analytik může editovat; `false` = read-only (výchozí: `true`; vždy `false` pokud je `auto:` přítomno) |
 | `value` | | Počáteční hodnota (výchozí: `null`) |
 | `options[]` | ◐ | Povinné pokud `type: select` |
+| `source` | | Jen `type: user`: `collection_members` \| `collection_admin` \| `collection_user` (výchozí: `collection_members`) |
+| `display_tz` | | Jen `type: datetime`: `local` (výchozí) \| `utc` |
 | `auto` | | Zdroj automatické hodnoty — viz kapitola Klíč `auto:` |
 | `example` | | Předvyplněná ukázková hodnota; zobrazí se jako šedý placeholder, při vytvoření záznamu se hodnota resetuje na `null` |
 | `placeholder` | | Hint text zobrazený uvnitř prázdného vstupního pole (HTML `placeholder`); nezapisuje se jako hodnota |
@@ -647,8 +737,8 @@ Pole s klíčem `auto:` je vždy read-only (`editable: false`). Jeho hodnota se 
 | `template_name` | Zobrazovaný název šablony |
 | `template_version` | Verze šablony (řetězec, např. `"2.0"`) |
 | `current_user` | Username přihlášeného uživatele v okamžiku vytvoření záznamu |
-| `now` | Čas vytvoření záznamu ve formátu `YYYY-MM-DDTHH:MM` (lokální timezone) |
-| `last_saved` | Čas posledního uložení záznamu; aktualizuje se při každém `PATCH /api/v1/records/…` |
+| `now` | Čas vytvoření záznamu v UTC, např. `2026-11-12T09:39:11Z`; zobrazí se v pásmu ze Settings |
+| `last_saved` | Čas posledního uložení v UTC; aktualizuje se při každém `PATCH /api/v1/records/…` |
 | `meta.<klíč>` | Hodnota z bloku `meta:` šablony (např. `meta.mitre_tactic`, `meta.sla_hodiny`) |
 
 > **Poznámka:** Pokud hodnota v `meta:` je seznam, je spojena čárkou do jednoho řetězce (např. `"EDR, SIEM, Firewall"`).
@@ -745,97 +835,167 @@ Oba klíče slouží jako nápověda analytikovi, ale fungují odlišně.
 
 ---
 
-## 10. Dědičnost šablon (`extends:`)
+## 10. Knihovny bloků a dědičnost
 
-Šablona může dědit sekce z jiné (rodičovské) šablony pomocí klíče `extends:`. Sekce rodiče jsou vloženy PŘED sekce potomka. Dědičnost je rekurzivní — rodič může sám dědit z dalšího předka.
+Víc šablon v kolekci často sdílí stejné sekce – hlavičku, identifikaci, krmný plán. Místo kopírování
+je umístěte do **knihovny bloků** a šablony z ní sekce převezmou. Změna bloku v knihovně se pak
+projeví ve všech šablonách, které ho používají.
 
-Abstraktní šablony (`abstract: true`) slouží výhradně jako základ pro dědičnost — nezobrazují se v dashboardu a nelze z nich přímo vytvořit záznam.
+| Pojem | V UI | V YAML |
+|-------|------|--------|
+| Šablona, ze které vznikají záznamy | Form | šablona bez `abstract` |
+| Knihovna bloků | Block library | `abstract: true` |
+| Blok | Building block | jedna sekce knihovny |
+| Šablona používá knihovnu | Uses library | `extends: <template_id>` |
 
-**Abstraktní základní šablona:**
+```
+Knihovna (abstract: true)            Šablona (extends: knihovna)          Výsledný záznam
+┌───────────────────────┐            ┌──────────────────────────┐         ┌───────────────────────┐
+│ header                │──────────▶ │                          │───────▶ │ header                │
+│ identification        │──────────▶ │ - remove: character      │         │ identification        │
+│ character             │──────╳     │ - override: feeding  ──┐ │         │ feeding (vlastní)  ◀──┘
+│ feeding               │────╳       │ - id: ostrich          │ │         │ vet_care              │
+│ vet_care              │──────────▶ │ - use: ptaci#ringing ──┼─┼──────▶  │ ostrich               │
+└───────────────────────┘            └──────────────────────────┘         │ ringing (z jiné knih.)│
+                                                                          └───────────────────────┘
+```
+
+### Knihovna bloků (`abstract: true`)
+
+Knihovna je obyčejná šablona s `abstract: true`. Nezobrazí se v seznamu šablon kolekce a nelze z ní
+založit záznam – slouží jen jako zdroj bloků. Blokům dávejte **explicitní `id`**: šablony na ně
+odkazují právě přes `id` a bez něj by se odvodilo z titulku (přejmenování titulku by odkaz rozbilo).
 
 ```yaml
-template_id: base-incident-v1
-name: "Základní šablona incidentu (abstraktní základ)"
+template_id: zoo-zvire-base-v1
+name: "Evidenční karta zvířete (základ)"
 version: '1.0'
 status: active
 abstract: true
 
 sections:
   - id: header
-    title: Záhlaví záznamu
+    title: Hlavička
     type: header
     fields:
-      - key: record_id
-        label: ID záznamu
-        auto: record_id
-      - key: template_name
-        label: Šablona
-        auto: template_name
-      - key: case_title
-        label: Název incidentu
-        type: text
-        editable: true
-        value: null
-      - key: record_owner
-        label: Koordinátor
-        type: text
-        editable: true
-        value: null
-      - key: created_at
-        label: Datum vytvoření
-        auto: now
-      - key: last_saved
-        label: Poslední aktualizace
-        auto: last_saved
-```
-
-**Konkrétní šablona dědící ze základu:**
-
-```yaml
-template_id: incident-malware-v1
-name: "Incident – Malware"
-version: '1.0'
-status: active
-extends: base-incident-v1
-
-meta:
-  mitre_tactic: "Execution"
-  mitre_technique: "T1204"
-
-sections:
-  - id: classification
-    title: Klasifikace malwaru
+      - { key: record_id, label: "Evidenční číslo", auto: record_id }
+      - { key: animal_name, label: "Jméno zvířete" }
+      - { key: record_owner, label: "Ošetřovatel", type: user, source: collection_members }
+  - id: character
+    title: Povaha a zvyky
     type: form
     fields:
-      - key: malware_type
-        label: Typ malwaru
-        type: select
-        editable: true
-        options: ["Ransomware", "Trojan", "Dropper", "Cryptominer", "PUA"]
-        value: null
-      - key: affected_endpoint
-        label: Zasažený endpoint
-        type: text
-        editable: true
-        value: null
-      - key: mitre_tactic
-        label: MITRE Tactic
-        type: text
-        auto: meta.mitre_tactic
-
-  - id: triage
-    title: Triage postup
-    type: checklist
-    steps:
-      - "Izoluj zasažený endpoint od sítě"
-      - "Zachovej forenzní obraz před jakýmkoli zásahem"
-      - "Zkontroluj logy EDR za posledních 72h"
-      - "Identifikuj patient zero a vektor infekce"
+      - { key: temperament, label: "Povaha", type: select, options: ["Klidná", "Zvídavá", "Panovačná"] }
+  - id: feeding
+    title: Krmný plán
+    type: table
+    allow_append_row: true
+    columns:
+      - { key: time, label: "Čas", type: time }
+      - { key: food, label: "Krmivo", type: text }
 ```
 
-Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí: `header` (ze základní šablony), `classification`, `triage` (vlastní sekce).
+### Použití knihovny (`extends:`)
 
-> **Pozor:** Cyklická dědičnost (`A extends B extends A`) způsobí varování při načítání šablony a rodičovská šablona nebude nalezena. Vždy kontrolujte, že řetěz dědičnosti je acyklický.
+Šablona s `extends: <template_id>` dostane **všechny bloky knihovny v jejich pořadí** a za nimi své
+vlastní sekce. Knihovna může sama používat jinou knihovnu (řetězí se).
+
+```yaml
+template_id: zoo-pstros-v1
+name: "Pštros dvouprstý"
+version: '1.0'
+status: active
+extends: zoo-zvire-base-v1
+
+sections:
+  - id: ostrich
+    title: Pštrosí specifika
+    type: form
+    fields:
+      - { key: height_cm, label: "Výška (cm)", type: number }
+```
+
+Výsledek: záznam pštrosa má sekce `header`, `character`, `feeding`, `ostrich`.
+
+> **Poznámka:** Vlastní sekce se stejným `id` jako blok knihovny blok **nenahradí** – přidá druhou
+> sekci (zpětná kompatibilita). Návrhář na to upozorní. K nahrazení slouží `override:`.
+
+### Úprava bloku jen pro jednu šablonu (`override:`)
+
+Položka `override: <id bloku>` nahradí blok knihovny **celou** vlastní sekcí, na jeho původním místě.
+Ostatní šablony dál používají verzi z knihovny. V UI „Customize for this form only".
+
+```yaml
+sections:
+  - override: feeding
+    title: Krmný plán (pštros)
+    type: table
+    allow_append_row: true
+    columns:
+      - { key: time, label: "Čas", type: time }
+      - { key: food, label: "Krmivo", type: text }
+      - { key: grams, label: "Dávka (g)", type: text }
+```
+
+Výsledek: pštros má na třetím místě vlastní „Krmný plán (pštros)". Pozdější změny bloku `feeding`
+v knihovně se ho už netýkají.
+
+### Vynechání bloku (`remove:`)
+
+`- remove: <id bloku>` blok knihovny v této šabloně nepoužije. Položka nesmí mít další klíče.
+V UI „Remove from this form" (vrátit lze „Restore").
+
+```yaml
+sections:
+  - remove: character
+```
+
+### Vložení jednoho bloku (`use:`)
+
+`- use: <template_id>#<id bloku>` vloží jeden blok z libovolné knihovny kolekce jako **živý odkaz** –
+obsah se při každém načtení bere z knihovny. Funguje i bez `extends`. Volitelné `id:` blok přejmenuje
+(potřeba, když stejný blok vkládáte dvakrát). V UI paleta „Building blocks (shared)".
+
+```yaml
+sections:
+  - use: zoo-ptaci-bloky-v1#ringing
+  - use: zoo-ptaci-bloky-v1#ringing
+    id: ringing_second
+```
+
+### Náhrada bloku jiným (`override:` + `use:`)
+
+Kombinace nahradí blok knihovny jiným sdíleným blokem, na stejném místě. Výsledná sekce si ponechá
+`id` nahrazeného bloku. V UI „Replace…".
+
+```yaml
+sections:
+  - override: vet_care
+    use: zoo-ptaci-bloky-v1#vet_birds
+```
+
+### Pravidla
+
+| Pravidlo | Chování |
+|----------|---------|
+| Pořadí | bloky knihovny (s `override`/`remove` na místě) → ostatní položky šablony v zapsaném pořadí |
+| Id bloku | `id`, jinak slug z `title`, jinak z `type` – stejné pravidlo pro resolver i návrhář |
+| `override` | nahrazuje celou sekci, neslučuje po polích |
+| `use` | smí odkazovat jen na blok **definovaný** v dané šabloně, ne na blok, který ona sama dědí nebo vkládá |
+| Cyklus | `extends` i `use` hlídají cykly; cyklická větev se přeskočí a zaloguje |
+| Chybný odkaz | návrhář i API ho odmítnou při uložení; za běhu se položka přeskočí s varováním v logu |
+| Ochrana knihovny | knihovnu nelze uložit, pokud by změna smazala/přejmenovala blok, který někdo upravuje, vynechává nebo vkládá |
+| Záznamy | záznam si ukládá výsledné sekce (bez `override`/`remove`/`use`); změna knihovny se projeví jen u **nových** záznamů |
+
+| Klíč položky v `sections` | ✓ | Popis |
+|---------------------------|:-:|-------|
+| `override` | | `id` bloku knihovny, který tato sekce nahradí (sekce pak musí mít `type` a obsah, nebo `use`) |
+| `remove` | | `id` bloku knihovny, který se vynechá; položka nesmí mít další klíče |
+| `use` | | `<template_id>#<id bloku>` – vložený blok; s `override` nahrazuje blok knihovny |
+| `id` | | U `use`: nové id vloženého bloku |
+
+> **Pozor:** Cyklická dědičnost (`A extends B extends A`) i odkaz `use` na vlastní šablonu jsou
+> chybou. Návrhář je označí a resolver cyklickou větev ignoruje.
 
 ---
 
@@ -851,8 +1011,8 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 | `status` | ✓ | `active` \| `draft` \| `deprecated` |
 | `sections[]` | ✓ | Seznam sekcí |
 | `description` | | Popis šablony (1–2 věty) |
-| `abstract` | | `true` = skrytá v dashboardu, pouze pro dědičnost |
-| `extends` | | `template_id` rodičovské šablony |
+| `abstract` | | `true` = knihovna bloků; skrytá v seznamu šablon, nelze z ní založit záznam |
+| `extends` | | `template_id` knihovny bloků („Uses library") |
 | `meta{}` | | Doménové klíče přístupné přes `auto: meta.<klíč>` |
 | `workflow{}` | | Přepíše workflow kolekce pro tuto šablonu |
 | `workflow.initial_state` | ◐ | Počáteční stav záznamu (povinné pokud je `workflow:` přítomno) |
@@ -869,6 +1029,9 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 | `type` | ✓ | `header` \| `form` \| `checklist` \| `table` \| `section_group` |
 | `title` | ✓ | Nadpis karty |
 | `hint` | | Modrý informační box nad sekcí |
+| `override` | | Nahradí blok knihovny s tímto `id` (viz kapitola 10) |
+| `remove` | | Vynechá blok knihovny s tímto `id`; samostatná položka |
+| `use` | | Vloží blok `<template_id>#<id>`; s `override` blok nahradí |
 
 ### Sekce typu `form` a `header`
 
@@ -914,9 +1077,10 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 |------|:-:|-------|
 | `key` | ✓ | Klíč hodnoty v řádku |
 | `label` | ✓ | Nadpis sloupce |
-| `type` | | `text` \| `select` \| `textarea` (výchozí: `text`) |
+| `type` | | `text` \| `select` \| `textarea` \| `date` \| `time` \| `datetime` (výchozí: `text`) |
 | `editable` | | `true` = editovatelný (výchozí: `false`) |
 | `options[]` | ◐ | Povinné pokud `type: select` |
+| `display_tz` | | Jen `type: datetime`: `local` \| `utc` |
 
 ### Sekce typu `section_group`
 
@@ -931,10 +1095,12 @@ Výsledná šablona `incident-malware-v1` bude obsahovat sekce v tomto pořadí:
 |------|:-:|-------|
 | `key` | ✓ | Unikátní klíč v rámci sekce |
 | `label` | ✓ | Zobrazovaný popis |
-| `type` | | `text` \| `textarea` \| `select` \| `datetime` \| `number` (výchozí: `text`) |
+| `type` | | `text` \| `textarea` \| `select` \| `number` \| `datetime` \| `date` \| `time` \| `user` (výchozí: `text`) |
 | `editable` | | `true` = analytik může editovat; `false` = read-only (výchozí: `true`) |
 | `value` | | Počáteční hodnota (výchozí: `null`) |
 | `options[]` | ◐ | Povinné pokud `type: select` |
+| `source` | | Jen `type: user`: `collection_members` \| `collection_admin` \| `collection_user` |
+| `display_tz` | | Jen `type: datetime`: `local` \| `utc` |
 | `auto` | | Zdroj automatické hodnoty: `record_id`, `template_name`, `template_version`, `current_user`, `now`, `last_saved`, `meta.<klíč>` |
 | `example` | | Vzorová hodnota zobrazená jako šedý placeholder; resetuje se na `null` při vytvoření záznamu |
 | `placeholder` | | HTML placeholder; nápověda k formátu vstupu |
