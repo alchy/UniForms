@@ -22,7 +22,7 @@ V prohlížeči ručně ověřeno nebylo.
 (viz Zvláštnosti stroje). Větve `feat/block-libraries-user-time-fields` a `fix/quick-wins`
 jsou v `main` celé, dají se smazat.
 
-V pracovním stromu jsou necommitnuté změny dat z aplikace (viz Otevřená rozhodnutí).
+V pracovním stromu zůstává jen nesledované `data/schemas/evidence-zlatych-cihel/` (viz Otevřená rozhodnutí).
 
 ### Po nasazení
 
@@ -70,9 +70,6 @@ Ověřovalo se ad-hoc skripty mimo repo:
 
 ## Otevřená rozhodnutí
 
-- **`data/collections/zoo.yaml` – necommitnutá změna z Designeru**: uložení přeformátovalo YAML
-  (inline → blokový zápis) a z popisu zmizela věta „Pštrosi i tučňáci vítáni.". Obsahově jinak
-  beze změny. Commitnout, nebo vrátit?
 
 - **`data/schemas/evidence-zlatych-cihel/`** – v gitu nesledované, chybí k němu
   `data/collections/evidence-zlatych-cihel.yaml`, takže v aplikaci není vidět. `record_owner`
