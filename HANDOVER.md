@@ -12,35 +12,27 @@ dokumentace česky s diakritikou podle [`docs/HOW2WRITE.md`](docs/HOW2WRITE.md).
 
 ---
 
-## Stav k 12. 11. 2026
+## Stav k 12. 11. 2026 (odpoledne)
 
-`main` = commit `9468207` (fast-forward z větve `feat/block-libraries-user-time-fields`,
-dva commity nad `d124932`). **Nepushnuto** do `origin/main`.
+**Nasazeno.** `uniforms.service` restartovaná 12. 11. 2026 15:08 CET, běží s kódem z `main`
+(knihovny bloků, pole `type: user`, časy v UTC). Start bez chyb, `/login` vrací 200.
+V prohlížeči ručně ověřeno nebylo.
 
-**Produkce NENÍ restartovaná.** Služba `uniforms.service` běží od 11. 11. 2026 13:54 CET
-se starým Pythonem. Kód z disku se čte takto:
+`main` je o 3 commity napřed před `origin/main` – **nepushnuto**, stroj nemá přístup ke GitHubu
+(viz Zvláštnosti stroje). Větve `feat/block-libraries-user-time-fields` a `fix/quick-wins`
+jsou v `main` celé, dají se smazat.
 
-| část | platí od | poznámka |
-|---|---|---|
-| JS, CSS (`uniforms/static/`) | hned (po tvrdém obnovení v prohlížeči) | psané tak, aby se starým backendem nespadly |
-| Jinja šablony (`uniforms/templates/`) | hned | `base.html` má výchozí hodnoty pro chybějící `app_time` |
-| YAML šablony (`data/schemas/`) | hned | nové záznamy už mají `record_owner: type user`, časové sloupce zoo |
-| Python (`uniforms/`) | **až po restartu** | UTC, kontroly 422, members endpoint, Settings → Date & time, `override`/`remove`/`use` |
+V pracovním stromu jsou necommitnuté změny dat z aplikace (viz Otevřená rozhodnutí).
 
-Do restartu je stav smíšený, ale konzistentní: pole `user` se ukáže jako text, kontroly
-na serveru neběží, Customize/Remove/Replace v Designeru jsou skryté (frontend čeká na `ids`
-z nového backendu), karta Date & time v Settings jde zobrazit, ale ne uložit.
+### Po nasazení
 
-### Nasazení – kroky
+- Uživatelé, kteří upravují záznamy: **tvrdé obnovení (Ctrl+F5)**. Server u statických
+  souborů neposílá `Cache-Control`; starý `uniforms.js` z cache by posílal `datetime` bez
+  pásma a server by uložení odmítl `422`.
+- Ověřit v prohlížeči: přihlášení, `/templates/zoo`, detail záznamu (pole Ošetřovatel = výběr
+  uživatele), Settings → Date & time (uložit), Designer → Templates (záložky Forms / Building blocks).
 
-1. `systemctl restart uniforms` (Python neběží s `--reload`).
-2. Uživatelé, kteří upravují záznamy: **tvrdé obnovení (Ctrl+F5)**. Server u statických
-   souborů neposílá `Cache-Control`; starý `uniforms.js` z cache by posílal `datetime` bez
-   pásma a server by uložení odmítl `422`.
-3. Ověřit: přihlášení, `/templates/zoo`, detail záznamu (pole Ošetřovatel = výběr uživatele),
-   Settings → Date & time (uložit), Designer → Templates (záložky Forms / Building blocks).
-
-### Co je v `main` nového (12. 11. 2026)
+### Co je nového (12. 11. 2026)
 
 | oblast | dokumentace |
 |---|---|
@@ -58,14 +50,12 @@ Ověřovalo se ad-hoc skripty mimo repo:
 - resolver: všech 10 šablon dává totožný výstup jako původní prepend resolver,
 - všech 50 existujících záznamů jde uložit beze změny (žádné falešné `422`).
 
-V prohlížeči nic ověřeno nebylo.
-
 ---
 
 ## Zbývá
 
-1. **Restart produkce** – viz výše. Teprve potom smysl dalších kroků.
-2. **Push** `main` do `origin` (zatím nepushnuto).
+1. **Push** `main` do `origin` – potřeba token / SSH klíč, nebo pushnout ručně.
+2. **Ověření v prohlížeči** – viz Po nasazení.
 3. **Patička s pásmem v auditu** (`admin_audit.html`): časy se tam dnes zobrazují v pásmu
    prohlížeče (`toLocaleString`). Má být pásmo ze Settings + jedna věta v patičce
    („Times shown in Europe/Prague (UTC+01:00)"). Totéž `admin_users.html` (`created_at`).
@@ -79,6 +69,10 @@ V prohlížeči nic ověřeno nebylo.
    (`TIMEZONE`, výchozí `Europe/Prague`) a přepíšou se na UTC až při změně.
 
 ## Otevřená rozhodnutí
+
+- **`data/collections/zoo.yaml` – necommitnutá změna z Designeru**: uložení přeformátovalo YAML
+  (inline → blokový zápis) a z popisu zmizela věta „Pštrosi i tučňáci vítáni.". Obsahově jinak
+  beze změny. Commitnout, nebo vrátit?
 
 - **`data/schemas/evidence-zlatych-cihel/`** – v gitu nesledované, chybí k němu
   `data/collections/evidence-zlatych-cihel.yaml`, takže v aplikaci není vidět. `record_owner`
@@ -97,6 +91,8 @@ V prohlížeči nic ověřeno nebylo.
   `sudo -u uniforms`. **Po práci jako root vrátit vlastnictví**:
   `find /www/uniforms -user root -exec chown -h uniforms:uniforms {} +`
   (jinak root-owned objekty v `.git` a `sed -i` přepsané soubory rozbijí git pro `uniforms`).
+- **Push na GitHub nejde**: `origin` = `https://github.com/alchy/UniForms`, žádné přihlašovací
+  údaje (token, `.git-credentials`, SSH klíč) pro root ani `uniforms`, `gh` není nainstalované.
 - Git nemá nastavenou identitu; commity jsou „Jindrich Nemec", předávat přes `-c user.name=… -c user.email=…`.
 - Shell má `cp` jako alias `cp -i` – v neinteraktivních skriptech `\cp -f`.
 - `pkill -f <vzor>` zabije i vlastní shell, když vzor obsahuje jeho příkazová řádka – použít `[x]` trik (`bridge_s[e]rver`).
