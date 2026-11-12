@@ -14,7 +14,8 @@ sections:
       - { key: record_id,    label: "Evidenční číslo", auto: record_id }
       - { key: animal_name,  label: "Jméno zvířete", placeholder: "např. Olda" }
       - { key: species,      label: "Druh", auto: meta.species }
-      - { key: record_owner, label: "Ošetřovatel", hint: "Vyplní se tlačítkem Převzít péči." }
+      # type: user = číselník stanovený aplikací (uživatelé kolekce), ne volné options
+      - { key: record_owner, label: "Ošetřovatel", type: user, source: collection_members, hint: "Vyplní se tlačítkem Převzít péči." }
       - { key: last_saved,   label: "Poslední aktualizace", auto: last_saved }
 
   - id: identification
@@ -45,7 +46,7 @@ sections:
     allow_append_row: true
     allow_delete_row: true
     columns:
-      - { key: time,   label: "Čas", type: text }
+      - { key: time,   label: "Čas", type: time }          # denní čas krmení – místní, bez převodu pásma
       - { key: food,   label: "Krmivo", type: text }
       - { key: amount, label: "Dávka", type: text }
       - { key: note,   label: "Poznámka", type: text }
@@ -56,7 +57,7 @@ sections:
     allow_append_row: true
     allow_delete_row: true
     columns:
-      - { key: date,      label: "Datum", type: text }
+      - { key: date,      label: "Datum", type: date }
       - { key: procedure, label: "Úkon", type: text }
       - { key: vet,       label: "Veterinář", type: text }
       - { key: result,    label: "Výsledek", type: select, options: ["Zdravé", "Sledovat", "Léčba", "Nespolupracovalo"] }
@@ -77,5 +78,5 @@ sections:
     allow_append_row: true
     allow_delete_row: true
     columns:
-      - { key: date,  label: "Datum", type: text }
+      - { key: date,  label: "Datum", type: date }
       - { key: entry, label: "Záznam", type: text }

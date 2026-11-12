@@ -38,6 +38,8 @@ sections:
       - {key: last_saved, label: Datum poslední aktualizace UIB, editable: false, auto_value: last_saved}
       - key: record_owner
         label: Koordinátor incidentu (CSIRT – L2)
+        type: user                 # číselník stanovený aplikací (uživatelé kolekce)
+        source: collection_members
         hint: Koordinátor CSIRT přebírá řízení od L1 ITS – vyplní se tlačítkem Převzít.
 
   - id: classification

@@ -280,6 +280,7 @@ async def designer_check_template(
     result = ds.check_template(template_dir, body.model)
     result["inherited"] = ds.inherited_sections(
         template_dir, body.model.get("extends"), body.model.get("template_id"))
+    result["embedded"] = ds.embedded_blocks(template_dir, body.model)
     return result
 
 

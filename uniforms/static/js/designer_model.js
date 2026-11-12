@@ -36,12 +36,12 @@
     const KNOWN_KEYS = {
         template: ['template_id', 'name', 'version', 'category', 'status', 'description',
                    'abstract', 'extends', 'meta', 'sections'],
-        section: ['id', 'title', 'type', 'description', 'hint', 'note', 'always_expanded',
+        section: ['override', 'remove', 'use', 'id', 'title', 'type', 'description', 'hint', 'note', 'always_expanded',
                   'fields', 'columns', 'rows', 'append_row_template', 'allow_append_row',
                   'allow_delete_row', 'steps', 'step_groups', 'subsections'],
-        field: ['key', 'label', 'type', 'options', 'editable', 'required', 'auto', 'auto_value',
+        field: ['key', 'label', 'type', 'options', 'source', 'display_tz', 'editable', 'required', 'auto', 'auto_value',
                 'placeholder', 'hint', 'example', 'value', 'visible_if', 'required_if'],
-        column: ['key', 'label', 'type', 'options', 'editable'],
+        column: ['key', 'label', 'type', 'options', 'display_tz', 'editable'],
         group: ['id', 'title', 'note', 'hints', 'steps'],
         step: ['id', 'action', 'hint', 'example'],
     };
@@ -257,6 +257,8 @@
     function newItem(kind, type, model, siblings) {
         const sibs = Array.isArray(siblings) ? siblings : [];
         if (kind === 'section') {
+            // a building block from a library: live reference '<template_id>#<section id>'
+            if (typeof type === 'string' && type.startsWith('use:')) return {use: type.slice(4)};
             const make = SECTION_DEFAULTS[type] || (() => ({title: 'New section', type}));
             const sec = make();
             const id = uniqueName(sectionIds(model || {}), type === 'header' ? 'header' : slugify(sec.title));
@@ -266,6 +268,13 @@
             const keys = sibs.filter(isObject).map(f => f.key);
             if (type === 'auto') {
                 return {key: uniqueName(keys, 'record_id'), label: 'Record ID', auto: 'record_id'};
+            }
+            if (type === 'record_owner') {
+                return {key: uniqueName(keys, 'record_owner'), label: 'Record owner', type: 'user',
+                        source: 'collection_members', hint: 'Filled by the Take over button.'};
+            }
+            if (type === 'user') {
+                return {key: uniqueName(keys, 'user_1'), label: 'User', type: 'user', source: 'collection_members'};
             }
             const field = {key: uniqueName(keys, 'field_1'), label: 'New field'};
             if (type && type !== 'text') field.type = type;
@@ -299,6 +308,7 @@
         if (kind === 'section') {
             if (key !== 'subsections' || type !== 'section_group') return false;
             const itemType = isObject(item) ? item.type : null;
+            if (isObject(item) && (item.use || (typeof itemType === 'string' && itemType.startsWith('use:')))) return false;
             return itemType !== 'header' && itemType !== 'section_group';
         }
         if (kind === 'field') return type === 'header' || type === 'form' || Array.isArray(owner.fields);

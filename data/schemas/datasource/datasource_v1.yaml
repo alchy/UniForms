@@ -63,6 +63,8 @@ sections:
 
       - key: record_owner
         label: "Vlastník průvodky"
+        type: user                 # číselník stanovený aplikací (uživatelé kolekce)
+        source: collection_members
         hint: "Vlastník průvodky přebírá správu záznamu tlačítkem Převzít vlastnictví."
 
       - key: last_updated

@@ -52,6 +52,7 @@ const S = {
     step: 0,
     idTouched: false,
     tpl: null,          // open template: {isNew, templateId, filename, model, saved, source, …}
+    tplTab: 'forms',    // Templates step: 'forms' (used for records) | 'blocks' (block libraries)
 };
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -177,6 +178,35 @@ function confirmDialog({title, message, detail, confirmLabel, danger}) {
             resolve(answer);
         };
         ok.addEventListener('click', onOk);
+        el.addEventListener('hidden.bs.modal', onHidden);
+        modal.show();
+    });
+}
+
+/** Dialog with several choices – resolves the chosen id, or null on Cancel. */
+function choiceDialog({title, message, detail, choices}) {
+    return new Promise(resolve => {
+        const el = $('dz-confirm');
+        $('dz-confirm-title').textContent = title;
+        $('dz-confirm-message').textContent = message;
+        $('dz-confirm-detail').textContent = detail || '';
+        const ok = $('dz-confirm-ok');
+        ok.classList.add('d-none');
+        const modal = bootstrap.Modal.getOrCreateInstance(el);
+        let answer = null;
+        const body = $('dz-confirm-detail').parentNode;
+        const box = h('div', {class: 'd-grid gap-2 mt-3'}, choices.map(c => h('button', {type: 'button',
+            class: `btn btn-sm text-start ${c.cls || 'btn-outline-primary'}`,
+            onclick: () => { answer = c.id; modal.hide(); }},
+            h('div', {class: 'fw-semibold'}, c.icon ? icon(c.icon, 'me-1') : null, c.label),
+            c.hint ? h('div', {class: 'small opacity-75'}, c.hint) : null)));
+        body.appendChild(box);
+        const onHidden = () => {
+            el.removeEventListener('hidden.bs.modal', onHidden);
+            box.remove();
+            ok.classList.remove('d-none');
+            resolve(answer);
+        };
         el.addEventListener('hidden.bs.modal', onHidden);
         modal.show();
     });
@@ -623,49 +653,159 @@ async function refreshTemplates() {
     }
 }
 
+// Own section count of a template plus everything inherited from its ancestors
+function totalSections(t) {
+    let n = (t.sections || 0) - (t.removes || 0), cur = t, guard = 0;
+    while (cur && cur.extends && guard++ < 50) {
+        cur = S.templates.find(x => x.template_id === cur.extends);
+        if (cur) n += (cur.sections || 0) - (cur.removes || 0);
+    }
+    return n;
+}
+
+// ── Forms & block libraries (vocabulary for the UI) ────────────────────────
+//   Form          – template records are created from (abstract: false)
+//   Block library – abstract template; its sections are building blocks for forms
+//   "Uses library" – the YAML `extends` key
+
+function tplById(id) { return S.templates.find(x => x.template_id === id) || null; }
+function tplName(id) { const t = tplById(id); return (t && t.name) || id; }
+
+// Every template that gets sections from `id` (directly or through other templates)
+function descendantsOf(id) {
+    const out = [];
+    S.templates.forEach(t => {
+        let cur = t, guard = 0;
+        while (cur && cur.extends && guard++ < 50) {
+            if (cur.extends === id) { if (t.template_id !== id) out.push(t); break; }
+            cur = tplById(cur.extends);
+        }
+    });
+    return out;
+}
+// Templates that get blocks from `id`: through 'Uses library' (extends) or by embedding (use:)
+function usersOf(id) {
+    const out = descendantsOf(id);
+    S.templates.forEach(t => {
+        if (t.template_id !== id && !out.includes(t) && (t.uses || []).some(r => String(r).split('#')[0] === id)) out.push(t);
+    });
+    return out;
+}
+function formsUsing(id) { return usersOf(id).filter(t => !t.abstract); }
+
+// Every building block a form can embed: blocks DEFINED in block libraries (not the open template)
+function availableBlocks() {
+    const self = S.tpl ? S.tpl.model.template_id : null;
+    const out = [];
+    S.templates.filter(t => t.abstract && t.template_id && t.template_id !== self && t.loadable).forEach(t =>
+        (t.section_ids || []).forEach((sid, i) => out.push({ref: `${t.template_id}#${sid}`, lib: t.template_id,
+            libName: t.name || t.template_id, id: sid, title: (t.section_titles || [])[i] || sid})));
+    return out;
+}
+function blockTitle(ref) {
+    const b = availableBlocks().find(x => x.ref === ref);
+    const e = S.tpl && S.tpl.embedded ? S.tpl.embedded[ref] : null;
+    return (e && e.section && e.section.title) || (b && b.title) || String(ref).split('#')[1] || ref;
+}
+
+function libraryBadge(id) {
+    return badge(`LIBRARY · ${tplName(id)}`, 'dz-lib-badge');
+}
+
 function stepTemplates(pane) {
+    const forms = S.templates.filter(t => !t.abstract);
+    const libs = S.templates.filter(t => t.abstract);
+    const tab = S.tplTab === 'blocks' ? 'blocks' : 'forms';
+    const newBtn = h('button', {type: 'button', class: 'btn btn-success btn-sm',
+        onclick: () => openNewTemplateDialog(tab === 'blocks')},
+        icon('bi-plus-circle', 'me-1'), tab === 'blocks' ? 'New block library' : 'New form');
     put(pane, h('div', {class: 'd-flex justify-content-between align-items-start'},
-        stepHeader('Templates', 'Form templates of this collection. Each template is saved on its own – '
-            + 'open one to design its sections and fields.'),
-        h('button', {type: 'button', class: 'btn btn-success btn-sm', onclick: openNewTemplateDialog},
-            icon('bi-plus-circle', 'me-1'), 'New template')));
+        stepHeader('Templates', 'What would you like to edit? Forms are what users fill in – records are created from them. '
+            + 'Building blocks are shared sections kept in a block library; forms that use the library get its blocks, '
+            + 'so one change there updates every form that uses it.'),
+        newBtn));
+    const tabBtn = (id, label, ic, count, hint) => h('button', {type: 'button',
+        class: `nav-link${tab === id ? ' active' : ''}`, title: hint,
+        onclick: () => { S.tplTab = id; renderStep(); }},
+        icon(ic, 'me-1'), label, h('span', {class: 'badge rounded-pill text-bg-light border ms-2'}, String(count)));
+    put(pane, h('ul', {class: 'nav nav-tabs mb-3', role: 'tablist'},
+        h('li', {class: 'nav-item'}, tabBtn('forms', 'Forms', 'bi-file-earmark-text', forms.length, 'Templates records are created from')),
+        h('li', {class: 'nav-item'}, tabBtn('blocks', 'Building blocks', 'bi-boxes', libs.length, 'Block libraries – shared sections for forms'))));
+
     if (!S.templates.length) {
         put(pane, h('div', {class: 'alert alert-warning d-flex gap-3 align-items-start mt-2'},
             icon('bi-exclamation-triangle fs-4'),
             h('div', {},
-                h('div', {class: 'fw-semibold mb-1'}, 'This collection has no form template yet – records cannot be created.'),
-                h('div', {class: 'small mb-3'}, 'A template is the form itself: its sections and fields (e.g. name, weight, '
+                h('div', {class: 'fw-semibold mb-1'}, 'This collection has no form yet – records cannot be created.'),
+                h('div', {class: 'small mb-3'}, 'A form is what users fill in: its sections and fields (e.g. name, weight, '
                     + 'location…). The collection settings only define workflow, IDs and roles. '
-                    + 'Create the first template, add fields from the palette and save it.'),
-                h('button', {type: 'button', class: 'btn btn-success', onclick: openNewTemplateDialog},
-                    icon('bi-plus-circle', 'me-1'), 'Create the first template'))));
+                    + 'Create the first form, add fields from the palette and save it.'),
+                h('button', {type: 'button', class: 'btn btn-success', onclick: () => openNewTemplateDialog(false)},
+                    icon('bi-plus-circle', 'me-1'), 'Create the first form'))));
         return;
     }
-    const tbody = h('tbody', {});
-    S.templates.forEach(t => {
+
+    const actions = t => {
         const canDesign = t.loadable && t.template_id;
         const rawHref = t.template_id ? `/templates/${encodeURIComponent(S.cid)}/${encodeURIComponent(t.template_id)}/edit` : null;
-        tbody.appendChild(h('tr', {},
-            h('td', {class: 'ps-3 align-middle'}, h('div', {class: 'fw-semibold'}, t.name || '–'),
-                h('code', {class: 'small'}, t.template_id || '(no template_id)')),
-            h('td', {class: 'align-middle small text-muted'}, t.filename),
-            h('td', {class: 'align-middle'},
-                t.status ? badge(t.status, t.status === 'active' ? 'bg-success-subtle text-success border border-success-subtle' : null) : null, ' ',
-                t.abstract ? badge('abstract') : null, ' ',
-                t.extends ? badge(`extends ${t.extends}`) : null, ' ',
-                !t.loadable ? badge('raw editor only', 'bg-warning-subtle text-warning-emphasis border border-warning-subtle') : null),
-            h('td', {class: 'align-middle small text-muted'}, `${t.sections} section${t.sections === 1 ? '' : 's'}`),
-            h('td', {class: 'align-middle text-end pe-3'}, h('div', {class: 'd-flex gap-1 justify-content-end'},
-                canDesign ? h('button', {type: 'button', class: 'btn btn-primary btn-sm', onclick: () => openTemplate(t.template_id)},
-                    icon('bi-bricks', 'me-1'), 'Design') : null,
-                rawHref ? h('a', {class: 'btn btn-outline-secondary btn-sm', href: rawHref, title: 'Raw YAML editor'}, icon('bi-code-slash')) : null,
-                t.template_id ? iconButton('bi-trash', 'Delete template', () => deleteTemplate(t), 'btn-outline-danger') : null))));
-    });
-    put(pane, h('div', {class: 'card border'}, h('div', {class: 'table-responsive'},
+        return h('div', {class: 'd-flex gap-1 justify-content-end'},
+            canDesign ? h('button', {type: 'button', class: 'btn btn-primary btn-sm', onclick: () => openTemplate(t.template_id)},
+                icon('bi-bricks', 'me-1'), 'Design') : null,
+            rawHref ? h('a', {class: 'btn btn-outline-secondary btn-sm', href: rawHref, title: 'Raw YAML editor'}, icon('bi-code-slash')) : null,
+            t.template_id ? iconButton('bi-trash', 'Delete', () => deleteTemplate(t), 'btn-outline-danger') : null);
+    };
+    const nameCell = (t, ic) => h('td', {class: 'ps-3 align-middle'},
+        h('div', {class: 'fw-semibold'}, icon(ic, 'me-1'), t.name || '–'),
+        h('code', {class: 'small text-muted'}, t.template_id || '(no template_id)'), ' ',
+        h('span', {class: 'small text-muted'}, t.filename));
+    const statusCell = t => h('td', {class: 'align-middle'},
+        t.status ? badge(t.status, t.status === 'active' ? 'bg-success-subtle text-success border border-success-subtle' : null) : null, ' ',
+        !t.loadable ? badge('raw editor only', 'bg-warning-subtle text-warning-emphasis border border-warning-subtle') : null);
+    const table = (head, rows) => h('div', {class: 'card border'}, h('div', {class: 'table-responsive'},
         h('table', {class: 'table table-hover mb-0'},
-            h('thead', {class: 'table-light'}, h('tr', {},
-                h('th', {class: 'ps-3'}, 'Template'), h('th', {}, 'File'), h('th', {}, 'Status'), h('th', {}, 'Content'), h('th', {}))),
-            tbody))));
+            h('thead', {class: 'table-light'}, h('tr', {}, head.map((x, i) => h('th', {class: i === 0 ? 'ps-3' : ''}, x)))),
+            h('tbody', {}, rows))));
+
+    if (tab === 'forms') {
+        if (!forms.length) {
+            put(pane, h('div', {class: 'alert alert-info small'}, 'No forms yet – only block libraries. Create a form that uses a library.'));
+            return;
+        }
+        put(pane, table(['Form', 'Uses library', 'Sections', 'Status', ''], forms.map(t => {
+            const missing = t.extends && !tplById(t.extends);
+            return h('tr', {},
+                nameCell(t, 'bi-file-earmark-text text-primary'),
+                h('td', {class: 'align-middle small'},
+                    missing ? badge(`missing: ${t.extends}`, 'bg-danger-subtle text-danger border border-danger-subtle')
+                        : t.extends ? libraryBadge(t.extends) : h('span', {class: 'text-muted'}, '– own sections only –'),
+                    formsUsing(t.template_id).length
+                        ? h('div', {class: 'text-muted mt-1'}, icon('bi-diagram-3', 'me-1'),
+                            `also a source for: ${usersOf(t.template_id).map(x => x.name || x.template_id).join(', ')}`) : null),
+                h('td', {class: 'align-middle small text-muted'}, t.extends
+                    ? `${totalSections(t)} (${t.sections} own)` : String(t.sections)),
+                statusCell(t),
+                h('td', {class: 'align-middle text-end pe-3'}, actions(t)));
+        })));
+    } else {
+        if (!libs.length) {
+            put(pane, h('div', {class: 'alert alert-info small'},
+                'No block library yet. A block library holds sections (e.g. Header, Identification, Feeding plan) '
+                + 'that several forms share. Create one, or mark an existing template as a block library.'));
+            return;
+        }
+        put(pane, table(['Block library', 'Building blocks', 'Used by', ''], libs.map(t => {
+            const users = formsUsing(t.template_id);
+            return h('tr', {},
+                nameCell(t, 'bi-boxes dz-lib-icon'),
+                h('td', {class: 'align-middle'}, h('div', {class: 'd-flex flex-wrap gap-1'},
+                    (t.section_titles || []).map(x => h('span', {class: 'dz-block-chip'}, icon('bi-box', 'me-1'), x || '(untitled)')),
+                    t.extends ? h('span', {class: 'small text-muted'}, '+ blocks of ', libraryBadge(t.extends)) : null)),
+                h('td', {class: 'align-middle small'}, users.length
+                    ? users.map(u => u.name || u.template_id).join(', ')
+                    : h('span', {class: 'text-muted'}, 'no form yet')),
+                h('td', {class: 'align-middle text-end pe-3'}, actions(t)));
+        })));
+    }
 }
 
 async function deleteTemplate(t) {
@@ -685,14 +825,15 @@ async function deleteTemplate(t) {
     renderStep();
 }
 
-function openNewTemplateDialog() {
+function openNewTemplateDialog(asLibrary) {
     const nameEl = $('dz-nt-name'), idEl = $('dz-nt-id'), fileEl = $('dz-nt-file');
     const extEl = clear($('dz-nt-extends'));
     extEl.appendChild(h('option', {value: ''}, '– none –'));
     S.templates.filter(t => t.template_id && t.loadable).forEach(t =>
-        extEl.appendChild(h('option', {value: t.template_id}, `${t.name || t.template_id}${t.abstract ? ' (abstract)' : ''}`)));
+        extEl.appendChild(h('option', {value: t.template_id}, `${t.name || t.template_id}${t.abstract ? ' (block library)' : ' (form)'}`)));
     nameEl.value = ''; idEl.value = ''; fileEl.value = '';
-    $('dz-nt-abstract').checked = false;
+    $('dz-nt-abstract').checked = asLibrary === true;
+    $('dz-nt-title').lastChild.textContent = asLibrary === true ? 'New block library' : 'New form';
     idEl.dataset.touched = ''; fileEl.dataset.touched = '';
     showAlert('dz-nt-alert', null);
     bootstrap.Modal.getOrCreateInstance($('dz-new-template')).show();
@@ -827,11 +968,27 @@ let undoKey = null;
 function paletteItems() {
     return [
         {title: 'Sections', items: S.catalog.section_types.map(t => ({kind: 'section', type: t.type, label: t.label, icon: t.icon, hint: t.description}))},
-        {title: 'Fields', items: S.catalog.field_types.map(t => ({kind: 'field', type: t.type, label: t.label, icon: t.icon}))
-            .concat([{kind: 'field', type: 'auto', label: 'Automatic value', icon: 'bi-magic', hint: 'Read-only field filled by the system (record ID, user, time…)'}])},
+        // shared sections from block libraries – embedded as a live link (use:)
+        // (not the libraries the form already uses through 'Uses library' – their blocks are there already)
+        {title: 'Building blocks (shared)', blocks: true, items: availableBlocks()
+            .filter(b => !((S.tpl && S.tpl.inherited && S.tpl.inherited.chain) || []).includes(b.lib))
+            .map(b => ({kind: 'section', type: `use:${b.ref}`,
+            label: b.title, sub: b.libName, icon: 'bi-box', cls: 'dz-palette-block',
+            hint: `Shared block from "${b.libName}" – changes there reach this form too`}))},
+        {title: 'Fields', items: S.catalog.field_types.filter(t => !t.system).map(t => ({kind: 'field', type: t.type, label: t.label, icon: t.icon}))},
+        // App-defined values: the application supplies them (users, record id, time…), not the template
+        {title: 'System (app-defined)', system: true, items: [
+            {kind: 'field', type: 'auto', label: 'Automatic value', icon: 'bi-magic', hint: 'Read-only field filled by the system (record ID, user, time…)'}]
+            .concat(S.catalog.field_types.some(t => t.type === 'user') ? [
+                {kind: 'field', type: 'user', label: 'User', icon: 'bi-person-badge', hint: 'Select of the users of this collection'},
+                {kind: 'field', type: 'record_owner', label: 'Record owner', icon: 'bi-person-check', hint: 'User field for the Take over button'}] : [])},
         {title: 'Table', items: [
             {kind: 'column', type: 'text', label: 'Text column', icon: 'bi-layout-three-columns'},
-            {kind: 'column', type: 'select', label: 'Select column', icon: 'bi-menu-button-wide'}]},
+            {kind: 'column', type: 'select', label: 'Select column', icon: 'bi-menu-button-wide'}]
+            .concat(S.catalog.column_types.includes('time') ? [
+                {kind: 'column', type: 'date', label: 'Date column', icon: 'bi-calendar3'},
+                {kind: 'column', type: 'time', label: 'Time column', icon: 'bi-clock', hint: 'Time of day, e.g. a feeding schedule – local time, not converted'},
+                {kind: 'column', type: 'datetime', label: 'Date & time column', icon: 'bi-calendar-event', hint: 'A moment – stored in UTC'}] : [])},
         {title: 'Checklist', items: [
             {kind: 'group', type: null, label: 'Step group', icon: 'bi-collection'},
             {kind: 'step', type: null, label: 'Step', icon: 'bi-check2-square'}]},
@@ -851,7 +1008,7 @@ async function openTemplate(templateId) {
     const r = await api('GET', `${colUrl()}/templates/${encodeURIComponent(templateId)}`);
     if (!r.ok) { showToast(errInfo(r).message, 'danger'); return; }
     startTemplate({isNew: false, templateId, filename: r.data.filename, model: r.data.model,
-                   source: r.data.source, inherited: r.data.inherited});
+                   source: r.data.source, inherited: r.data.inherited, embedded: r.data.embedded || {}});
 }
 
 function startTemplate(t) {
@@ -864,6 +1021,17 @@ function startTemplate(t) {
     renderTemplate();
     scheduleCheck(0);
     window.scrollTo(0, 0);
+}
+
+// Jump from one template to another (e.g. child → inherited parent), guarding unsaved edits
+async function switchTemplate(templateId) {
+    if (tplDirty()) {
+        const yes = await confirmDialog({title: 'Discard changes?', message: 'This template has unsaved changes.',
+            detail: 'Save it first, or the changes will be lost when you open the other template.',
+            confirmLabel: 'Discard changes', danger: true});
+        if (!yes) return;
+    }
+    await openTemplate(templateId);
 }
 
 async function closeTemplate() {
@@ -929,6 +1097,26 @@ function renderTemplate() {
     applyView();
 }
 
+// Editing a template other forms get blocks from → say so, all the time
+function renderSharedBanner() {
+    const t = S.tpl, box = $('dz-tpl-shared');
+    if (!box) return;
+    const users = t.isNew ? [] : usersOf(t.model.template_id);
+    const back = t.returnTo && tplById(t.returnTo)
+        ? h('button', {type: 'button', class: 'btn btn-sm btn-outline-dark ms-auto', onclick: () => switchTemplate(t.returnTo)},
+            icon('bi-arrow-left', 'me-1'), `Back to ${tplName(t.returnTo)}`) : null;
+    if (!users.length) { showAlert(box, null); return; }
+    showAlert(box, 'warning',
+        h('div', {class: 'd-flex align-items-start gap-2 flex-wrap'},
+            icon('bi-boxes', 'fs-5'),
+            h('div', {},
+                h('div', {class: 'fw-semibold'}, t.model.abstract ? 'You are editing a shared block library.'
+                    : 'Other forms get their sections from this form.'),
+                h('div', {class: 'small'}, 'Used by: ', h('strong', {}, users.map(u => u.name || u.template_id).join(', ')), '. ',
+                    'Existing records are not changed; new records will use the new version.')),
+            back));
+}
+
 function renderToolbar() {
     const t = S.tpl;
     $('dz-tpl-name').textContent = t.model.name || t.templateId || 'New template';
@@ -941,6 +1129,7 @@ function renderToolbar() {
     const raw = $('dz-tpl-raw');
     raw.classList.toggle('d-none', t.isNew);
     if (!t.isNew) raw.href = `/templates/${encodeURIComponent(S.cid)}/${encodeURIComponent(t.templateId)}/edit`;
+    renderSharedBanner();
     const warn = $('dz-tpl-source-warning');
     if (!t.isNew && t.source && t.source.rewrite_lossy) {
         showAlert(warn, 'warning', icon('bi-exclamation-triangle', 'me-1'),
@@ -968,10 +1157,14 @@ function applyView() {
 function renderPalette() {
     const box = clear($('dz-palette'));
     paletteItems().forEach(group => {
-        box.appendChild(h('div', {class: 'dz-palette-title'}, group.title));
+        if (group.blocks && !group.items.length) return;        // no block library in this collection
+        box.appendChild(h('div', {class: `dz-palette-title${group.blocks ? ' dz-lib-icon' : ''}`,
+            title: group.system ? 'Values are defined by the application, not by the template'
+                : group.blocks ? 'Sections shared by several forms – kept in a block library' : null},
+            group.system ? icon('bi-lock', 'me-1') : group.blocks ? icon('bi-boxes', 'me-1') : null, group.title));
         group.items.forEach(item => {
             box.appendChild(h('div', {
-                class: 'dz-palette-item', draggable: true, tabIndex: 0, role: 'button',
+                class: `dz-palette-item${item.cls ? ' ' + item.cls : ''}`, draggable: true, tabIndex: 0, role: 'button',
                 title: `${item.hint ? item.hint + ' – ' : ''}drag onto the canvas or click to add`,
                 ondragstart: e => {
                     drag = {src: 'palette', kind: item.kind, type: item.type};
@@ -981,7 +1174,8 @@ function renderPalette() {
                 ondragend: endDrag,
                 onclick: () => addFromPalette(item.kind, item.type),
                 onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addFromPalette(item.kind, item.type); } },
-            }, icon(item.icon, 'me-2'), item.label));
+            }, icon(item.icon, 'me-2'), item.label,
+                item.sub ? h('span', {class: 'dz-palette-sub'}, item.sub) : null));
         });
     });
 }
@@ -994,6 +1188,9 @@ function targetListFor(kind, type) {
     const childKey = {field: 'fields', column: 'columns', group: 'step_groups', step: 'steps'}[kind];
     const after = listPath => (M.isPrefix(listPath, sel) && sel.length === listPath.length + 1 ? sel[sel.length - 1] + 1 : null);
 
+    if (kind === 'section' && typeof type === 'string' && type.startsWith('use:')) {
+        return {listPath: ['sections'], index: sel.length >= 2 && sel[0] === 'sections' ? sel[1] + 1 : null};
+    }
     if (kind === 'section') {
         for (let n = sel.length; n >= 2; n--) {
             const node = M.get(model, sel.slice(0, n));
@@ -1070,6 +1267,7 @@ function fieldRow(path, field, kind) {
         h('code', {class: 'dz-row-key'}, field.key || '?'),
         auto ? badge(`auto: ${auto}`) : null,
         (field.type === 'select' && Array.isArray(field.options)) ? badge(`${field.options.length} options`) : null,
+        field.type === 'user' ? badge(`app list · ${field.source || 'collection_members'}`, 'bg-warning-subtle text-warning-emphasis border border-warning-subtle') : null,
         field.required ? badge('required', 'bg-danger-subtle text-danger border border-danger-subtle') : null,
         (field.visible_if || field.required_if) ? badge('conditional', 'bg-info-subtle text-info-emphasis border border-info-subtle') : null,
         (!auto && !M.isEditable(field, kind)) ? badge('read-only') : null);
@@ -1143,29 +1341,266 @@ function sectionBody(path, sec) {
 
 function sectionCard(path, sec) {
     if (!M.isObject(sec)) return h('div', {class: 'dz-row dz-locked'}, icon('bi-lock', 'me-1'), 'Unsupported section – edit in raw YAML');
+    if ('use' in sec) return embeddedCard(path, sec);
+    if ('remove' in sec) {                       // shown struck through among the library blocks above
+        return h('div', {class: 'dz-row dz-remove-entry'}, icon('bi-eye-slash', 'me-1 text-muted'),
+            h('span', {class: 'small text-muted'}, `Library block "${sec.remove}" is left out of this form (see above).`));
+    }
     const meta = sectionMeta(sec.type);
-    return h('div', itemAttrs(path, 'dz-section'),
+    const custom = 'override' in sec;
+    return h('div', itemAttrs(path, custom ? 'dz-section dz-custom-card' : 'dz-section'),
         h('div', {class: 'dz-section-head'}, icon('bi-grip-vertical', 'dz-handle'), icon(meta.icon, 'text-primary'),
             h('span', {class: 'fw-semibold'}, sec.title || h('em', {class: 'text-muted fw-normal'}, '(untitled)')),
             badge(meta.label),
+            custom ? badge(`CUSTOMIZED · replaces library block "${sec.override}"`, 'dz-custom-badge')
+                : S.tpl && S.tpl.model.extends ? badge('THIS FORM', 'bg-primary-subtle text-primary border border-primary-subtle') : null,
             sec.id ? h('code', {class: 'dz-row-key'}, sec.id) : null,
             sec.always_expanded ? badge('always expanded') : null),
         h('div', {class: 'dz-section-body'}, sectionBody(path, sec)));
 }
 
+// Inherited sections – one card per building block, marked with the library it comes from
 function inheritedBlock() {
     const inh = S.tpl.inherited;
     if (!S.tpl.model.extends) return null;
     if (!inh || inh.error) {
         return h('div', {class: 'alert alert-danger small py-2'}, icon('bi-exclamation-triangle', 'me-1'),
-            (inh && inh.error) || 'Parent template could not be loaded.');
+            (inh && inh.error) || 'The block library could not be loaded.');
     }
-    return h('div', {class: 'dz-inherited mb-2'},
-        h('div', {class: 'small text-muted mb-1'}, icon('bi-diagram-2', 'me-1'),
-            `Inherited from ${inh.chain.join(' → ')} (read-only, shown before this template's sections):`),
-        inh.sections.filter(M.isObject).map(sec => h('div', {class: 'dz-inherited-item'},
-            icon(sectionMeta(sec.type).icon, 'me-2'), sec.title || sec.id || '(untitled)',
-            h('span', {class: 'text-muted ms-2'}, sectionMeta(sec.type).label))));
+    const own = Array.isArray(S.tpl.model.sections) ? S.tpl.model.sections : [];
+    const cards = (inh.sections || []).map((sec, i) => {
+        if (!M.isObject(sec)) return null;
+        const origin = (inh.origins || [])[i] || (inh.chain || [])[0];
+        const idx = (inh.indexes || [])[i];
+        const id = (inh.ids || [])[i] || sec.id;
+        const removeAt = own.findIndex(x => M.isObject(x) && x.remove === id);
+        const overrideAt = own.findIndex(x => M.isObject(x) && x.override === id);
+        if (removeAt >= 0) return removedCard(sec, origin, removeAt);
+        if (overrideAt >= 0 && own[overrideAt].use) return replacedStub(sec, origin, overrideAt);
+        if (overrideAt >= 0) return customizedStub(sec, origin, overrideAt);
+        return libraryCard(sec, origin, idx, id, Array.isArray(inh.ids));
+    });
+    return h('div', {class: 'dz-lib-list mb-2'},
+        h('div', {class: 'small text-muted mb-1'}, icon('bi-boxes', 'me-1 dz-lib-icon'),
+            'Blocks from the library ', h('strong', {}, tplName(inh.chain[0])),
+            inh.chain.length > 1 ? ` (and ${inh.chain.slice(1).map(tplName).join(', ')})` : '',
+            ' – shared with other forms, edited in the library:'),
+        cards,
+        h('div', {class: 'small text-muted mt-2 mb-1'}, icon('bi-file-earmark-text', 'me-1 text-primary'),
+            'Sections of this form:'));
+}
+
+// Short read-only summary of what a block contains
+function blockSummary(sec) {
+    if (Array.isArray(sec.fields)) return sec.fields.filter(M.isObject).map(f => f.label || f.key).join(' · ');
+    if (Array.isArray(sec.columns)) return 'Columns: ' + sec.columns.map(c => (M.isObject(c) ? c.label || c.key : c)).join(' · ');
+    const steps = Array.isArray(sec.steps) ? sec.steps
+        : Array.isArray(sec.step_groups) ? sec.step_groups.flatMap(g => (M.isObject(g) && Array.isArray(g.steps) ? g.steps : [])) : null;
+    if (steps) return `${steps.length} step${steps.length === 1 ? '' : 's'}`;
+    if (Array.isArray(sec.subsections)) return `${sec.subsections.length} subsections`;
+    return '';
+}
+
+// canChange: the server understands override:/remove: (an older server does not send `ids`)
+function libraryCard(sec, origin, idx, id, canChange) {
+    const meta = sectionMeta(sec.type);
+    const n = formsUsing(origin).length;
+    const users = usersOf(origin).map(u => u.name || u.template_id);
+    const edit = async () => {
+        if (!canChange) { editInLibrary(origin, idx); return; }
+        const choice = await choiceDialog({
+            title: sec.title || id || 'Building block',
+            message: `This block comes from the library "${tplName(origin)}".`,
+            detail: 'Existing records are never changed – only new records get the new version.',
+            choices: [
+                {id: 'library', icon: 'bi-boxes', label: 'Edit in library',
+                 hint: `Changes it for every form that uses it: ${users.join(', ') || tplName(origin)}`},
+                {id: 'custom', icon: 'bi-pencil-square', label: 'Customize for this form only', cls: 'btn-outline-warning',
+                 hint: `${S.tpl.model.name || 'This form'} gets its own copy; later library changes no longer reach this block.`},
+                {id: 'replace', icon: 'bi-arrow-left-right', label: 'Replace with another block…', cls: 'btn-outline-secondary',
+                 hint: 'Use a different shared block in this place (only in this form).'},
+            ]});
+        if (choice === 'library') editInLibrary(origin, idx);
+        else if (choice === 'custom') customizeBlock(sec, id);
+        else if (choice === 'replace') replaceBlock(sec, id, origin);
+    };
+    return h('div', {class: 'dz-section dz-lib-card', tabIndex: 0, role: 'button',
+            title: `From the block library "${tplName(origin)}" – click to edit it there`,
+            onclick: edit, onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); edit(); } }},
+        h('div', {class: 'dz-section-head'},
+            icon('bi-lock', 'text-muted'), icon(meta.icon, 'dz-lib-icon'),
+            h('span', {class: 'fw-semibold'}, sec.title || sec.id || h('em', {class: 'text-muted fw-normal'}, '(untitled)')),
+            badge(meta.label), libraryBadge(origin),
+            h('div', {class: 'ms-auto d-flex gap-1'},
+                h('button', {type: 'button', class: 'btn btn-outline-primary btn-sm py-0',
+                    onclick: e => { e.stopPropagation(); editInLibrary(origin, idx); }},
+                    icon('bi-boxes', 'me-1'), `Edit in library${n ? ` (affects ${n} form${n === 1 ? '' : 's'})` : ''}`),
+                canChange ? h('button', {type: 'button', class: 'btn btn-outline-warning btn-sm py-0', title: 'Make a copy of this block for this form only',
+                    onclick: e => { e.stopPropagation(); customizeBlock(sec, id); }},
+                    icon('bi-pencil-square', 'me-1'), 'Customize here') : null,
+                canChange ? h('button', {type: 'button', class: 'btn btn-outline-secondary btn-sm py-0', title: 'Use another shared block here',
+                    onclick: e => { e.stopPropagation(); replaceBlock(sec, id, origin); }},
+                    icon('bi-arrow-left-right', 'me-1'), 'Replace…') : null,
+                canChange ? h('button', {type: 'button', class: 'btn btn-outline-secondary btn-sm py-0', title: 'Leave this block out of this form',
+                    'aria-label': 'Remove from this form',
+                    onclick: e => { e.stopPropagation(); removeBlock(id); }}, icon('bi-eye-slash')) : null)),
+        blockSummary(sec) ? h('div', {class: 'dz-lib-summary'}, blockSummary(sec)) : null);
+}
+
+// A library block left out of this form – shown struck through, can be restored
+function removedCard(sec, origin, removeAt) {
+    return h('div', {class: 'dz-section dz-lib-card dz-lib-removed'},
+        h('div', {class: 'dz-section-head'},
+            icon('bi-eye-slash', 'text-muted'),
+            h('span', {class: 'text-decoration-line-through text-muted'}, sec.title || sec.id || '(untitled)'),
+            badge('REMOVED from this form', 'bg-secondary-subtle text-secondary border'), libraryBadge(origin),
+            h('button', {type: 'button', class: 'btn btn-outline-secondary btn-sm py-0 ms-auto',
+                onclick: () => mutate(() => { S.tpl.model.sections.splice(removeAt, 1); S.tpl.sel = []; })},
+                icon('bi-arrow-counterclockwise', 'me-1'), 'Restore')));
+}
+
+// A library block this form replaced by its own copy (the copy is edited below, with the form's sections)
+function customizedStub(sec, origin, overrideAt) {
+    return h('div', {class: 'dz-section dz-custom-stub'},
+        h('div', {class: 'dz-section-head'},
+            icon('bi-pencil-square', 'dz-custom-icon'),
+            h('span', {class: 'fw-semibold'}, (S.tpl.model.sections[overrideAt] || {}).title || sec.title || sec.id),
+            badge('CUSTOMIZED in this form', 'dz-custom-badge'),
+            h('span', {class: 'small text-muted'}, 'instead of the block from ', libraryBadge(origin)),
+            h('div', {class: 'ms-auto d-flex gap-1'},
+                h('button', {type: 'button', class: 'btn btn-outline-warning btn-sm py-0',
+                    onclick: () => { select(['sections', overrideAt]);
+                        const el = $('dz-canvas').querySelector('.dz-selected'); if (el) el.scrollIntoView({block: 'center'}); }},
+                    icon('bi-arrow-down', 'me-1'), 'Edit the copy'),
+                h('button', {type: 'button', class: 'btn btn-outline-secondary btn-sm py-0',
+                    onclick: () => resetBlock(overrideAt)},
+                    icon('bi-arrow-counterclockwise', 'me-1'), 'Reset to library version'))));
+}
+
+// A library block this form swapped for another shared block (override: + use:)
+function replacedStub(sec, origin, overrideAt) {
+    const ref = S.tpl.model.sections[overrideAt].use;
+    return h('div', {class: 'dz-section dz-custom-stub'},
+        h('div', {class: 'dz-section-head'},
+            icon('bi-arrow-left-right', 'dz-custom-icon'),
+            h('span', {class: 'text-decoration-line-through text-muted'}, sec.title || sec.id),
+            icon('bi-arrow-right', 'text-muted'),
+            h('span', {class: 'fw-semibold'}, blockTitle(ref)),
+            badge('REPLACED in this form', 'dz-custom-badge'), libraryBadge(String(ref).split('#')[0]),
+            h('button', {type: 'button', class: 'btn btn-outline-secondary btn-sm py-0 ms-auto',
+                onclick: () => resetBlock(overrideAt)},
+                icon('bi-arrow-counterclockwise', 'me-1'), 'Reset to library version')));
+}
+
+async function pickBlock(title, exclude) {
+    const blocks = availableBlocks().filter(b => b.ref !== exclude);
+    if (!blocks.length) {
+        showToast('No other shared block yet – add one to a block library first (Templates → Building blocks)', 'warning');
+        return null;
+    }
+    return choiceDialog({title, message: 'Choose the shared block to use here:',
+        detail: 'It stays linked to its library – later changes there reach this form too.',
+        choices: blocks.map(b => ({id: b.ref, icon: 'bi-box', label: b.title, hint: `${b.libName} · ${b.ref}`}))});
+}
+
+async function replaceBlock(sec, id, origin) {
+    const ref = await pickBlock(`Replace "${sec.title || id}"`, origin ? `${origin}#${id}` : null);
+    if (!ref) return;
+    mutate(() => {
+        if (!Array.isArray(S.tpl.model.sections)) S.tpl.model.sections = [];
+        S.tpl.model.sections.unshift({override: id, use: ref});
+        S.tpl.sel = [];
+    });
+    showToast('Block replaced in this form');
+}
+
+// Own section that embeds a shared block (use:), or replaces a library block with one
+function embeddedCard(path, sec) {
+    const ref = String(sec.use);
+    const info = (S.tpl.embedded || {})[ref] || null;
+    const lib = (info && info.origin) || ref.split('#')[0];
+    const block = info && info.section;
+    const i = path[path.length - 1];
+    const replaces = 'override' in sec;
+    if (info && info.error) {
+        return h('div', itemAttrs(path, 'dz-section dz-lib-card dz-lib-broken'),
+            h('div', {class: 'dz-section-head'}, icon('bi-grip-vertical', 'dz-handle'), icon('bi-exclamation-triangle', 'text-danger'),
+                h('span', {class: 'fw-semibold'}, ref), badge('BROKEN LINK', 'bg-danger-subtle text-danger border border-danger-subtle')),
+            h('div', {class: 'dz-lib-summary text-danger'}, info.error, ' – this block is left out of new records.'));
+    }
+    return h('div', itemAttrs(path, 'dz-section dz-lib-card dz-lib-embedded'),
+        h('div', {class: 'dz-section-head'},
+            icon('bi-grip-vertical', 'dz-handle'), icon('bi-link-45deg', 'dz-lib-icon'),
+            h('span', {class: 'fw-semibold'}, (block && block.title) || blockTitle(ref)),
+            block ? badge(sectionMeta(block.type).label) : null,
+            badge(replaces ? `REPLACES library block "${sec.override}"` : 'EMBEDDED', 'dz-lib-badge'), libraryBadge(lib),
+            sec.id ? h('code', {class: 'dz-row-key'}, sec.id) : null,
+            h('div', {class: 'ms-auto d-flex gap-1'},
+                h('button', {type: 'button', class: 'btn btn-outline-primary btn-sm py-0',
+                    onclick: e => { e.stopPropagation(); editInLibrary(lib, info ? info.index : null); }},
+                    icon('bi-boxes', 'me-1'), (n => `Edit in library${n ? ` (affects ${n} form${n === 1 ? '' : 's'})` : ''}`)(formsUsing(lib).length)),
+                replaces ? null : h('button', {type: 'button', class: 'btn btn-outline-warning btn-sm py-0',
+                    title: 'Turn the link into an own copy of the block (no longer updated from the library)',
+                    onclick: e => { e.stopPropagation(); detachBlock(i); }},
+                    icon('bi-scissors', 'me-1'), 'Detach (copy here)'))),
+        block && blockSummary(block) ? h('div', {class: 'dz-lib-summary'}, blockSummary(block)) : null);
+}
+
+async function detachBlock(i) {
+    const sec = S.tpl.model.sections[i];
+    const info = (S.tpl.embedded || {})[String(sec.use)];
+    if (!info || !info.section) { showToast('The block is not loaded yet – try again in a moment', 'warning'); return; }
+    const yes = await confirmDialog({title: 'Detach the block?',
+        message: 'This form gets its own copy of the block. Later changes in the library no longer reach it.',
+        confirmLabel: 'Detach'});
+    if (!yes) return;
+    mutate(() => {
+        const copy = M.clone(info.section);
+        copy.id = sec.id || copy.id || String(sec.use).split('#')[1];
+        S.tpl.model.sections[i] = copy;
+        S.tpl.sel = ['sections', i];
+    });
+}
+
+function customizeBlock(sec, id) {
+    mutate(() => {
+        const copy = M.clone(sec);
+        delete copy.id;
+        const entry = Object.assign({override: id}, copy);
+        if (!Array.isArray(S.tpl.model.sections)) S.tpl.model.sections = [];
+        S.tpl.model.sections.unshift(entry);
+        S.tpl.sel = ['sections', 0];
+    });
+    showToast('Copy created – this form now uses its own version of the block');
+}
+
+function removeBlock(id) {
+    mutate(() => {
+        if (!Array.isArray(S.tpl.model.sections)) S.tpl.model.sections = [];
+        S.tpl.model.sections.push({remove: id});
+        S.tpl.sel = [];
+    });
+}
+
+async function resetBlock(overrideAt) {
+    const yes = await confirmDialog({title: 'Reset to library version?',
+        message: 'The customized copy in this form is deleted and the library block is used again.',
+        confirmLabel: 'Reset', danger: true});
+    if (yes) mutate(() => { S.tpl.model.sections.splice(overrideAt, 1); S.tpl.sel = []; });
+}
+
+// Open the library and select the block there (idx = position among the library's own sections)
+async function editInLibrary(libraryId, idx) {
+    const from = S.tpl && !S.tpl.isNew ? S.tpl.templateId : null;
+    await switchTemplate(libraryId);
+    if (!S.tpl || S.tpl.model.template_id !== libraryId) return;
+    S.tpl.returnTo = from && from !== libraryId ? from : null;
+    renderToolbar();
+    if (Number.isInteger(idx) && Array.isArray(S.tpl.model.sections) && S.tpl.model.sections[idx]) {
+        select(['sections', idx]);
+        const el = $('dz-canvas').querySelector('.dz-selected');
+        if (el) el.scrollIntoView({block: 'center'});
+    }
 }
 
 function renderCanvas() {
@@ -1179,8 +1614,8 @@ function renderCanvas() {
             icon('bi-file-earmark-text', 'me-2 text-primary'),
             h('span', {class: 'fw-semibold'}, t.model.name || '(unnamed template)'),
             h('span', {class: 'text-muted small ms-2'}, 'template settings'),
-            t.model.abstract ? h('span', {class: 'ms-2'}, badge('abstract')) : null,
-            t.model.extends ? h('span', {class: 'ms-2'}, badge(`extends ${t.model.extends}`)) : null),
+            t.model.abstract ? h('span', {class: 'ms-2'}, badge('block library', 'dz-lib-badge')) : null,
+            t.model.extends ? h('span', {class: 'ms-2'}, 'uses ', libraryBadge(t.model.extends)) : null),
         inheritedBlock() || '',
         listEl(['sections'], 'section', 'Drag a section from the palette or click it to start', sections.map((s, i) => sectionCard(['sections', i], s))));
     highlightSelection();
@@ -1373,7 +1808,7 @@ function propsTemplate(panel) {
     const fileInput = t.isNew ? h('input', {type: 'text', class: 'form-control form-control-sm font-monospace', value: t.filename,
         'aria-label': 'File name', oninput: () => { t.filename = fileInput.value.trim(); t.fileTouched = true; renderToolbar(); }}) : null;
     const parents = S.templates.filter(x => x.template_id && x.template_id !== model.template_id)
-        .map(x => ({value: x.template_id, label: `${x.name || x.template_id}${x.abstract ? ' (abstract)' : ''}`}));
+        .map(x => ({value: x.template_id, label: `${x.name || x.template_id}${x.abstract ? ' (block library)' : ' (form)'}`}));
     put(panel,
         formRow('Name', prop(model, 'name', {write: (o, v) => { o.name = v; }, label: 'Template name'})),
         formRow('Template id', idInput, t.isNew ? 'Letters, digits, "-" and "_", e.g. helpdesk-request-v1. Cannot be changed later.'
@@ -1385,11 +1820,11 @@ function propsTemplate(panel) {
                 model.status || 'active', v => { pushUndo(null); model.status = v; edited(null, false); }, 'Status')))),
         formRow('Category', prop(model, 'category', {label: 'Category'})),
         formRow('Description', prop(model, 'description', {multiline: true, rows: 2, label: 'Description'})),
-        formRow('Extends', selectBox([{value: '', label: '– none –'}].concat(parents), model.extends || '', v => {
+        formRow('Uses library', selectBox([{value: '', label: '– none (own sections only) –'}].concat(parents), model.extends || '', v => {
             pushUndo(null); M.setProp(model, 'extends', v); edited(null, false);
-        }, 'Parent template'), 'Sections of the parent are placed before the sections of this template.'),
-        propCheck('Abstract template', !!model.abstract, v => M.setBool(model, 'abstract', v, false),
-            'Only a base for other templates – records cannot be created from it.'));
+        }, 'Parent template'), 'Its building blocks are placed before the sections of this template. (YAML: extends)'),
+        propCheck('Block library', !!model.abstract, v => M.setBool(model, 'abstract', v, false),
+            'Only holds building blocks for forms – records cannot be created from it. (YAML: abstract)'));
 
     // meta
     const meta = M.isObject(model.meta) ? model.meta : null;
@@ -1492,8 +1927,37 @@ function propsField(panel, path, field, kind) {
             pushUndo(null);
             if (v === 'text' && !('type' in field)) { /* default – nothing to write */ } else field.type = v;
             if (v === 'select' && !Array.isArray(field.options)) field.options = [];
+            if (v === 'user') { delete field.options; if (!field.source) field.source = 'collection_members'; }
+            else delete field.source;
+            if (v !== 'datetime') delete field.display_tz;
             edited(null, true);
         }, 'Type')));
+    if (!isCol && field.type === 'user') {
+        const userSources = S.catalog.user_sources || [{value: 'collection_members', label: 'collection_members'}];
+        put(panel,
+            h('div', {class: 'alert alert-warning small py-2'}, icon('bi-lock', 'me-1'),
+                'App-defined list – the options are the users of this collection (managed in Access), '
+                + 'not values written in the template. A changed value is checked against them on save.'),
+            formRow('Users from', selectBox(userSources, field.source || 'collection_members', v => {
+                pushUndo(null); field.source = v; edited(null, true);
+            }, 'User source')));
+    }
+    if (field.type === 'datetime') {
+        const tz = (typeof APP_TIME !== 'undefined' && APP_TIME.timezone) || 'app time zone';
+        put(panel, formRow('Time zone shown', selectBox([
+            {value: '', label: `Local – ${tz} (from Settings)`},
+            {value: 'utc', label: 'UTC'}], field.display_tz === 'utc' ? 'utc' : '', v => {
+                pushUndo(null);
+                if (v === 'utc') field.display_tz = 'utc'; else delete field.display_tz;
+                edited(null, true);
+            }, 'Time zone shown'),
+            'The value is always stored in UTC. This only picks the zone it is shown and entered in; the zone is printed with it.'));
+    }
+    if (field.type === 'time') {
+        put(panel, h('div', {class: 'alert alert-light border small py-2'}, icon('bi-clock', 'me-1'),
+            'Time of day (HH:MM) in local time, e.g. a schedule. It is not converted between time zones – '
+            + 'use "Date & time" for moments that actually happened.'));
+    }
     if ((field.type || 'text') === 'select') {
         put(panel, formRow('Options', linesControl(() => field.options, list => { field.options = list; }, 'One option per line', 5),
             'The whole option text is stored as the value.'));
@@ -1561,6 +2025,20 @@ function propsStep(panel, path) {
         M.isObject(cur()) ? otherAttributes(cur(), 'step') : null);
 }
 
+function propsEmbedded(panel, path, sec) {
+    const ref = String(sec.use);
+    const options = availableBlocks().map(b => ({value: b.ref, label: `${b.title} – ${b.libName}`}));
+    if (!options.some(o => o.value === ref)) options.unshift({value: ref, label: ref});
+    put(panel,
+        h('div', {class: 'alert alert-light border small py-2'}, icon('bi-link-45deg', 'me-1 dz-lib-icon'),
+            'Shared block – its content is edited in its library. Here you only choose which block is used.'),
+        formRow('Block', selectBox(options, ref, v => { pushUndo(null); sec.use = v; edited(null, true); }, 'Block')),
+        'override' in sec ? formRow('Replaces', h('code', {}, sec.override), 'The library block this one is used instead of.')
+            : formRow('Id', prop(sec, 'id', {mono: true, label: 'Section id', placeholder: ref.split('#')[1] || ''}),
+                'Empty = the id of the block. Set one when the same block is embedded twice.'),
+        otherAttributes(sec, 'section') || '');
+}
+
 function renderProps() {
     const t = S.tpl;
     const panel = clear($('dz-props'));
@@ -1572,6 +2050,7 @@ function renderProps() {
         h('h6', {class: 'fw-bold mb-0'}, KIND_LABELS[kind] || kind),
         path.length ? nodeActions(path) : null));
     if (kind === 'template') propsTemplate(panel);
+    else if (kind === 'section' && M.isObject(node) && 'use' in node) propsEmbedded(panel, path, node);
     else if (kind === 'section' && M.isObject(node)) propsSection(panel, path, node);
     else if ((kind === 'field' || kind === 'column') && M.isObject(node)) propsField(panel, path, node, kind);
     else if (kind === 'group' && M.isObject(node)) propsGroup(panel, node);
@@ -1597,7 +2076,10 @@ async function runCheck() {
         t.check = r.data;
         const before = JSON.stringify(t.inherited);
         t.inherited = r.data.inherited;
-        if (JSON.stringify(t.inherited) !== before) renderCanvas();
+        const beforeEmb = JSON.stringify(t.embedded || {});
+        t.embedded = r.data.embedded || {};
+        if (JSON.stringify(t.inherited) !== before) renderPalette();      // library changed → other blocks offered
+        if (JSON.stringify(t.inherited) !== before || JSON.stringify(t.embedded) !== beforeEmb) renderCanvas();
     }
     renderCheckResult();
 }
@@ -1643,6 +2125,17 @@ async function saveTemplate() {
         showToast('File name may only contain lowercase letters, digits, "-" and "_"', 'danger');
         select([]);
         return;
+    }
+    const users = t.isNew ? [] : usersOf(t.model.template_id);
+    if (users.length && tplDirty()) {
+        const yes = await confirmDialog({
+            title: 'Save shared blocks?',
+            message: `This change applies to ${users.length} other template${users.length === 1 ? '' : 's'}: `
+                + users.map(u => u.name || u.template_id).join(', ') + '.',
+            detail: 'Existing records are not changed; new records will use the new version.',
+            confirmLabel: 'Save for all',
+        });
+        if (!yes) return;
     }
     btn.disabled = true;
     const r = await saveFlow(confirm => (t.isNew

@@ -73,6 +73,8 @@ def _norm_field(field: dict) -> dict:
         field["auto_value"] = field.pop("auto")
         field["editable"] = False
     field.setdefault("type", "text")
+    if field["type"] == "user":             # app-defined list: users of the collection
+        field.setdefault("source", "collection_members")
     field.setdefault("editable", True)
     if "example" in field:
         field["is_example"] = True
@@ -147,47 +149,153 @@ def _normalize_template(data: dict) -> dict:
 # Template inheritance resolver
 # ---------------------------------------------------------------------------
 
-def _resolve_extends(data: dict, all_dirs: list[Path]) -> dict:
-    """
-    If the template declares 'extends: <parent_template_id>', find the parent
-    in any of the given directories and prepend its sections to the child's sections.
+def section_effective_id(section: dict, idx: int = 0) -> str:
+    """Id a section is known by: its `id`, else a slug of its title, else of its type.
 
-    The child's metadata fields (name, category, meta, workflow, etc.) are preserved.
-    Abstract parents are found even though they don't appear in list_templates().
+    The one rule shared by the resolver, the normalizer and the Designer, so that
+    `override:` / `remove:` refer to the same sections everywhere.
     """
-    parent_id = data.get("extends")
-    if not parent_id:
-        return data
+    title = section.get("title") or ""
+    return str(section.get("id") or _slugify(str(title or section.get("type") or f"section_{idx + 1}")))
 
-    parent_data = None
+
+#: Child-section keys that change an inherited section instead of adding one
+OVERRIDE_KEY = "override"     # {override: <id>, ...section}  – replace it, in place, for this form only
+REMOVE_KEY = "remove"         # {remove: <id>}                – drop it from this form
+USE_KEY = "use"               # {use: <template_id>#<section id>, id?: <new id>} – embed one block (live link)
+                              # {override: <id>, use: <ref>}  – replace an inherited block by another one
+
+
+def parse_block_ref(ref) -> Optional[tuple[str, str]]:
+    """'zoo-blocks-v1#ringing' → ('zoo-blocks-v1', 'ringing'); None when malformed."""
+    if not isinstance(ref, str) or ref.count("#") != 1:
+        return None
+    tid, sid = (part.strip() for part in ref.split("#"))
+    return (tid, sid) if tid and sid else None
+
+
+def resolve_block(ref, all_dirs: list[Path], seen: Optional[set] = None) -> tuple[Optional[dict], Optional[str]]:
+    """Find the block a `use:` points to. Returns ({'section', 'origin', 'index', 'id'}, None)
+    or (None, error message). Only blocks DEFINED in that template can be used – not ones it
+    inherits or embeds itself – so a reference never chains through further references."""
+    parsed = parse_block_ref(ref)
+    if not parsed:
+        return None, f"'{ref}' is not a block reference – expected <template_id>#<section id>"
+    tid, sid = parsed
+    if seen and tid in seen:
+        return None, f"'{ref}' refers to this template itself or to one that embeds it – that would be a cycle"
+    source = _find_template(tid, all_dirs)
+    if source is None:
+        return None, f"'{ref}': template '{tid}' not found"
+    for entry in resolve_sections(source, all_dirs, (seen or set()) | {tid}):
+        if entry["id"] == sid and entry["state"] in ("own", "overridden") and entry["origin"] == tid:
+            return {"section": copy.deepcopy(entry["section"]), "origin": tid,
+                    "index": entry["index"], "id": sid}, None
+    return None, f"'{ref}': template '{tid}' defines no block '{sid}'"
+
+
+def _find_template(template_id: str, all_dirs: list[Path]) -> Optional[dict]:
     for template_dir in all_dirs:
         for yaml_file in template_dir.glob("*.yaml"):
             try:
                 candidate = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
-                if candidate and candidate.get("template_id") == parent_id:
-                    parent_data = candidate
-                    break
+                if isinstance(candidate, dict) and candidate.get("template_id") == template_id:
+                    return candidate
             except Exception:
                 pass
-        if parent_data is not None:
-            break
+    return None
 
-    if parent_data is None:
-        logger.warning(
-            "Template '%s' extends '%s' but parent was not found",
-            data.get("template_id"), parent_id,
-        )
+
+def resolve_sections(data: dict, all_dirs: list[Path], _seen: Optional[set] = None) -> list[dict]:
+    """Final section list of a template with the origin of every section.
+
+    Returns [{'section', 'origin', 'index', 'state', 'id'}] where origin is the template_id
+    that defines the section, index its position in that template's `sections` list, and
+    state is 'inherited' | 'overridden' | 'replaced' | 'embedded' | 'own'.
+    `use:` entries are resolved to a copy of the referenced block (live – re-read on
+    every resolve); a broken reference is skipped with a warning.
+    Removed inherited sections are returned with state 'removed' (the caller drops them).
+
+    Order: the parent's sections (recursively resolved), with `override:` replacing a
+    section in place and `remove:` dropping it; then the child's other sections as written.
+    A plain child section is always added – sharing an id with a parent section does NOT
+    replace it (kept for backward compatibility; the Designer warns about it).
+    """
+    own_id = data.get("template_id")
+    seen = set(_seen or ())
+    if own_id:
+        seen.add(own_id)
+    result: list[dict] = []
+    parent_id = data.get("extends")
+    if parent_id:
+        if parent_id in seen:
+            logger.error("Template '%s': inheritance cycle through '%s' – parent ignored", own_id, parent_id)
+        else:
+            parent = _find_template(parent_id, all_dirs)
+            if parent is None:
+                logger.warning("Template '%s' extends '%s' but parent was not found", own_id, parent_id)
+            else:
+                for entry in resolve_sections(parent, all_dirs, seen):
+                    if entry["state"] == "removed":
+                        continue
+                    # from this template's point of view everything of the parent is inherited
+                    result.append({"section": copy.deepcopy(entry["section"]), "origin": entry["origin"],
+                                   "index": entry["index"], "state": "inherited", "id": entry["id"]})
+    by_id = {e["id"]: e for e in result}
+    for i, sec in enumerate(data.get("sections") or []):
+        if isinstance(sec, dict) and REMOVE_KEY in sec and len(sec) == 1:
+            target = by_id.get(str(sec[REMOVE_KEY]))
+            if target is None:
+                logger.warning("Template '%s': remove '%s' – no such inherited section", own_id, sec[REMOVE_KEY])
+            else:
+                target["state"] = "removed"
+            continue
+        if isinstance(sec, dict) and OVERRIDE_KEY in sec:
+            target_id = str(sec[OVERRIDE_KEY])
+            target = by_id.get(target_id)
+            if target is None:
+                logger.warning("Template '%s': override '%s' – no such inherited section", own_id, target_id)
+                continue
+            if USE_KEY in sec:                 # replace the inherited block by another block
+                block, error = resolve_block(sec[USE_KEY], all_dirs, seen)
+                if block is None:
+                    logger.warning("Template '%s': override '%s' – %s", own_id, target_id, error)
+                    continue
+                block["section"]["id"] = target_id
+                target.update(section=block["section"], origin=block["origin"], index=block["index"], state="replaced")
+                continue
+            replacement = {k: v for k, v in sec.items() if k != OVERRIDE_KEY}
+            replacement.setdefault("id", target_id)
+            target.update(section=replacement, origin=own_id, index=i, state="overridden")
+            continue
+        if isinstance(sec, dict) and USE_KEY in sec:
+            block, error = resolve_block(sec[USE_KEY], all_dirs, seen)
+            if block is None:
+                logger.warning("Template '%s': use – %s", own_id, error)
+                continue
+            if sec.get("id"):
+                block["section"]["id"] = str(sec["id"])
+                block["id"] = str(sec["id"])
+            result.append({**block, "state": "embedded"})
+            continue
+        result.append({"section": sec, "origin": own_id, "index": i, "state": "own",
+                       "id": section_effective_id(sec, i) if isinstance(sec, dict) else f"section_{i + 1}"})
+    return result
+
+
+def _resolve_extends(data: dict, all_dirs: list[Path]) -> dict:
+    """
+    Resolve inheritance: the parent's sections first (with this template's `override:` /
+    `remove:` applied), then this template's own sections. See resolve_sections().
+
+    The child's metadata fields (name, category, meta, workflow, etc.) are preserved.
+    Abstract parents are found even though they don't appear in list_templates().
+    """
+    if not data.get("extends") and not any(
+        isinstance(s, dict) and (OVERRIDE_KEY in s or REMOVE_KEY in s or USE_KEY in s) for s in data.get("sections") or []
+    ):
         return data
-
-    # Recursively resolve parent's own inheritance
-    parent_data = _resolve_extends(parent_data, all_dirs)
-
-    # Merge: parent sections first, then child sections
-    parent_sections = copy.deepcopy(parent_data.get("sections", []))
-    child_sections = data.get("sections", [])
-    data["sections"] = parent_sections + child_sections
-
-    # Remove the extends key from the resolved template
+    data["sections"] = [e["section"] for e in resolve_sections(data, all_dirs) if e["state"] != "removed"]
     data.pop("extends", None)
     return data
 
@@ -211,18 +319,26 @@ class TemplateService:
     def _all_yaml_files(self) -> list[Path]:
         return sorted(self.collection_dir.glob("*.yaml"))
 
-    async def list_templates(self) -> list[UniTemplate]:
-        """Return all non-abstract templates in the collection directory."""
+    async def list_templates(self, include_abstract: bool = False) -> list[UniTemplate]:
+        """Return templates in the collection directory.
+
+        Abstract templates (bases for inheritance) are skipped unless
+        ``include_abstract`` is set – records cannot be created from them, so only
+        editors (template management page) ask for them. Each returned template
+        keeps its direct parent id in ``extends`` (the resolver drops it otherwise).
+        """
         result = []
         for yaml_file in self._all_yaml_files():
             try:
                 data = yaml.safe_load(yaml_file.read_text(encoding="utf-8"))
                 if not data:
                     continue
-                if data.get("abstract", False):
+                if data.get("abstract", False) and not include_abstract:
                     continue
+                parent_id = data.get("extends")
                 data = _resolve_extends(data, [self.collection_dir])
                 data = _normalize_template(data)
+                data["extends"] = parent_id
                 result.append(UniTemplate(**data, filename=yaml_file.name))
             except Exception as exc:
                 logger.warning("Cannot load template '%s': %s", yaml_file.name, exc)

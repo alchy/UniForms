@@ -143,3 +143,45 @@ async def get_accessible_collections(
         rows = await cursor.fetchall()
     accessible = {row[0] for row in rows}
     return [c for c in all_collections if c.id in accessible]
+
+
+# ---------------------------------------------------------------------------
+# Ciselniky stanovene aplikaci – pole typu "user" (source: ...)
+# ---------------------------------------------------------------------------
+
+# Zdroje hodnot pro pole `type: user`; poradi = poradi v Designeru
+USER_SOURCES = ("collection_members", "collection_admin", "collection_user")
+DEFAULT_USER_SOURCE = "collection_members"
+
+
+# Vrati aktivni uzivatele, kteri odpovidaji zdroji pole typu user, jako [{username, role}].
+# Kopiruje pravidla require_collection_access / require_collection_admin:
+#   collection_members – system_admin + kazdy s roli v kolekci
+#   collection_admin   – system_admin + collection_admin
+#   collection_user    – jen collection_user
+async def get_collection_members(
+    db: aiosqlite.Connection,
+    collection_id: str,
+    source: str = DEFAULT_USER_SOURCE,
+) -> list[dict]:
+    if source not in USER_SOURCES:
+        raise ValueError(f"Unknown user source '{source}' – allowed: {', '.join(USER_SOURCES)}")
+    members: dict[str, str] = {}
+    if source != "collection_user":
+        async with db.execute(
+            "SELECT username FROM users WHERE role = 'system_admin' AND is_active = 1"
+        ) as cursor:
+            for row in await cursor.fetchall():
+                members[row[0]] = "system_admin"
+    roles = {"collection_members": ("collection_admin", "collection_user"),
+             "collection_admin": ("collection_admin",),
+             "collection_user": ("collection_user",)}[source]
+    async with db.execute(
+        "SELECT cr.username, cr.role FROM collection_roles cr "
+        "JOIN users u ON u.username = cr.username AND u.is_active = 1 "
+        f"WHERE cr.collection_id = ? AND cr.role IN ({','.join('?' * len(roles))})",
+        (collection_id, *roles),
+    ) as cursor:
+        for row in await cursor.fetchall():
+            members.setdefault(row[0], row[1])
+    return [{"username": u, "role": r} for u, r in sorted(members.items())]

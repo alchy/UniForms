@@ -52,8 +52,10 @@ async def _lifespan(app: FastAPI):
     # access-manager settings saved in the GUI (Settings) override .env
     from uniforms.auth.access_manager_auth import load_overrides
     from uniforms.core.database import get_db
+    from uniforms.services.settings_service import load_time_settings
     async for db in get_db():
         await load_overrides(db)
+        await load_time_settings(db)          # date & time display settings (Settings page)
     yield
 
 

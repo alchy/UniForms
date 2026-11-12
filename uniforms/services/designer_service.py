@@ -46,7 +46,8 @@ from uniforms.models.template import UniTemplate
 from uniforms.services import collection_service
 from uniforms.services.record_service import _strip_examples
 from uniforms.services.template_service import (
-    TemplateService, _normalize_template, _resolve_extends, _slugify, atomic_write_text,
+    OVERRIDE_KEY, REMOVE_KEY, USE_KEY, TemplateService, _normalize_template, _resolve_extends, _slugify,
+    atomic_write_text, parse_block_ref, resolve_block, resolve_sections, section_effective_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,9 +139,19 @@ FIELD_TYPES = [
     {"type": "textarea", "label": "Long text", "icon": "bi-textarea-resize"},
     {"type": "select", "label": "Select", "icon": "bi-menu-button-wide"},
     {"type": "datetime", "label": "Date & time", "icon": "bi-calendar-event"},
+    {"type": "date", "label": "Date", "icon": "bi-calendar3"},
+    {"type": "time", "label": "Time of day", "icon": "bi-clock"},
     {"type": "number", "label": "Number", "icon": "bi-123"},
+    # App-defined list (system = values come from the application, not from the template)
+    {"type": "user", "label": "User (of the collection)", "icon": "bi-person-badge", "system": True},
 ]
-COLUMN_TYPES = ["text", "select", "textarea"]
+# Sources of a `type: user` field – see collection_service.get_collection_members
+USER_SOURCES = [
+    {"value": "collection_members", "label": "Anyone with access to the collection"},
+    {"value": "collection_admin", "label": "Collection admins (incl. system admins)"},
+    {"value": "collection_user", "label": "Collection users only"},
+]
+COLUMN_TYPES = ["text", "select", "textarea", "date", "time", "datetime"]
 AUTO_SOURCES = [
     {"value": "record_id", "label": "Record ID"},
     {"value": "template_name", "label": "Template name"},
@@ -170,6 +181,7 @@ def catalog(terminology_defaults: Optional[dict] = None) -> dict:
         "field_types": copy.deepcopy(FIELD_TYPES),
         "column_types": list(COLUMN_TYPES),
         "auto_sources": copy.deepcopy(AUTO_SOURCES),
+        "user_sources": copy.deepcopy(USER_SOURCES),
         "state_colors": list(STATE_COLORS),
         "template_statuses": list(TEMPLATE_STATUSES),
         "role_ids": list(ROLE_IDS),
@@ -745,7 +757,8 @@ def new_template_model(template_id: str = "", name: str = "") -> dict:
                     {"key": "record_id", "label": "Record ID", "auto": "record_id"},
                     {"key": "template_name", "label": "Template", "auto": "template_name"},
                     {"key": "title", "label": "Title"},
-                    {"key": "record_owner", "label": "Record owner"},
+                    {"key": "record_owner", "label": "Record owner", "type": "user",
+                     "source": "collection_members"},
                 ],
             },
         ],
@@ -804,7 +817,7 @@ def list_templates(collection_dir: Path, raw: Optional[list] = None) -> list[dic
             result.append({
                 "filename": path.name, "template_id": None, "name": path.stem,
                 "loadable": False, "abstract": False, "extends": None, "status": None,
-                "version": None, "sections": 0,
+                "version": None, "sections": 0, "section_titles": [], "section_ids": [], "uses": [],
             })
             continue
         result.append({
@@ -815,7 +828,25 @@ def list_templates(collection_dir: Path, raw: Optional[list] = None) -> list[dic
             "version": None if data.get("version") is None else str(data.get("version")),
             "abstract": bool(data.get("abstract", False)),
             "extends": data.get("extends") or None,
-            "sections": len(data.get("sections") or []) if isinstance(data.get("sections"), list) else 0,
+            # own sections only – override:/remove: entries change library blocks, they add none
+            # (an embedded block – use: – does add a section)
+            "sections": sum(1 for sec in data.get("sections") or [] if not (isinstance(sec, dict)
+                            and (OVERRIDE_KEY in sec or REMOVE_KEY in sec)))
+                        if isinstance(data.get("sections"), list) else 0,
+            # building blocks this template defines itself – what others can embed (use: tid#id)
+            "section_ids": [_effective_id(sec, i) for i, sec in enumerate(data.get("sections") or [])
+                            if isinstance(sec, dict) and not (REMOVE_KEY in sec or OVERRIDE_KEY in sec or USE_KEY in sec)]
+                           if isinstance(data.get("sections"), list) else [],
+            # blocks it embeds or uses as a replacement
+            "uses": [str(sec[USE_KEY]) for sec in data.get("sections") or [] if isinstance(sec, dict) and USE_KEY in sec]
+                    if isinstance(data.get("sections"), list) else [],
+            "removes": sum(1 for sec in data.get("sections") or [] if isinstance(sec, dict) and REMOVE_KEY in sec)
+                       if isinstance(data.get("sections"), list) else 0,
+            # own sections (title or id) – lists the building blocks of a block library
+            "section_titles": [str(sec.get("title") or sec.get("id") or sec.get("type") or "")
+                               for sec in data.get("sections") or []
+                               if isinstance(sec, dict) and not (REMOVE_KEY in sec or OVERRIDE_KEY in sec or USE_KEY in sec)]
+                              if isinstance(data.get("sections"), list) else [],
             "loadable": json_unsafe_reason(data) is None,
         })
     return result
@@ -855,8 +886,7 @@ def _parent_chain(collection_dir: Path, parent_id: Any, own_id: Any) -> tuple[li
 
 
 def _effective_id(section: dict, idx: int) -> str:
-    title = section.get("title") or ""
-    return str(section.get("id") or _slugify(str(title or section.get("type") or f"section_{idx + 1}")))
+    return section_effective_id(section, idx)
 
 
 def _lint_fields(fields: Any, path: str, issues: list[dict]) -> None:
@@ -883,6 +913,20 @@ def _lint_fields(fields: Any, path: str, issues: list[dict]) -> None:
             issues.append(_issue("warning", p, f"Unknown field type '{ftype}' – rendered as text"))
         if ftype == "select" and not field.get("options"):
             issues.append(_issue("warning", p, "Select field has no options"))
+        if ftype == "user":
+            src = field.get("source", "collection_members")
+            if src not in [s["value"] for s in USER_SOURCES]:
+                issues.append(_issue("error", p, f"Unknown user source '{src}' – allowed: "
+                                     + ", ".join(s["value"] for s in USER_SOURCES)))
+            if field.get("options"):
+                issues.append(_issue("warning", p, "'options' is ignored – a user field lists the users of the collection"))
+        elif "source" in field:
+            issues.append(_issue("warning", p, "'source' is used only by fields of type 'user'"))
+        if "display_tz" in field:
+            if ftype != "datetime":
+                issues.append(_issue("warning", p, "'display_tz' is used only by fields of type 'datetime'"))
+            elif field["display_tz"] not in ("local", "utc"):
+                issues.append(_issue("error", p, "display_tz must be 'local' or 'utc'"))
         if field.get("options") is not None and not isinstance(field.get("options"), list):
             issues.append(_issue("error", p, "'options' must be a list"))
         if "auto" in field and "auto_value" in field:
@@ -929,6 +973,13 @@ def _lint_section(section: Any, path: str, issues: list[dict], nested: bool) -> 
                 seen.add(col["key"])
                 if col.get("type", "text") == "select" and not col.get("options"):
                     issues.append(_issue("warning", p, "Select column has no options"))
+                if col.get("type", "text") not in COLUMN_TYPES:
+                    issues.append(_issue("warning", p, f"Unknown column type '{col.get('type')}' – shown as text"))
+                if "display_tz" in col:
+                    if col.get("type") != "datetime":
+                        issues.append(_issue("warning", p, "'display_tz' is used only by columns of type 'datetime'"))
+                    elif col["display_tz"] not in ("local", "utc"):
+                        issues.append(_issue("error", p, "display_tz must be 'local' or 'utc'"))
         for key in ("rows",):
             if section.get(key) is not None and not isinstance(section.get(key), list):
                 issues.append(_issue("error", f"{path}.{key}", f"'{key}' must be a list"))
@@ -989,19 +1040,116 @@ def lint_template(model: dict, collection_dir: Optional[Path] = None) -> list[di
     if not isinstance(sections, list):
         issues.append(_issue("error", "sections", "'sections' must be a list"))
         return issues
+    inherited_ids: Optional[set] = None
+    if model.get("extends") and collection_dir is not None:
+        inh = inherited_sections(collection_dir, model.get("extends"), tid)
+        inherited_ids = None if inh["error"] else set(inh.get("ids") or [])
     seen: dict[str, str] = {}
+    changed: dict[str, str] = {}          # inherited id → path of the override/remove using it
     for i, sec in enumerate(sections):
         path = f"sections[{i}]"
+        if isinstance(sec, dict) and USE_KEY in sec and OVERRIDE_KEY not in sec:
+            _block, error = resolve_block(sec[USE_KEY], [collection_dir], {tid}) if collection_dir is not None else (None, None)
+            if error:
+                issues.append(_issue("error", path, error))
+            extra = sorted(set(sec) - {USE_KEY, "id"})
+            if extra:
+                issues.append(_issue("warning", path, f"An embedded block takes only 'use' and 'id' – ignored: {', '.join(extra)}"))
+            eff = str(sec.get("id") or (parse_block_ref(sec[USE_KEY]) or ("", ""))[1])
+            if eff in seen:
+                issues.append(_issue("warning", path, f"Section id '{eff}' is also used by {seen[eff]} – set a different id"))
+            elif inherited_ids and eff in inherited_ids:
+                issues.append(_issue("warning", path, f"Section id '{eff}' is also a library block – set a different id, "
+                                     "or use 'Replace…' on that block instead"))
+            else:
+                seen[eff] = path
+            continue
+        if isinstance(sec, dict) and (REMOVE_KEY in sec or OVERRIDE_KEY in sec):
+            key = REMOVE_KEY if REMOVE_KEY in sec else OVERRIDE_KEY
+            target = str(sec.get(key) or "")
+            if REMOVE_KEY in sec and OVERRIDE_KEY in sec:
+                issues.append(_issue("error", path, "A section cannot both 'remove' and 'override'"))
+            if key == REMOVE_KEY and len(sec) > 1:
+                issues.append(_issue("error", path, "'remove' must stand alone: - remove: <section id>"))
+            if not model.get("extends"):
+                issues.append(_issue("error", path, f"'{key}' needs a library – set 'Uses library' (extends) first"))
+            elif inherited_ids is not None and target not in inherited_ids:
+                issues.append(_issue("error", path, f"'{key}: {target}' – the library has no section with this id"))
+            if target in changed:
+                issues.append(_issue("error", path, f"Section '{target}' is already changed by {changed[target]}"))
+            changed[target] = path
+            if key == OVERRIDE_KEY and USE_KEY in sec:
+                _block, error = resolve_block(sec[USE_KEY], [collection_dir], {tid}) if collection_dir is not None else (None, None)
+                if error:
+                    issues.append(_issue("error", path, error))
+            elif key == OVERRIDE_KEY:
+                _lint_section({k: v for k, v in sec.items() if k != OVERRIDE_KEY}, path, issues, nested=False)
+            continue
         _lint_section(sec, path, issues, nested=False)
         if isinstance(sec, dict):
+            if "use" in sec:
+                issues.append(_issue("warning", path, "'use' (embedding a single block) is not supported yet – ignored"))
             eff = _effective_id(sec, i)
             if eff in seen:
                 issues.append(_issue("warning", path, f"Section id '{eff}' is also used by {seen[eff]}"))
+            elif inherited_ids and eff in inherited_ids:
+                issues.append(_issue("warning", path, f"Section id '{eff}' is also a library block – this adds a second "
+                                     "section; use 'Customize for this form only' to replace the block instead"))
             else:
                 seen[eff] = path
     if not sections and not model.get("extends"):
         issues.append(_issue("warning", "sections", "Template has no sections"))
+    if collection_dir is not None and isinstance(tid, str) and tid:
+        _lint_children_targets(model, tid, collection_dir, issues)
     return issues
+
+
+def _lint_children_targets(model: dict, tid: str, collection_dir: Path, issues: list[dict]) -> None:
+    """A library change must not orphan the override:/remove: of the forms using it.
+
+    Renaming or deleting a block id would silently drop a form's customized copy (or bring
+    a removed block back), so it is an error until the form is reset / changed first.
+    """
+    def block_ids(data: dict) -> set:
+        return {e["id"] for e in resolve_sections(copy.deepcopy(data), [collection_dir]) if e["state"] != "removed"}
+    try:
+        ids = block_ids(model)
+        stored = next((d for _p, d in _raw_templates(collection_dir)
+                       if isinstance(d, dict) and d.get("template_id") == tid), None)
+        before = block_ids(stored) if stored else set()
+    except Exception:
+        return
+    def own_blocks(data: dict) -> set:
+        return {e["id"] for e in resolve_sections(copy.deepcopy(data), [collection_dir])
+                if e["origin"] == tid and e["state"] in ("own", "overridden")}
+    try:
+        own_after, own_before = own_blocks(model), (own_blocks(stored) if stored else set())
+    except Exception:
+        own_after, own_before = set(), set()
+    for _path, data in _raw_templates(collection_dir):
+        if not isinstance(data, dict) or data.get("template_id") == tid:
+            continue
+        reported: set = set()
+        for sec in data.get("sections") or []:
+            if isinstance(sec, dict) and USE_KEY in sec:
+                ref = parse_block_ref(sec[USE_KEY])
+                if ref and ref[0] == tid and ref[1] in own_before and ref[1] not in own_after and ref not in reported:
+                    reported.add(ref)
+                    issues.append(_issue("error", "sections",
+                                         f"Form '{data.get('name') or data.get('template_id')}' embeds block '{ref[1]}', "
+                                         "which this change would remove or rename – detach or remove it in that form first"))
+        if data.get("extends") != tid:
+            continue
+        for sec in data.get("sections") or []:
+            if not isinstance(sec, dict):
+                continue
+            for key, verb in ((OVERRIDE_KEY, "customizes"), (REMOVE_KEY, "removes")):
+                target = sec.get(key)
+                # only what THIS change breaks – an already dangling target is the form's own lint error
+                if target is not None and str(target) in before and str(target) not in ids:
+                    issues.append(_issue("error", "sections",
+                                         f"Form '{data.get('name') or data.get('template_id')}' {verb} block '{target}', "
+                                         "which this change would remove or rename – reset it in that form first"))
 
 
 def _preview_sections(model: dict, collection_dir: Path) -> list:
@@ -1070,21 +1218,54 @@ async def load_template(collection_dir: Path, template_id: str) -> Optional[dict
         "model": model,
         "source": analyze_source(source["content"], model),
         "inherited": inherited_sections(collection_dir, model.get("extends"), template_id),
+        "embedded": embedded_blocks(collection_dir, model),
     }
 
 
+def embedded_blocks(collection_dir: Path, model: dict) -> dict:
+    """Content of every block the template embeds (use:), for the canvas.
+
+    {ref: {'section', 'origin', 'index', 'error'}} – read-only copies; ``error`` explains
+    a broken reference (the block is then left out of records)."""
+    out: dict = {}
+    own = model.get("template_id")
+    for sec in model.get("sections") or []:
+        if not isinstance(sec, dict) or USE_KEY not in sec:
+            continue
+        ref = str(sec[USE_KEY])
+        if ref in out:
+            continue
+        block, error = resolve_block(ref, [collection_dir], {own} if own else None)
+        if block and json_unsafe_reason(block["section"]):
+            block, error = None, "The block cannot be shown in the designer"
+        out[ref] = ({"section": block["section"], "origin": block["origin"], "index": block["index"], "error": None}
+                    if block else {"section": None, "origin": (parse_block_ref(ref) or (None,))[0], "index": None,
+                                   "error": error})
+    return out
+
+
 def inherited_sections(collection_dir: Path, parent_id: Any, own_id: Any = None) -> dict:
-    """Raw sections contributed by the parent chain: {'chain': [...], 'sections': [...], 'error'}."""
+    """Sections a template gets from its library (parent chain), in final order.
+
+    Returns {'chain', 'sections', 'origins', 'indexes', 'ids', 'error'}: for ``sections[i]``,
+    ``origins[i]`` is the template defining it, ``indexes[i]`` its position there and
+    ``ids[i]`` the id a child uses in ``override:`` / ``remove:``.
+    """
     if not parent_id:
-        return {"chain": [], "sections": [], "error": None}
+        return {"chain": [], "sections": [], "origins": [], "error": None}
     chain, error = _parent_chain(collection_dir, parent_id, own_id)
     if error:
-        return {"chain": chain, "sections": [], "error": error}
-    resolved = _resolve_extends({"extends": str(parent_id), "sections": []}, [collection_dir])
-    sections = resolved.get("sections", [])
+        return {"chain": chain, "sections": [], "origins": [], "error": error}
+    entries = [e for e in resolve_sections({"template_id": own_id, "extends": str(parent_id), "sections": []},
+                                           [collection_dir]) if e["state"] != "removed"]
+    sections = [e["section"] for e in entries]
     if json_unsafe_reason(sections):
-        return {"chain": chain, "sections": [], "error": "Parent template cannot be shown in the designer"}
-    return {"chain": chain, "sections": sections, "error": None}
+        return {"chain": chain, "sections": [], "origins": [],
+                "error": "Parent template cannot be shown in the designer"}
+    return {"chain": chain, "sections": sections, "error": None,
+            "origins": [e["origin"] for e in entries],        # template defining each section
+            "indexes": [e["index"] for e in entries],         # its position in that template
+            "ids": [e["id"] for e in entries]}                # id used by override: / remove:
 
 
 async def save_template(

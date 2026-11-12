@@ -70,6 +70,15 @@ const TERM = {
     record_owner_label: {{ term.record_owner_label | tojson }},
     record_id_label:   {{ term.record_id_label | tojson }},
 };
+/* Times are stored in UTC; shown in this IANA zone (fields with display_tz: utc stay in UTC) */
+{% set _t = app_time if app_time is defined and app_time else {} %}
+const APP_TIME = {
+    timezone:    {{ (_t.time_zone or 'Europe/Prague') | tojson }},
+    date_format: {{ (_t.date_format or 'DD.MM.YYYY') | tojson }},
+    time_format: {{ (_t.time_format or '24h') | tojson }},
+    // old values without an offset were written in this zone – fixed, not the Settings zone
+    legacy_timezone: {{ (app_legacy_timezone | default(_t.time_zone or 'Europe/Prague', true)) | tojson }},
+};
 </script>
 <script src="/static/js/main.js"></script>
 <script src="/static/js/uniforms.js"></script>

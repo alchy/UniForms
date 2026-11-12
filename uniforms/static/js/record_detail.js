@@ -179,7 +179,8 @@ function renderRecordHeader(r) {
     document.getElementById('record-meta').innerHTML =
         `<i class="bi bi-file-earmark-text me-1"></i>${escapeHtml(r.data.template_name || r.template_id)} &nbsp;·&nbsp; ` +
         `<i class="bi bi-person me-1"></i>${escapeHtml(r.created_by)} &nbsp;·&nbsp; ` +
-        `<i class="bi bi-calendar me-1"></i>${new Date(r.created_at).toLocaleString()}`;
+        `<i class="bi bi-calendar me-1"></i><span title="Time zone: ${escapeHtml(UniForms.time.zoneLabel(UniForms.time.timezone, new Date(r.created_at)))}">` +
+        `${escapeHtml(UniForms.time.formatInstant(r.created_at))}</span>`;
     updateTakeOverButton(r);
 }
 
@@ -365,6 +366,17 @@ async function takeover() {
     const ok = await saveRecord();
     if (ok) await loadRecord();
 }
+
+// Users for `type: user` fields (app-defined list) – one request per source, cached
+const _userLists = {};
+UniForms.setUserProvider(source => {
+    if (!_userLists[source]) {
+        _userLists[source] = apiFetch(`/api/v1/collections/${encodeURIComponent(COLLECTION_ID)}/members?source=${encodeURIComponent(source)}`)
+            .then(resp => { if (!resp.ok) throw new Error(`HTTP ${resp.status}`); return resp.json(); })
+            .catch(err => { delete _userLists[source]; throw err; });
+    }
+    return _userLists[source];
+});
 
 async function init() {
     await loadCollectionConfig();

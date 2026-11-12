@@ -1,10 +1,10 @@
 import copy
 import random
+import re
 from datetime import datetime, timezone
 from typing import Optional
-from zoneinfo import ZoneInfo
 
-from uniforms.config import settings, uniforms
+from uniforms.config import uniforms
 from uniforms.models.collection import CollectionConfig
 from uniforms.models.record import UniRecord, UpdateRecordRequest
 from uniforms.models.template import UniTemplate
@@ -17,9 +17,22 @@ from uniforms.storage.base import StorageBackend
 # (PATCH), správu workflow stavu a delegování CRUD operací na StorageBackend.
 # ---------------------------------------------------------------------------
 
-def _now_local_str() -> str:
-    """Current time in configured timezone formatted as YYYY-MM-DDTHH:MM."""
-    return datetime.now(ZoneInfo(settings.timezone)).strftime("%Y-%m-%dT%H:%M")
+def _now_utc_str() -> str:
+    """Current time in UTC as ISO 8601 with 'Z' (YYYY-MM-DDTHH:MM:SSZ).
+
+    All instants are stored in UTC; the browser shows them in the configured
+    timezone (settings.timezone) or in UTC, per field (display_tz).
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def is_utc_instant(value: str) -> bool:
+    """True when ``value`` is an ISO 8601 date-time carrying a UTC offset ('Z' or ±HH:MM)."""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    return parsed.tzinfo is not None
 
 
 def generate_record_id(collection: Optional[CollectionConfig] = None) -> str:
@@ -72,7 +85,7 @@ def _build_auto_values(record_id: str, template: UniTemplate, username: str = ""
       template_name       → template display name
       template_version    → template version string
       template_status     → template status (active/draft/deprecated)
-      last_saved          → current local timestamp
+      last_saved / now    → current time, UTC ISO 8601 ('…Z')
 
     Extension keys (meta.*):
       meta.<key>  → value from template.meta dict (e.g. meta.mitre_tactic for SOC)
@@ -84,7 +97,8 @@ def _build_auto_values(record_id: str, template: UniTemplate, username: str = ""
         "template_name": template.name,
         "template_version": template.version,
         "template_status": template.status,
-        "last_saved": _now_local_str(),
+        "last_saved": _now_utc_str(),
+        "now": _now_utc_str(),
     }
     # Expose all meta fields as meta.<key>
     for key, value in template.meta.items():
@@ -255,7 +269,7 @@ async def update_record(
         record.data = request.data
         sections = record.data.get("sections")
         if sections:
-            _update_last_saved(sections, _now_local_str())
+            _update_last_saved(sections, _now_utc_str())
     record.updated_at = now
 
     await storage.save_record(record)
@@ -286,6 +300,142 @@ def _flatten_values(data: dict) -> dict:
     walk((data or {}).get("sections"))
     out.pop(None, None)
     return out
+
+
+def _walk_fields(data: dict):
+    """Yield every field dict of a record document (sections, subsections)."""
+    def walk(sections):
+        for sec in sections or []:
+            if not isinstance(sec, dict):
+                continue
+            for f in sec.get("fields") or []:
+                if isinstance(f, dict):
+                    yield f
+            yield from walk(sec.get("subsections"))
+    yield from walk((data or {}).get("sections"))
+
+
+def _keyed_fields(data: dict) -> dict:
+    """Fields by (key, n-th occurrence of that key) – stable even if a key repeats."""
+    seen: dict = {}
+    out = {}
+    for f in _walk_fields(data):
+        key = f.get("key")
+        if key:
+            n = seen[key] = seen.get(key, -1) + 1
+            out[(key, n)] = f
+    return out
+
+
+def changed_typed_values(before: dict, after: dict, ftype: str) -> list[tuple[dict, object]]:
+    """Fields of type ``ftype`` (taken from the STORED record) whose value changed to a
+    non-empty value. Returns [(stored field dict, new value)]."""
+    specs = {k: f for k, f in _keyed_fields(before).items() if f.get("type") == ftype}
+    if not specs:
+        return []
+    out = []
+    for k, f in _keyed_fields(after).items():
+        spec = specs.get(k)
+        new = f.get("value")
+        if spec is not None and new not in (None, "") and new != spec.get("value"):
+            out.append((spec, new))
+    return out
+
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$")
+
+#: What a stored value of each time type must look like (and an example for the error)
+TYPED_FORMATS = {
+    "datetime": ("ISO 8601 in UTC", "2026-10-13T09:04:00Z"),
+    "date": ("YYYY-MM-DD", "2026-10-13"),
+    "time": ("HH:MM (24h, local time)", "07:00"),
+}
+
+
+def valid_typed_value(ftype: str, value) -> bool:
+    if not isinstance(value, str):
+        return False
+    if ftype == "datetime":
+        return is_utc_instant(value)
+    if ftype == "date":
+        if not _DATE_RE.match(value):
+            return False
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            return False
+        return True
+    if ftype == "time":
+        return bool(_TIME_RE.match(value))
+    return True
+
+
+def _typed_table_cells(before: dict, after: dict) -> list[tuple[str, str, object]]:
+    """New values in table columns of a time type: [(section id.column key, type, value)].
+
+    Column types come from the STORED record. Only values that did not already exist in
+    that column are returned, so untouched legacy rows never block a save."""
+    def tables(data):
+        out = {}
+        def walk(sections):
+            for sec in sections or []:
+                if isinstance(sec, dict):
+                    if sec.get("type") == "table" and sec.get("id"):
+                        out[sec["id"]] = sec
+                    walk(sec.get("subsections"))
+        walk((data or {}).get("sections"))
+        return out
+    stored, sent = tables(before), tables(after)
+    found = []
+    for sid, sec in stored.items():
+        cols = [c for c in sec.get("columns") or [] if isinstance(c, dict) and c.get("type") in TYPED_FORMATS]
+        if not cols or sid not in sent:
+            continue
+        for col in cols:
+            old_values = {r.get(col["key"]) for r in sec.get("rows") or [] if isinstance(r, dict)}
+            for row in sent[sid].get("rows") or []:
+                if not isinstance(row, dict):
+                    continue
+                v = row.get(col["key"])
+                if v not in (None, "") and v not in old_values:
+                    found.append((f"{sid}.{col['key']}", col["type"], v))
+    return found
+
+
+def invalid_typed_values(before: dict, after: dict) -> list[str]:
+    """Error messages for changed date / time / datetime values in a wrong format.
+
+    Fields and table cells are checked only when their value changed, so records
+    written before these types existed (e.g. local time without offset) stay savable."""
+    errors = []
+    for ftype in TYPED_FORMATS:
+        for spec, new in changed_typed_values(before, after, ftype):
+            if not valid_typed_value(ftype, new):
+                fmt, example = TYPED_FORMATS[ftype]
+                errors.append(f"Field '{spec['key']}': expected {fmt}, e.g. {example}")
+    for where, ftype, value in _typed_table_cells(before, after):
+        if not valid_typed_value(ftype, value):
+            fmt, example = TYPED_FORMATS[ftype]
+            errors.append(f"Table column '{where}': expected {fmt}, e.g. {example}")
+    return errors
+
+
+def invalid_datetime_values(before: dict, after: dict) -> list[str]:
+    """Keys of changed `type: datetime` fields whose new value is not a UTC instant."""
+    return [spec["key"] for spec, new in changed_typed_values(before, after, "datetime")
+            if not valid_typed_value("datetime", new)]
+
+
+def changed_user_values(before: dict, after: dict) -> list[tuple[str, str, str]]:
+    """User-typed fields (``type: user``) whose value changed to a non-empty value.
+
+    The field types and sources come from the STORED record (``before``) – the client
+    sends the structure too, so it cannot switch a field away from ``user``.
+    Returns [(key, source, new_value)]; unchanged legacy values are not re-checked.
+    """
+    return [(spec["key"], spec.get("source") or "collection_members", str(new))
+            for spec, new in changed_typed_values(before, after, "user")]
 
 
 def changed_keys(before: dict, after: dict) -> list[str]:

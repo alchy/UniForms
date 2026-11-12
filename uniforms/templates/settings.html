@@ -179,6 +179,47 @@
         </div>
     </div>
 </div>
+{# ── Date & time ─────────────────────────────────────────────────── #}
+<div class="card border shadow-sm mt-4" style="max-width: 640px;" id="time-card">
+    <div class="card-header bg-white py-2">
+        <span class="fw-semibold small"><i class="bi bi-clock me-1 text-primary"></i>Date &amp; time</span>
+        <span class="text-muted small ms-2">Editable at runtime</span>
+    </div>
+    <div class="card-body">
+        <div id="time-alert" class="d-none mb-3"></div>
+        <p class="small text-muted mb-3">
+            All times are <strong>stored in UTC</strong>. These settings only change how they are shown and entered –
+            stored data is never rewritten. Fields set to <em>UTC</em> in the template stay in UTC.
+        </p>
+        <form id="time-form">
+            <div class="mb-3">
+                <label class="form-label small fw-semibold" for="time_zone">Time zone</label>
+                <input class="form-control" id="time_zone" list="time-zone-list" autocomplete="off" spellcheck="false"
+                       placeholder="Europe/Prague">
+                <datalist id="time-zone-list"></datalist>
+                <div class="form-text">IANA name, e.g. <code>Europe/Prague</code> or <code>UTC</code>. Default comes from <code>.env</code> (TIMEZONE).</div>
+            </div>
+            <div class="row">
+                <div class="col-sm-6 mb-3">
+                    <label class="form-label small fw-semibold" for="date_format">Date format</label>
+                    <select class="form-select" id="date_format">
+                        <option>DD.MM.YYYY</option><option>YYYY-MM-DD</option><option>MM/DD/YYYY</option><option>DD/MM/YYYY</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 mb-3">
+                    <label class="form-label small fw-semibold" for="time_format">Time format</label>
+                    <select class="form-select" id="time_format">
+                        <option value="24h">24-hour (14:05)</option><option value="12h">12-hour (2:05 PM)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="small mb-3">Preview: <strong id="time-preview">–</strong> <span class="text-muted" id="time-preview-zone"></span></div>
+            <div class="form-text mb-3">The date &amp; time picker of the browser shows dates in the browser's own format while you pick.</div>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Save date &amp; time</button>
+        </form>
+    </div>
+</div>
+
 {# ── Features ────────────────────────────────────────────────────── #}
 <div class="card border shadow-sm mt-4" style="max-width: 640px;" id="features-card">
     <div class="card-header bg-white py-2">
@@ -204,6 +245,57 @@
 
 {% block scripts %}
 <script>
+(() => {
+    const $ = id => document.getElementById(id);
+    const box = $('time-alert');
+    const show = (kind, msg) => { box.className = `alert alert-${kind} py-2 small`; box.textContent = msg; };
+    try {
+        const zones = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []).concat(['UTC']);
+        const list = $('time-zone-list');
+        [...new Set(zones)].forEach(z => { const o = document.createElement('option'); o.value = z; list.appendChild(o); });
+    } catch (err) { /* free text still works */ }
+
+    // Preview with the values in the form (not yet saved)
+    function preview() {
+        const tz = $('time_zone').value.trim() || 'UTC';
+        let p;
+        try {
+            p = {};
+            new Intl.DateTimeFormat('en-US', {timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'}).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+        } catch (err) {
+            $('time-preview').textContent = 'unknown time zone'; $('time-preview-zone').textContent = ''; return;
+        }
+        let time = `${p.hour}:${p.minute}`;
+        if ($('time_format').value === '12h') { const h = +p.hour; time = `${h % 12 || 12}:${p.minute} ${h < 12 ? 'AM' : 'PM'}`; }
+        $('time-preview').textContent = $('date_format').value.replace('DD', p.day).replace('MM', p.month).replace('YYYY', p.year) + ' ' + time;
+        $('time-preview-zone').textContent = tz;
+    }
+    ['time_zone', 'date_format', 'time_format'].forEach(id => $(id).addEventListener('input', preview));
+
+    (async () => {
+        const r = await apiFetch('/api/v1/settings/');
+        if (!r.ok) return;
+        const cur = await r.json();
+        $('time_zone').value = cur.time_zone || (typeof APP_TIME !== 'undefined' ? APP_TIME.timezone : '');
+        if (cur.date_format) $('date_format').value = cur.date_format;
+        if (cur.time_format) $('time_format').value = cur.time_format;
+        preview();
+    })();
+
+    $('time-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const body = {time_zone: $('time_zone').value.trim(), date_format: $('date_format').value, time_format: $('time_format').value};
+        const r = await apiFetch('/api/v1/settings/', {method: 'PATCH', body: JSON.stringify(body)});
+        if (r.ok) {
+            show('success', 'Date & time saved – reloading so every page uses it…');
+            setTimeout(() => window.location.reload(), 900);
+        } else {
+            const data = await r.json().catch(() => ({}));
+            show('danger', typeof data.detail === 'string' ? data.detail : 'Save failed.');
+        }
+    });
+})();
 (() => {
     const sw = document.getElementById('designer_enabled');
     const box = document.getElementById('features-alert');

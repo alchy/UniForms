@@ -64,6 +64,7 @@
             <button type="button" class="btn btn-success btn-sm" id="dz-tpl-save"><i class="bi bi-save me-1"></i>Save template</button>
         </div>
     </div>
+    <div id="dz-tpl-shared" class="d-none"></div>
     <div id="dz-tpl-source-warning" class="d-none"></div>
     <div id="dz-tpl-alert" class="d-none"></div>
 
@@ -143,13 +144,13 @@
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold mb-1" for="dz-nt-extends">Based on (extends)</label>
+                    <label class="form-label small fw-semibold mb-1" for="dz-nt-extends">Uses library</label>
                     <select class="form-select form-select-sm" id="dz-nt-extends"></select>
-                    <div class="form-text">The new template inherits the sections of the chosen template and adds its own.</div>
+                    <div class="form-text">Gets all building blocks of the chosen library first, then adds its own sections.</div>
                 </div>
                 <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="dz-nt-abstract">
-                    <label class="form-check-label small" for="dz-nt-abstract">Abstract – only a base for other templates</label>
+                    <label class="form-check-label small" for="dz-nt-abstract">Block library – only holds building blocks for forms (no records)</label>
                 </div>
             </div>
             <div class="modal-footer py-2">

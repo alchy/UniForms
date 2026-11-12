@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 # API endpointy pro kolekce.
 # GET /collections/          – seznam kolekcí přístupných přihlášenému uživateli.
 # GET /collections/{id}      – detail jedné kolekce (config, workflow, list_columns…).
+# GET /collections/{id}/members – uživatelé pro pole typu user (číselník stanovený aplikací).
 # ---------------------------------------------------------------------------
 
+from uniforms.core.collection_deps import require_collection_access
 from uniforms.core.database import get_db
 from uniforms.core.security import require_auth
 from uniforms.core.validation import require_slug
@@ -51,3 +53,21 @@ async def get_collection(
         if not role:
             raise HTTPException(status_code=403, detail=f"No access to collection '{collection_id}'")
     return col
+
+
+@router.get("/{collection_id}/members", summary="Users selectable in a `type: user` field")
+# Vrati uzivatele pro pole typu user (ciselnik stanoveny aplikaci); vyzaduje pristup ke kolekci.
+# source: collection_members (vychozi) | collection_admin | collection_user
+async def get_collection_members(
+    collection_id: str,
+    source: str = collection_service.DEFAULT_USER_SOURCE,
+    current_user: User = Depends(require_collection_access),
+    db: aiosqlite.Connection = Depends(get_db),
+) -> list[dict]:
+    col_dir = await get_collections_dir(db)
+    if not (col_dir / f"{collection_id}.yaml").exists():
+        raise HTTPException(status_code=404, detail=f"Collection '{collection_id}' not found")
+    try:
+        return await collection_service.get_collection_members(db, collection_id, source)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))

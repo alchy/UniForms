@@ -105,6 +105,23 @@ async def get_record(
     return record
 
 
+async def _check_user_fields(db: aiosqlite.Connection, collection_id: str, before: dict, after: dict) -> None:
+    """Reject a new value of a `type: user` field that is not a current member (422)."""
+    cache: dict[str, set[str]] = {}
+    for key, source, value in record_service.changed_user_values(before, after):
+        if source not in cache:
+            try:
+                members = await collection_service.get_collection_members(db, collection_id, source)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=f"Field '{key}': {exc}")
+            cache[source] = {m["username"] for m in members}
+        if value not in cache[source]:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Field '{key}': '{value}' is not a user of this collection ({source})",
+            )
+
+
 @router.patch("/{record_id}", response_model=UniRecord, summary="Update record")
 # Aktualizuje stav a/nebo data zaznamu; vyzaduje pristup ke kolekci
 # Pokud zaznam zamkl jiny uzivatel, vraci 423 (zamek je vynucen na serveru)
@@ -129,6 +146,11 @@ async def update_record(
             if changed:
                 info["changed"] = changed[:50]
         request.state.audit = info
+    if before and body.data is not None:
+        await _check_user_fields(db, collection_id, before.data, body.data)
+        bad = record_service.invalid_typed_values(before.data, body.data)
+        if bad:
+            raise HTTPException(status_code=422, detail=bad[0])
     try:
         record = await record_service.update_record(storage, record_id, body, collection)
     except ValueError as exc:

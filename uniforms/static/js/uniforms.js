@@ -34,6 +34,13 @@
  *   - placeholder: "..."              (UI hint, not saved as value)
  *   - flat steps: (resolved by backend into step_groups with null title)
  *   - append_row_template: {}         (default values for user-added table rows)
+ *   - type: datetime, display_tz: local|utc  (stored as UTC '…Z'; shown/entered in the
+ *                                      app timezone APP_TIME.timezone, or in UTC)
+ *   - type: date ('YYYY-MM-DD') / time ('HH:MM', local wall-clock, e.g. a feeding
+ *     schedule) – stored as typed, never converted between time zones
+ *   - table columns may use the same types: date, time, datetime
+ *   - type: user, source: <src>       (app-defined list: users of the collection;
+ *                                      needs UniForms.setUserProvider, else a text input)
  */
 
 const UniForms = (() => {
@@ -252,11 +259,20 @@ function renderInfoGrid(fields, colCls = 'col-md-4 col-lg-3', gridCls = 'row g-2
     const grid = el('div', gridCls);
     fields.forEach(field => {
         const col = el('div', colCls);
-        const val = field.value !== null && field.value !== undefined ? field.value : '–';
         setHTML(col, `<div class="d-flex flex-column">
             <span class="text-muted small">${field.label}</span>
-            <span class="small fw-semibold">${val}</span>
+            <span class="small fw-semibold uf-val"></span>
         </div>`);
+        // value as text (never HTML); instants converted to the field's zone
+        const valEl = col.querySelector('.uf-val');
+        valEl.textContent = readonlyText(field);
+        const d = isInstantField(field) ? parseInstant(field.value) : null;
+        if (d) {
+            valEl.title = `stored ${field.value}`;
+            const z = el('span', 'text-muted small');
+            z.textContent = zoneLabel(fieldZone(field), d);
+            col.firstElementChild.appendChild(z);
+        }
         grid.appendChild(col);
     });
     return grid;
@@ -273,13 +289,264 @@ function buildOptions(sel, options, currentValue) {
 }
 
 // ---------------------------------------------------------------------------
+// Date & time – instants are stored in UTC ('YYYY-MM-DDTHH:MM:SSZ') and shown /
+// entered in the app timezone (APP_TIME.timezone) or in UTC (field.display_tz: utc).
+// Legacy values without an offset were written in the .env zone (APP_TIME.legacy_timezone).
+// ---------------------------------------------------------------------------
+
+const APP_TIME_CFG = (typeof APP_TIME !== 'undefined' && APP_TIME) || {};
+const APP_TZ = APP_TIME_CFG.timezone || 'UTC';
+const DATE_FMT = APP_TIME_CFG.date_format || 'DD.MM.YYYY';     // Settings → Date & time
+// Values saved before UTC storage have no offset; they were written in the .env zone,
+// so they are read in that fixed zone – changing the Settings zone must not move them.
+const LEGACY_TZ = APP_TIME_CFG.legacy_timezone || APP_TZ;
+const TIME_12H = APP_TIME_CFG.time_format === '12h';
+const AUTO_INSTANTS = ['now', 'last_saved'];
+
+function isInstantField(field) {
+    return field.type === 'datetime' || AUTO_INSTANTS.includes(field.auto_value);
+}
+
+function fieldZone(field) {
+    return field.display_tz === 'utc' ? 'UTC' : APP_TZ;
+}
+
+// Wall-clock parts of a Date in an IANA zone
+function zoneParts(date, tz) {
+    const parts = {};
+    new Intl.DateTimeFormat('en-US', {timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit',
+        day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'})
+        .formatToParts(date).forEach(p => { parts[p.type] = p.value; });
+    return parts;
+}
+
+// Offset of the zone from UTC at that instant, in minutes (e.g. +120 for CEST)
+function zoneOffset(date, tz) {
+    const p = zoneParts(date, tz);
+    const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+    return Math.round((asUtc - Math.floor(date.getTime() / 1000) * 1000) / 60000);
+}
+
+// 'YYYY-MM-DDTHH:MM' wall time in a zone → Date (handles DST)
+function wallToDate(wall, tz) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(wall || '');
+    if (!m) return null;
+    const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+    let t = guess - zoneOffset(new Date(guess), tz) * 60000;
+    t = guess - zoneOffset(new Date(t), tz) * 60000;
+    return new Date(t);
+}
+
+// Stored value → Date (null when not a date-time)
+function parseInstant(value) {
+    if (typeof value !== 'string' || !value) return null;
+    if (/(Z|[+-]\d{2}:?\d{2})$/.test(value)) {
+        const d = new Date(value);
+        return isNaN(d) ? null : d;
+    }
+    return wallToDate(value, LEGACY_TZ);       // legacy: local time of the .env zone
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function offsetText(date, tz) {
+    const off = zoneOffset(date, tz), sign = off < 0 ? '-' : '+', a = Math.abs(off);
+    return `UTC${sign}${pad2(Math.floor(a / 60))}:${pad2(a % 60)}`;
+}
+
+// Label of the zone a value is shown in, e.g. "Europe/Prague (UTC+02:00)" or "UTC"
+function zoneLabel(tz, date) {
+    return tz === 'UTC' ? 'UTC' : `${tz} (${offsetText(date || new Date(), tz)})`;
+}
+
+// Display text per Settings, e.g. "13.10.2026 11:04" or "2026-10-13 11:04 AM"
+function formatInstant(value, tz) {
+    const d = parseInstant(value);
+    if (!d) return value;
+    const p = zoneParts(d, tz || APP_TZ);
+    const date = DATE_FMT.replace('DD', p.day).replace('MM', p.month).replace('YYYY', p.year);
+    let time = `${p.hour}:${p.minute}`;
+    if (TIME_12H) {
+        const h = +p.hour;
+        time = `${h % 12 || 12}:${p.minute} ${h < 12 ? 'AM' : 'PM'}`;
+    }
+    return `${date} ${time}`;
+}
+
+// Calendar day 'YYYY-MM-DD' and wall-clock time 'HH:MM' – no time zone involved
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_RE = /^(\d{2}):(\d{2})(?::\d{2})?$/;
+
+function formatDate(value) {
+    const m = DATE_RE.exec(value || '');
+    return m ? DATE_FMT.replace('DD', m[3]).replace('MM', m[2]).replace('YYYY', m[1]) : value;
+}
+
+function formatTime(value) {
+    const m = TIME_RE.exec(value || '');
+    if (!m) return value;
+    if (!TIME_12H) return `${m[1]}:${m[2]}`;
+    const h = +m[1];
+    return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+const LOCAL_TIME_NOTE = 'Local time – not converted between time zones';
+
+// Display text of a typed value (field or table cell)
+function formatTyped(type, value, tz) {
+    if (value === null || value === undefined || value === '') return '–';
+    if (type === 'date') return formatDate(value);
+    if (type === 'time') return formatTime(value);
+    if (type === 'datetime') {
+        if (!parseInstant(value)) return value;
+        return `${formatInstant(value, tz)}${tz === 'UTC' ? ' UTC' : ''}`;
+    }
+    return value;
+}
+
+// Date & time input bound to obj[key]: shows the value in `tz`, stores UTC '…Z'
+function datetimeInput(obj, key, tz, cls, onChange) {
+    const inp = el('input', cls || 'form-control form-control-sm');
+    inp.type = 'datetime-local';
+    const current = parseInstant(obj[key]);
+    if (current) {
+        const p = zoneParts(current, tz);
+        inp.value = `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+    }
+    inp.addEventListener('change', () => {
+        const d = inp.value ? wallToDate(inp.value, tz) : null;
+        obj[key] = d ? d.toISOString().replace(/\.\d{3}Z$/, 'Z') : null;
+        if (onChange) onChange();
+    });
+    return inp;
+}
+
+// Date or time input bound to obj[key]; the value is stored exactly as typed
+function plainInput(type, obj, key, cls) {
+    const inp = el('input', cls || 'form-control form-control-sm');
+    const v = obj[key];
+    const fmt = type === 'date' ? 'YYYY-MM-DD' : 'HH:MM';
+    if (v && !(type === 'date' ? DATE_RE : TIME_RE).test(v)) {
+        // older free text (e.g. "ráno") – keep it visible and editable; saved unchanged it stays as is
+        inp.type = 'text';
+        inp.value = v;
+        inp.placeholder = fmt;
+        inp.title = `Older value – to change it, enter ${fmt}`;
+        inp.classList.add('uf-legacy-value');
+    } else {
+        inp.type = type;                   // 'date' | 'time'
+        if (type === 'time') inp.step = 60;
+        if (v) inp.value = type === 'time' ? v.slice(0, 5) : v;
+    }
+    inp.addEventListener('change', () => { obj[key] = inp.value || null; });
+    return inp;
+}
+
+function renderDatetimeInput(field) {
+    const tz = fieldZone(field);
+    const wrap = el('div');
+    const note = el('div', 'form-text text-secondary small mt-1 uf-tz-note');
+    const showNote = () => { note.textContent = `Time zone: ${zoneLabel(tz, parseInstant(field.value))}`; };
+    const inp = datetimeInput(field, 'value', tz, null, showNote);
+    inp.dataset.fieldKey = field.key;
+    showNote();
+    wrap.appendChild(inp);
+    wrap.appendChild(note);
+    return wrap;
+}
+
+function renderDateTimeOnlyInput(field) {
+    const inp = plainInput(field.type, field, 'value');
+    inp.dataset.fieldKey = field.key;
+    if (field.type !== 'time') return inp;
+    const wrap = el('div');
+    const note = el('div', 'form-text text-secondary small mt-1 uf-tz-note');
+    note.textContent = LOCAL_TIME_NOTE;
+    wrap.appendChild(inp);
+    wrap.appendChild(note);
+    return wrap;
+}
+
+// Read-only value text (+ zone for instants)
+function readonlyText(field) {
+    const v = field.value;
+    if (v === null || v === undefined || v === '') return '–';
+    if (isInstantField(field) && parseInstant(v)) return formatTyped('datetime', v, fieldZone(field));
+    if (field.type === 'date' || field.type === 'time') return formatTyped(field.type, v);
+    return v;
+}
+
+// ---------------------------------------------------------------------------
+// App-defined lists – `type: user` fields
+//
+// The page supplies the users via UniForms.setUserProvider(source => Promise<[{username, role}]>).
+// Without a provider (e.g. Designer preview), or when it fails, the field degrades to a
+// plain text input so a record can still be edited.
+// ---------------------------------------------------------------------------
+
+let userProvider = null;
+
+function textInput(field, placeholder) {
+    const inp = el('input', 'form-control form-control-sm');
+    inp.type = 'text';
+    inp.placeholder = placeholder || '';
+    inp.dataset.fieldKey = field.key;
+    inp.value = field.value || '';
+    inp.addEventListener('change', () => { field.value = inp.value || null; });
+    return inp;
+}
+
+function renderUserInput(field) {
+    const source = field.source || 'collection_members';
+    if (!userProvider) return textInput(field, field.placeholder || 'username');
+    const wrap = el('div');
+    const sel = el('select', 'form-select form-select-sm');
+    sel.dataset.fieldKey = field.key;
+    sel.disabled = true;
+    const addOpt = (value, label) => {
+        const o = document.createElement('option');
+        o.value = value;
+        o.textContent = label;
+        if ((field.value || '') === value) o.selected = true;
+        sel.appendChild(o);
+    };
+    addOpt('', '– select user –');
+    if (field.value) addOpt(field.value, field.value);   // until the list arrives
+    sel.addEventListener('change', () => { field.value = sel.value || null; });
+    wrap.appendChild(sel);
+    Promise.resolve()
+        .then(() => userProvider(source))
+        .then(users => {
+            if (!Array.isArray(users)) throw new Error('no user list');
+            while (sel.firstChild) sel.removeChild(sel.firstChild);
+            addOpt('', '– select user –');
+            const names = users.map(u => u.username);
+            users.forEach(u => addOpt(u.username, u.username));
+            // keep a value that is not (or no longer) a member – e.g. older free-text records
+            if (field.value && !names.includes(field.value)) addOpt(field.value, `${field.value} (not a user of this collection)`);
+            sel.disabled = false;
+        })
+        .catch(() => { wrap.replaceChild(textInput(field, 'username'), sel); });
+    return wrap;
+}
+
+// ---------------------------------------------------------------------------
 // Field input widget factory
 // ---------------------------------------------------------------------------
 
 function renderFieldInput(field) {
     if (!field.editable) {
-        return el('span', 'text-secondary fst-italic',
-            field.value !== null && field.value !== undefined ? field.value : '–');
+        const span = el('span', 'text-secondary fst-italic');
+        span.textContent = readonlyText(field);
+        const d = isInstantField(field) ? parseInstant(field.value) : null;
+        if (!d) return span;
+        span.title = `stored ${field.value}`;
+        const wrap = el('div');
+        const note = el('div', 'form-text text-secondary small uf-tz-note');
+        note.textContent = `Time zone: ${zoneLabel(fieldZone(field), d)}`;
+        wrap.appendChild(span);
+        wrap.appendChild(note);
+        return wrap;
     }
 
     // placeholder: UI hint only; example: pre-filled default value (both usable)
@@ -329,14 +596,13 @@ function renderFieldInput(field) {
             inp.addEventListener('change', () => { field.value = inp.value !== '' ? Number(inp.value) : null; });
             return inp;
         }
-        case 'datetime': {
-            const inp = el('input', 'form-control form-control-sm');
-            inp.type = 'datetime-local';
-            inp.dataset.fieldKey = field.key;
-            if (field.value) inp.value = field.value.substring(0, 16);
-            inp.addEventListener('change', () => { field.value = inp.value || null; });
-            return inp;
-        }
+        case 'user':
+            return renderUserInput(field);
+        case 'datetime':
+            return renderDatetimeInput(field);
+        case 'date':
+        case 'time':
+            return renderDateTimeOnlyInput(field);
         default: {
             const inp = el('input', 'form-control form-control-sm');
             inp.type = 'text';
@@ -436,7 +702,19 @@ function renderTable(section) {
     const thead = document.createElement('thead');
     const headTr = document.createElement('tr');
     headTr.className = 'table-light';
-    cols.forEach(col => headTr.appendChild(el('th', 'text-muted small', col.label)));
+    const colZone = col => (col.display_tz === 'utc' ? 'UTC' : APP_TZ);
+    cols.forEach(col => {
+        const th = el('th', 'text-muted small');
+        th.textContent = col.label;
+        const zone = col.type === 'datetime' ? zoneLabel(colZone(col)) : col.type === 'time' ? 'local time' : null;
+        if (zone) {
+            const z = el('span', 'fw-normal ms-1 uf-tz-note');
+            z.textContent = `(${zone})`;
+            z.title = col.type === 'time' ? LOCAL_TIME_NOTE : 'Stored in UTC, shown in this time zone';
+            th.appendChild(z);
+        }
+        headTr.appendChild(th);
+    });
     if (hasActions) headTr.appendChild(el('th', ''));
     thead.appendChild(headTr);
 
@@ -456,6 +734,10 @@ function renderTable(section) {
                 buildOptions(sel, col.options || [], row[col.key]);
                 sel.addEventListener('change', () => { row[col.key] = sel.value || null; });
                 td.appendChild(sel);
+            } else if (isEditable && col.type === 'datetime') {
+                td.appendChild(datetimeInput(row, col.key, colZone(col), 'form-control form-control-sm border-0 bg-transparent'));
+            } else if (isEditable && (col.type === 'date' || col.type === 'time')) {
+                td.appendChild(plainInput(col.type, row, col.key, 'form-control form-control-sm border-0 bg-transparent'));
             } else if (isEditable) {
                 const inp = el('input', 'form-control form-control-sm border-0 bg-transparent');
                 inp.type = 'text';
@@ -464,7 +746,7 @@ function renderTable(section) {
                 td.appendChild(inp);
             } else {
                 td.className = 'small align-middle text-muted';
-                td.textContent = row[col.key] || '–';
+                td.textContent = formatTyped(col.type, row[col.key], colZone(col));
             }
             tr.appendChild(td);
         });
@@ -682,6 +964,9 @@ function renderChecklist(section) {
 return {
     render:           renderSections,
     registerRenderer: (type, fn) => { renderers[type] = fn; },
+    setUserProvider:  fn => { userProvider = typeof fn === 'function' ? fn : null; },
+    // Date & time helpers (UTC storage ↔ app timezone display)
+    time: { timezone: APP_TZ, dateFormat: DATE_FMT, parseInstant, formatInstant, formatDate, formatTime, formatTyped, zoneLabel },
     // Expose helpers for use by extensions
     _helpers: {
         el, setHTML, buildTableHead, buildOptions, makeDeleteBtn,

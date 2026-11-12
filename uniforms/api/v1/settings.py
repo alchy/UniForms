@@ -6,19 +6,24 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 # ---------------------------------------------------------------------------
 # API endpointy pro runtime nastavení aplikace. Vyžadují roli system_admin.
 # GET   /settings/      – vrátí všechna editovatelná nastavení (slovník klíč→hodnota).
-# PATCH /settings/      – aktualizuje jeden nebo více klíčů (records_dir, schemas_dir, collections_dir).
-# Zadaný adresář musí fyzicky existovat, jinak endpoint vrátí HTTP 400.
+# PATCH /settings/      – aktualizuje jeden nebo více klíčů (records_dir, schemas_dir, collections_dir,
+#                         designer_enabled, time_zone, date_format, time_format).
+# Zadaný adresář musí fyzicky existovat, jinak endpoint vrátí HTTP 422.
+# Časové pásmo musí být platné IANA jméno; časy se ukládají v UTC, nastavení mění jen zobrazení.
 # ---------------------------------------------------------------------------
 
 from uniforms.core.database import get_db
 from uniforms.core.security import require_admin
 from uniforms.models.user import User
-from uniforms.services.settings_service import BOOL_SETTINGS, get_all_settings, get_bool_setting, set_setting
+from uniforms.services.settings_service import (
+    BOOL_SETTINGS, TIME_SETTING_KEYS, get_all_settings, get_bool_setting, load_time_settings,
+    set_setting, validate_time_setting,
+)
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 # Pouze tato nastaveni lze menit pres GUI; branding a terminologie jsou v uniforms.yaml
-_ALLOWED_KEYS = {"records_dir", "schemas_dir", "collections_dir", *BOOL_SETTINGS}
+_ALLOWED_KEYS = {"records_dir", "schemas_dir", "collections_dir", *BOOL_SETTINGS, *TIME_SETTING_KEYS}
 
 
 @router.get("/", summary="Current path settings (admin)")
@@ -30,6 +35,7 @@ async def get_settings(
     current = await get_all_settings(db)
     for key in BOOL_SETTINGS:
         current[key] = "true" if await get_bool_setting(db, key) else "false"
+    current.update(await load_time_settings(db))      # effective values incl. defaults
     return current
 
 
@@ -55,6 +61,13 @@ async def update_settings(
                     detail=f"Value for '{key}' must be 'true' or 'false'.",
                 )
             await set_setting(db, key, value)
+            continue
+        if key in TIME_SETTING_KEYS:
+            error = validate_time_setting(key, value)
+            if error:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=error)
+            await set_setting(db, key, value)
+            await load_time_settings(db)          # pages pick the new values up at once
             continue
         if not value or not value.strip():
             raise HTTPException(

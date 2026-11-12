@@ -37,6 +37,10 @@ def _base_context(request: Request) -> dict:
         "app_name": uniforms.app.name,
         "app_subtitle": uniforms.app.subtitle,
         "term": uniforms.terminology.model_dump(),
+        # Times are stored in UTC and shown per Settings → Date & time (see uniforms.js)
+        "app_time": settings_service.time_settings(),
+        # zone of old values saved without an offset (they were written in the .env zone)
+        "app_legacy_timezone": app_settings.timezone,
     }
 
 
@@ -317,7 +321,9 @@ async def templates_list(
     db: aiosqlite.Connection = Depends(get_db),
 ):
     sidebar = await _sidebar_ctx(db, user, collection_id)
-    tmpl_list = await svc.list_templates()
+    # Only forms get a card; block libraries are loaded too so a card can name the
+    # library it uses (they are edited in the Designer / YAML editor, not listed here)
+    tmpl_list = await svc.list_templates(include_abstract=True)
     return templates.TemplateResponse("templates_list.html", {
         "request": request,
         "user": _user_ctx(user),
